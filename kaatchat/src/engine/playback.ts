@@ -6,6 +6,7 @@ import type { AudioClip, EditView, ProjectIndex, MediaAsset } from './types';
 import { ASPECTS } from './types';
 import { locate, sequenceDuration, clipStarts, clipLength } from './timeline';
 import { drawCaption, drawClipFrame, CAPTION_FONT } from './render';
+import { drawOverlay, drawTransition, overlaysAt, transitionWindows } from './motion';
 import { captionCues, cueAt, type CaptionCue } from './transcript';
 import { fromDb } from './dsp';
 import { duckDbAt, fadeGain, speechRanges } from './beats';
@@ -93,7 +94,11 @@ export class Player {
         m.el.pause();
         this.music.delete(id);
       }
-    if (aspectChanged) this.resize();
+    if (aspectChanged) {
+      this.resize();
+      this.snaps.clear();
+    }
+    this.prefetchTransitionFrames();
     const d = this.duration;
     if (this._time > d) this._time = d;
     this.activeClipId = null;
@@ -309,32 +314,124 @@ export class Player {
     this.raf = requestAnimationFrame(this.tick);
   };
 
+  /** Composed frames of clips we have shown, for held-frame transitions in preview. */
+  private snaps = new Map<string, OffscreenCanvas>();
+  private images = new Map<string, HTMLImageElement>();
+  private scratch: [OffscreenCanvas, OffscreenCanvas] | null = null;
+
+  private overlayImage(assetId: string): HTMLImageElement | undefined {
+    let img = this.images.get(assetId);
+    const url = media.url(assetId);
+    if (!url) return undefined;
+    if (!img || img.src !== url) {
+      img = new Image();
+      img.src = url;
+      img.onload = () => this.draw();
+      this.images.set(assetId, img);
+    }
+    return img.complete && img.naturalWidth ? img : undefined;
+  }
+
+  /** Draw one clip into `ctx`, live if it is the element's current clip, else from its snapshot. */
+  private drawClip(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, index: number, W: number, H: number, live: boolean) {
+    const clip = this.doc.clips[index];
+    const asset = this.doc.assets[clip.assetId];
+    const s = asset ? this.source(asset) : null;
+    const snap = this.snaps.get(clip.id);
+    if (live && s?.el && s.el.readyState >= 2) drawClipFrame(ctx, s.el, s.el.videoWidth, s.el.videoHeight, clip, W, H);
+    else if (s?.img && s.img.complete && s.img.naturalWidth) drawClipFrame(ctx, s.img, s.img.naturalWidth, s.img.naturalHeight, clip, W, H);
+    else if (snap) ctx.drawImage(snap, 0, 0, W, H);
+    else {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+      return false;
+    }
+    return true;
+  }
+
+  private snapshot(clipId: string, from: CanvasImageSource, W: number, H: number) {
+    let c = this.snaps.get(clipId);
+    if (!c || c.width !== W || c.height !== H) {
+      c = new OffscreenCanvas(W, H);
+      this.snaps.set(clipId, c);
+    }
+    c.getContext('2d')!.drawImage(from, 0, 0, W, H);
+  }
+
   draw() {
     const ctx = this.ctx;
     const c = this.canvas;
     if (!ctx || !c) return;
-    const hit = locate(this.doc.clips, this._time);
+    const W = c.width;
+    const H = c.height;
+    const t = this._time;
+    const hit = locate(this.doc.clips, t);
     if (!hit) {
       ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.fillRect(0, 0, W, H);
       return;
     }
-    const asset = this.doc.assets[hit.clip.assetId];
-    const s = asset ? this.source(asset) : null;
-    if (s?.el && s.el.readyState >= 2) drawClipFrame(ctx, s.el, s.el.videoWidth, s.el.videoHeight, hit.clip, c.width, c.height);
-    else if (s?.img && s.img.complete && s.img.naturalWidth) drawClipFrame(ctx, s.img, s.img.naturalWidth, s.img.naturalHeight, hit.clip, c.width, c.height);
-    else {
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, c.width, c.height);
-      if (asset && !media.get(asset.id)) {
+    const starts = clipStarts(this.doc.clips);
+    const w = transitionWindows(this.doc.clips, starts).find((x) => t >= x.start && t < x.end);
+    if (w) {
+      if (!this.scratch || this.scratch[0].width !== W || this.scratch[0].height !== H) this.scratch = [new OffscreenCanvas(W, H), new OffscreenCanvas(W, H)];
+      const [a, b] = this.scratch;
+      const before = t < w.boundary;
+      this.drawClip(a.getContext('2d')!, w.fromIndex, W, H, before);
+      this.drawClip(b.getContext('2d')!, w.fromIndex + 1, W, H, !before);
+      if (before) this.snapshot(this.doc.clips[w.fromIndex].id, a, W, H);
+      else this.snapshot(this.doc.clips[w.fromIndex + 1].id, b, W, H);
+      drawTransition(ctx, w.kind, a, b, (t - w.start) / (w.end - w.start), W, H);
+    } else {
+      const ok = this.drawClip(ctx, hit.index, W, H, true);
+      if (ok) this.snapshot(hit.clip.id, c, W, H);
+      const asset = this.doc.assets[hit.clip.assetId];
+      if (!ok && asset && !media.get(asset.id)) {
         ctx.fillStyle = 'rgba(255,255,255,0.55)';
-        ctx.font = `500 ${Math.round(c.height * 0.035)}px ${CAPTION_FONT}`;
+        ctx.font = `500 ${Math.round(H * 0.035)}px ${CAPTION_FONT}`;
         ctx.textAlign = 'center';
-        ctx.fillText(`Relink “${asset.name}” to preview`, c.width / 2, c.height / 2);
+        ctx.fillText(`Relink “${asset.name}” to preview`, W / 2, H / 2);
         ctx.textAlign = 'start';
       }
     }
-    if (this.doc.captions.enabled) drawCaption(ctx, cueAt(this.cues, this._time), this._time, this.doc.captions.style, c.width, c.height, CAPTION_FONT);
+    for (const o of overlaysAt(this.doc.overlays, t)) drawOverlay(ctx, o, t - o.start, W, H, o.assetId ? this.overlayImage(o.assetId) : undefined);
+    if (this.doc.captions.enabled) drawCaption(ctx, cueAt(this.cues, t), t, this.doc.captions.style, W, H, CAPTION_FONT, this.doc.captions.accent);
+  }
+
+  /** Warm the first frame of the clip after each transition so the blend has something to show. */
+  prefetchTransitionFrames() {
+    const starts = clipStarts(this.doc.clips);
+    for (const w of transitionWindows(this.doc.clips, starts)) {
+      const next = this.doc.clips[w.fromIndex + 1];
+      if (this.snaps.has(next.id)) continue;
+      const asset = this.doc.assets[next.assetId];
+      const url = asset && media.url(asset.id);
+      if (!url || asset.kind !== 'video') continue;
+      const el = document.createElement('video');
+      el.muted = true;
+      el.preload = 'auto';
+      el.src = url;
+      el.addEventListener(
+        'loadeddata',
+        () => {
+          el.currentTime = next.in;
+        },
+        { once: true },
+      );
+      el.addEventListener(
+        'seeked',
+        () => {
+          const W = this.canvas?.width ?? 960;
+          const H = this.canvas?.height ?? 540;
+          const off = new OffscreenCanvas(W, H);
+          drawClipFrame(off.getContext('2d')!, el, el.videoWidth, el.videoHeight, next, W, H);
+          this.snaps.set(next.id, off);
+          el.removeAttribute('src');
+          el.load();
+        },
+        { once: true },
+      );
+    }
   }
 
   dispose() {

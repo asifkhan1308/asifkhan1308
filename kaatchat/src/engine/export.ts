@@ -22,8 +22,9 @@ import {
 } from 'mediabunny';
 import type { AspectId, Clip, EditView, ProjectIndex } from './types';
 import { ASPECTS } from './types';
-import { clipLength, clipStarts, sequenceDuration } from './timeline';
+import { clipLength, clipStarts, locate, sequenceDuration } from './timeline';
 import { drawCaption, drawClipFrame, CAPTION_FONT } from './render';
+import { drawOverlay, drawTransition, overlaysAt, transitionWindows } from './motion';
 import { captionCues, cueAt } from './transcript';
 import { TimelineMixer, SAMPLE_RATE } from './mixer';
 import { throwIfAborted, type JobControl } from './jobs';
@@ -121,84 +122,66 @@ export async function exportProject(doc: EditView, index: ProjectIndex, opts: Ex
   let framesDone = 0;
   let samplesDone = 0;
 
+  const framedClips: Clip[] = doc.clips.map((c) => (opts.framing === 'project' ? c : { ...c, fit: opts.framing }));
+  const windows = transitionWindows(doc.clips, starts);
+  const providers = framedClips.map((c, i) => {
+    // Frames this clip contributes, including transition handles either side.
+    const inW = windows.find((w) => w.fromIndex === i - 1);
+    const outW = windows.find((w) => w.fromIndex === i);
+    const from = inW ? inW.start : starts[i];
+    const to = outW ? outW.end : starts[i] + clipLength(c);
+    const k0 = Math.max(0, Math.round(from * fps));
+    const k1 = i === doc.clips.length - 1 ? totalFrames : Math.min(totalFrames, Math.round(to * fps) + 1);
+    const asset = doc.assets[c.assetId];
+    return new FrameProvider(media.get(c.assetId)!, asset.kind === 'image', asset.name, (k) => c.in + (k / fps - starts[i]), asset.duration, k0, k1);
+  });
+  const imageCache = await loadOverlayImages(doc);
+  const scratchA = new OffscreenCanvas(width, height);
+  const scratchB = new OffscreenCanvas(width, height);
+  const ctxA = scratchA.getContext('2d', { alpha: false })!;
+  const ctxB = scratchB.getContext('2d', { alpha: false })!;
+
+  const flushAudio = async (untilSeconds: number) => {
+    if (!audioSource) return;
+    const until = Math.round(untilSeconds * SAMPLE_RATE);
+    while (samplesDone < until) {
+      const next = Math.min(until, samplesDone + SAMPLE_RATE);
+      const planes = await mixer.render(samplesDone, next, ctl.signal);
+      const ab = new AudioBuffer({ length: next - samplesDone, numberOfChannels: 2, sampleRate: SAMPLE_RATE });
+      ab.copyToChannel(planes[0] as Float32Array<ArrayBuffer>, 0);
+      ab.copyToChannel(planes[1] as Float32Array<ArrayBuffer>, 1);
+      await audioSource.add(ab);
+      samplesDone = next;
+    }
+  };
+
   await output.start();
   try {
-    for (let i = 0; i < doc.clips.length; i++) {
+    for (let k = 0; k < totalFrames; k++) {
       throwIfAborted(ctl.signal);
-      const clip = doc.clips[i];
-      const framed: Clip = opts.framing === 'project' ? clip : { ...clip, fit: opts.framing };
-      const clipStart = starts[i];
-      const clipEnd = clipStart + clipLength(clip);
-      const k0 = Math.round(clipStart * fps);
-      const k1 = i === doc.clips.length - 1 ? totalFrames : Math.round(clipEnd * fps);
-      const blob = media.get(clip.assetId)!;
-      const asset = doc.assets[clip.assetId];
-
-      const drawAndAdd = async (k: number) => {
-        const t = k / fps;
-        if (cues.length) drawCaption(ctx, cueAt(cues, t), t, doc.captions.style, width, height, CAPTION_FONT);
-        await videoSource.add(t, 1 / fps);
-        framesDone++;
-        ctl.progress(framesDone / totalFrames, `Frame ${framesDone} of ${totalFrames} · ${videoCodec.toUpperCase()}`);
-      };
-
-      // ---- video
-      if (asset.kind === 'image') {
-        const bmp = await createImageBitmap(blob);
-        try {
-          for (let k = k0; k < k1; k++) {
-            throwIfAborted(ctl.signal);
-            drawClipFrame(ctx, bmp, bmp.width, bmp.height, framed, width, height);
-            await drawAndAdd(k);
-          }
-        } finally {
-          bmp.close();
-        }
-      } else if (k1 > k0) {
-        const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
-        try {
-          const track = await input.getPrimaryVideoTrack();
-          if (!track) throw new Error(`“${asset.name}” has no video track.`);
-          const first = await input.getFirstTimestamp([track]).catch(() => 0);
-          const sink = new CanvasSink(track, { poolSize: 2 });
-          const times = Array.from({ length: k1 - k0 }, (_, j) => first + Math.min(clip.out - 1e-3, clip.in + (k0 + j) / fps - clipStart));
-          let last: CanvasImageSource | null = null;
-          let lastW = 0;
-          let lastH = 0;
-          let j = 0;
-          for await (const wc of sink.canvasesAtTimestamps(times)) {
-            throwIfAborted(ctl.signal);
-            if (wc) {
-              last = wc.canvas;
-              lastW = wc.canvas.width;
-              lastH = wc.canvas.height;
-            }
-            if (last) drawClipFrame(ctx, last, lastW, lastH, framed, width, height);
-            else {
-              ctx.fillStyle = '#000';
-              ctx.fillRect(0, 0, width, height);
-            }
-            await drawAndAdd(k0 + j++);
-          }
-        } finally {
-          input.dispose();
-        }
+      const t = k / fps;
+      const w = windows.find((x) => t >= x.start && t < x.end);
+      if (w) {
+        const a = await providers[w.fromIndex].frame(k);
+        const b = await providers[w.fromIndex + 1].frame(k);
+        drawClipFrame(ctxA, a.src, a.w, a.h, framedClips[w.fromIndex], width, height, k);
+        drawClipFrame(ctxB, b.src, b.w, b.h, framedClips[w.fromIndex + 1], width, height, k);
+        drawTransition(ctx, w.kind, scratchA, scratchB, (t - w.start) / (w.end - w.start), width, height);
+      } else {
+        const i = locate(doc.clips, t)!.index;
+        const f = await providers[i].frame(k);
+        drawClipFrame(ctx, f.src, f.w, f.h, framedClips[i], width, height, k);
       }
-
-      // ---- audio (sample-exact to the timeline)
-      if (audioSource) {
-        const until = Math.round(clipEnd * SAMPLE_RATE);
-        while (samplesDone < until) {
-          const next = Math.min(until, samplesDone + SAMPLE_RATE);
-          const planes = await mixer.render(samplesDone, next, ctl.signal);
-          const ab = new AudioBuffer({ length: next - samplesDone, numberOfChannels: 2, sampleRate: SAMPLE_RATE });
-          ab.copyToChannel(planes[0] as Float32Array<ArrayBuffer>, 0);
-          ab.copyToChannel(planes[1] as Float32Array<ArrayBuffer>, 1);
-          await audioSource.add(ab);
-          samplesDone = next;
-        }
-      }
+      for (const o of overlaysAt(doc.overlays, t)) drawOverlay(ctx, o, t - o.start, width, height, o.assetId ? imageCache.get(o.assetId) : undefined);
+      if (cues.length) drawCaption(ctx, cueAt(cues, t), t, doc.captions.style, width, height, CAPTION_FONT, doc.captions.accent);
+      await videoSource.add(t, 1 / fps);
+      framesDone++;
+      ctl.progress(framesDone / totalFrames, `Frame ${framesDone} of ${totalFrames} · ${videoCodec.toUpperCase()}`);
+      // Release decoders we are done with; keep audio roughly in step with video.
+      providers.forEach((p) => p.releaseBefore(k));
+      if (k % fps === fps - 1) await flushAudio((k + 1) / fps);
     }
+    await flushAudio(total);
     throwIfAborted(ctl.signal);
     ctl.progress(1, 'Finishing file');
     await output.finalize();
@@ -207,6 +190,8 @@ export async function exportProject(doc: EditView, index: ProjectIndex, opts: Ex
     throw e;
   } finally {
     mixer.dispose();
+    providers.forEach((p) => p.dispose());
+    imageCache.forEach((b) => b.close());
   }
 
   const buf = (output.target as BufferTarget).buffer;
@@ -220,4 +205,87 @@ export async function exportProject(doc: EditView, index: ProjectIndex, opts: Ex
     seconds: total,
     elapsedMs: performance.now() - started,
   };
+}
+
+/** Sequential frames of one clip (with transition handles), decoded once. */
+class FrameProvider {
+  private input: Input | null = null;
+  private it: AsyncGenerator<{ canvas: HTMLCanvasElement | OffscreenCanvas } | null> | null = null;
+  private bmp: ImageBitmap | null = null;
+  private next: number;
+  private last: { src: CanvasImageSource; w: number; h: number } = { src: blank(), w: 0, h: 0 };
+  private closed = false;
+
+  constructor(
+    private blob: Blob,
+    private isImage: boolean,
+    private name: string,
+    private sourceAt: (k: number) => number,
+    private duration: number,
+    private k0: number,
+    private k1: number,
+  ) {
+    this.next = k0;
+  }
+
+  private async open() {
+    if (this.isImage) {
+      this.bmp = await createImageBitmap(this.blob);
+      this.last = { src: this.bmp, w: this.bmp.width, h: this.bmp.height };
+      return;
+    }
+    this.input = new Input({ source: new BlobSource(this.blob), formats: ALL_FORMATS });
+    const track = await this.input.getPrimaryVideoTrack();
+    if (!track) throw new Error(`“${this.name}” has no video track.`);
+    const first = await this.input.getFirstTimestamp([track]).catch(() => 0);
+    const sink = new CanvasSink(track, { poolSize: 3 });
+    const times: number[] = [];
+    for (let k = this.k0; k < this.k1; k++) times.push(first + Math.max(0, Math.min(this.duration - 1e-3, this.sourceAt(k))));
+    this.it = sink.canvasesAtTimestamps(times) as AsyncGenerator<{ canvas: HTMLCanvasElement | OffscreenCanvas } | null>;
+  }
+
+  async frame(k: number) {
+    if (this.closed) return this.last;
+    if (!this.input && !this.bmp) await this.open();
+    if (this.isImage) return this.last;
+    while (this.next <= k && this.next < this.k1 && this.it) {
+      const r = await this.it.next();
+      this.next++;
+      if (r.done) break;
+      if (r.value) this.last = { src: r.value.canvas, w: r.value.canvas.width, h: r.value.canvas.height };
+    }
+    return this.last;
+  }
+
+  releaseBefore(k: number) {
+    if (k >= this.k1 && !this.closed) this.dispose();
+  }
+
+  dispose() {
+    this.closed = true;
+    void this.it?.return?.(null);
+    this.input?.dispose();
+    this.bmp?.close();
+    this.input = null;
+  }
+}
+
+function blank(): OffscreenCanvas {
+  return new OffscreenCanvas(2, 2);
+}
+
+/** Overlay images (logos etc.) decoded once for the whole export. */
+async function loadOverlayImages(doc: EditView): Promise<Map<string, ImageBitmap>> {
+  const out = new Map<string, ImageBitmap>();
+  for (const o of doc.overlays) {
+    if (!o.assetId || out.has(o.assetId)) continue;
+    const blob = media.get(o.assetId);
+    if (!blob) continue;
+    try {
+      out.set(o.assetId, await createImageBitmap(blob));
+    } catch {
+      /* not an image; skipped */
+    }
+  }
+  return out;
 }

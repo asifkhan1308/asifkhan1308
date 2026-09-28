@@ -213,6 +213,39 @@ export function rulePlan(text: string, doc: EditView, index: ProjectIndex, playh
     cmds.push({ type: 'remove_silence', preset: 'aggressive' }, { type: 'smart_cuts', preset: 'aggressive' });
     said.push('tighter cuts (aggressive silence removal)');
   }
+  const look = /black (and|&) white|\bb&w\b|monochrome|grayscale|greyscale/.test(t)
+    ? 'bw'
+    : /cinematic (look|grade|colou?r)|make it (look )?cinematic|film look/.test(t)
+      ? 'cinematic'
+      : /vintage|retro/.test(t)
+        ? 'vintage'
+        : /\bwarm(er)?\b/.test(t)
+          ? 'warm'
+          : /\bcool(er)?\b (look|tone|colou?r)/.test(t)
+            ? 'cool'
+            : /(remove|no|clear) (the )?(look|grade|effects)/.test(t)
+              ? 'none'
+              : null;
+  if (look) {
+    cmds.push({ type: 'set_look', look });
+    said.push(look === 'none' ? 'remove the look' : `${look} look`);
+  }
+  const tr = /whip/.test(t) ? 'whip' : /dissolve|cross-?fade/.test(t) ? 'dissolve' : /fade to black|dip to black/.test(t) ? 'fade' : /slide transition/.test(t) ? 'slide' : /zoom transition/.test(t) ? 'zoom' : /blur transition/.test(t) ? 'blur' : /(no|remove) transitions|hard cuts|plain cuts/.test(t) ? 'cut' : /transition/.test(t) ? 'dissolve' : null;
+  if (tr) {
+    cmds.push({ type: 'set_transitions', kind: tr, duration: tr === 'whip' ? 0.3 : 0.5 });
+    said.push(tr === 'cut' ? 'plain cuts' : `${tr} transitions`);
+  }
+  if (/punch[- ]?ins?|zoom in on (every|alternate)|jump[- ]?cut zoom/.test(t)) {
+    cmds.push({ type: 'punch_in', amount: 1.15, pattern: /(no|remove) punch/.test(t) ? 'none' : 'alternate' });
+    said.push('punch in on alternate clips');
+  }
+  const titled = /(?:add|put)\s+(?:a\s+)?(?:title|text|heading)\s*(?:saying|that says|:)?\s*["“']([^"”']{1,120})["”']/.exec(text);
+  if (titled) {
+    const kinetic = /kinetic|animated/.test(t);
+    const pos = /lower third/.test(t) ? 'lower-third' : /top/.test(t) ? 'top' : /bottom/.test(t) ? 'bottom' : 'center';
+    cmds.push({ type: 'add_text', text: titled[1], start: Math.max(0, playhead), duration: 3, position: pos, animation: kinetic ? 'kinetic' : /typewriter/.test(t) ? 'typewriter' : 'pop' });
+    said.push(`title “${titled[1]}”`);
+  }
   if (/\bsplit\b/.test(t) && cmds.length === 0) {
     cmds.push({ type: 'split_clip', at: playhead });
     said.push('split at the playhead');

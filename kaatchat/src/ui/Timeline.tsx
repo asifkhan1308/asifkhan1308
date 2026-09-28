@@ -2,7 +2,9 @@ import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { EditorSession } from '../app/session';
 import { useStoreVersion } from '../app/hooks';
 import { clipLength, clipStarts, sequenceDuration } from '../engine/timeline';
-import type { AudioAnalysis, Clip } from '../engine/types';
+import type { AudioAnalysis, Clip, Overlay } from '../engine/types';
+import { imageOverlay, shapeOverlay, textOverlay } from '../engine/overlays';
+import { uid } from '../engine/id';
 import { Icon, fmtTime } from './bits';
 import { SequenceTabs } from './Sequences';
 
@@ -20,6 +22,7 @@ type Drag =
   | { kind: 'trim'; clipId: string; side: 'l' | 'r'; startX: number; delta: number }
   | { kind: 'move'; clipId: string; startX: number; delta: number }
   | { kind: 'music'; clipId: string; startX: number; delta: number }
+  | { kind: 'overlay'; clipId: string; edge: 'move' | 'end'; startX: number; delta: number }
   | { kind: 'scrub' };
 
 export function Timeline({ session, time, selected, onSelect, onSeek, onSplit, onDelete }: Props) {
@@ -73,6 +76,18 @@ export function Timeline({ session, time, selected, onSelect, onSeek, onSplit, o
             'Trim clip',
           );
         }
+      } else if (drag.kind === 'overlay' && Math.abs(drag.delta) > 2) {
+        const dt = drag.delta / pps;
+        store.mutate(drag.edge === 'move' ? 'Move text' : 'Change duration', (d) => ({
+          ...d,
+          overlays: d.overlays.map((o) =>
+            o.id !== drag.clipId
+              ? o
+              : drag.edge === 'move'
+                ? { ...o, start: Math.max(0, Math.round((o.start + dt) * 100) / 100) }
+                : { ...o, duration: Math.max(0.3, Math.round((o.duration + dt) * 100) / 100) },
+          ),
+        }));
       } else if (drag.kind === 'music' && Math.abs(drag.delta) > 2) {
         const dt = drag.delta / pps;
         store.mutate('Move music', (d) => ({ ...d, audio: d.audio.map((a) => (a.id === drag.clipId ? { ...a, start: Math.max(0, Math.round((a.start + dt) * 100) / 100) } : a)) }));
@@ -110,6 +125,7 @@ export function Timeline({ session, time, selected, onSelect, onSeek, onSplit, o
         <button className="btn sm" onClick={onDelete} disabled={!selected} title="Delete selected clip (Del)">
           <Icon name="trash" size={14} /> Delete
         </button>
+        <AddOverlay session={session} time={time} onSelect={onSelect} />
         <span className="faint small mono label">
           {doc.clips.length} clip{doc.clips.length === 1 ? '' : 's'} · {fmtTime(duration)}
         </span>
@@ -144,6 +160,44 @@ export function Timeline({ session, time, selected, onSelect, onSeek, onSplit, o
                 {tickStep < 1 ? `${fmtTime(t)}.${Math.round((t % 1) * 10)}` : fmtTime(t)}
               </span>
             ))}
+          </div>
+          <div className="track overlays" aria-label="Titles and graphics track">
+            {doc.overlays.length === 0 && <span className="lane-hint">Titles & graphics — use + Text, + Shape or + Logo</span>}
+            {doc.overlays.map((o) => {
+              const dragging = drag?.kind === 'overlay' && drag.clipId === o.id ? drag : null;
+              const left = 12 + o.start * pps + (dragging?.edge === 'move' ? dragging.delta : 0);
+              const w = Math.max(6, o.duration * pps + (dragging?.edge === 'end' ? dragging.delta : 0));
+              return (
+                <div
+                  key={o.id}
+                  className={`clip overlay${selected === o.id ? ' selected' : ''}`}
+                  style={{ left, width: w }}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={selected === o.id}
+                  aria-label={`${o.kind}: ${o.name}`}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    onSelect(o.id);
+                    setDrag({ kind: 'overlay', clipId: o.id, edge: 'move', startX: e.clientX, delta: 0 });
+                  }}
+                >
+                  <span className="label ellipsis">
+                    {o.kind === 'text' ? 'T' : o.kind === 'shape' ? '■' : '◎'} {o.name}
+                    {o.keyframes.length ? <span className="mono faint"> · {o.keyframes.length} key</span> : null}
+                  </span>
+                  <div
+                    className="handle r"
+                    aria-hidden="true"
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      onSelect(o.id);
+                      setDrag({ kind: 'overlay', clipId: o.id, edge: 'end', startX: e.clientX, delta: 0 });
+                    }}
+                  />
+                </div>
+              );
+            })}
           </div>
           <div
             className="track"
@@ -373,4 +427,34 @@ function Wave({ audio, from, to, width, height }: { audio?: AudioAnalysis; from:
     }
   }, [audio, from, to, width, height]);
   return <canvas className="wave" ref={ref} style={{ height }} />;
+}
+
+function AddOverlay({ session, time, onSelect }: { session: EditorSession; time: number; onSelect(id: string | null): void }) {
+  const { store } = session;
+  const doc = store.doc;
+  const disabled = doc.clips.length === 0;
+  const start = Math.round(time * 100) / 100;
+  const add = (o: Overlay, label: string) => {
+    store.mutate(label, (d) => ({ ...d, overlays: [...d.overlays, o] }));
+    onSelect(o.id);
+  };
+  const logo = doc.brand?.logoAssetId ?? Object.values(doc.assets).find((a) => a.kind === 'image')?.id;
+  return (
+    <>
+      <button className="btn sm" disabled={disabled} title="Add a text layer at the playhead" onClick={() => add(textOverlay(uid(), 'Your title', start, 3, { anim: 'pop' }), 'Add text')}>
+        <Icon name="text" size={13} /> <span className="label">Text</span>
+      </button>
+      <button className="btn sm" disabled={disabled} title="Add a shape at the playhead" onClick={() => add(shapeOverlay(uid(), start, 3), 'Add shape')}>
+        <span aria-hidden="true">■</span> <span className="label">Shape</span>
+      </button>
+      <button
+        className="btn sm"
+        disabled={disabled || !logo}
+        title={logo ? 'Add your logo (or the first image in the bin) at the playhead' : 'Import an image (e.g. your logo) first'}
+        onClick={() => logo && add(imageOverlay(uid(), logo, doc.assets[logo]?.name ?? 'Logo', start, Math.max(3, sequenceDuration(doc.clips) - start)), 'Add logo')}
+      >
+        <span aria-hidden="true">◎</span> <span className="label">Logo</span>
+      </button>
+    </>
+  );
 }

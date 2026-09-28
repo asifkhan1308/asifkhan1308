@@ -154,7 +154,7 @@ function EditorView({ session }: { session: EditorSession }) {
     player.update(doc, index);
   }, [player, doc, index]);
   useEffect(() => {
-    if (selected && !doc.clips.some((c) => c.id === selected) && !doc.audio.some((a) => a.id === selected)) setSelected(null);
+    if (selected && !doc.clips.some((c) => c.id === selected) && !doc.audio.some((a) => a.id === selected) && !doc.overlays.some((o) => o.id === selected)) setSelected(null);
   }, [doc, selected]);
 
   const importFiles = useCallback(
@@ -214,6 +214,7 @@ function EditorView({ session }: { session: EditorSession }) {
   const del = useCallback(() => {
     if (!selected) return;
     if (store.doc.audio.some((a) => a.id === selected)) store.mutate('Remove music', (d) => ({ ...d, audio: d.audio.filter((a) => a.id !== selected) }));
+    else if (store.doc.overlays.some((o) => o.id === selected)) store.mutate('Delete layer', (d) => ({ ...d, overlays: d.overlays.filter((o) => o.id !== selected) }));
     else store.run([{ type: 'delete_clip', clipId: selected }], 'Delete clip');
     setSelected(null);
   }, [store, selected]);

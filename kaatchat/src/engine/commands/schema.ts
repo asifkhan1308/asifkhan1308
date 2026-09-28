@@ -14,6 +14,9 @@ const range = z
 export const AspectSchema = z.enum(['16:9', '9:16', '1:1', '4:5']);
 export const SilencePresetSchema = z.enum(['natural', 'balanced', 'aggressive']);
 export const CaptionStyleSchema = z.enum(['minimal', 'bold', 'podcast', 'kinetic', 'clean']);
+export const AnimationSchema = z.enum(['none', 'fade', 'slide-up', 'slide-left', 'scale', 'pop', 'typewriter', 'blur', 'tracking', 'kinetic']);
+export const LookSchema = z.enum(['none', 'clean', 'cinematic', 'punchy', 'warm', 'cool', 'bw', 'vintage', 'product']);
+export const TransitionSchema = z.enum(['cut', 'dissolve', 'fade', 'slide', 'zoom', 'blur', 'whip']);
 
 export const CommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('split_clip'), at: seconds }).strict(),
@@ -48,6 +51,19 @@ export const CommandSchema = z.discriminatedUnion('type', [
     })
     .strict(),
   z.object({ type: z.literal('rename_project'), name: z.string().min(1).max(120) }).strict(),
+  z
+    .object({
+      type: z.literal('add_text'),
+      text: z.string().min(1).max(200),
+      start: seconds.default(0),
+      duration: z.number().min(0.3).max(600).default(3),
+      position: z.enum(['top', 'center', 'bottom', 'lower-third']).default('center'),
+      animation: AnimationSchema.default('fade'),
+    })
+    .strict(),
+  z.object({ type: z.literal('set_look'), look: LookSchema, clipIds: z.array(id).max(500).optional() }).strict(),
+  z.object({ type: z.literal('set_transitions'), kind: TransitionSchema, duration: z.number().min(0.1).max(3).default(0.5) }).strict(),
+  z.object({ type: z.literal('punch_in'), amount: z.number().min(1).max(1.6).default(1.15), pattern: z.enum(['alternate', 'all', 'none']).default('alternate') }).strict(),
   z.object({ type: z.literal('sync_to_beat'), window: z.number().min(0.05).max(1).default(0.25) }).strict(),
   z
     .object({ type: z.literal('set_fades'), fadeIn: z.number().min(0).max(5).default(0.15), fadeOut: z.number().min(0).max(5).default(0.15) })
@@ -93,6 +109,11 @@ export const COMMAND_DOCS: Record<CommandType, string> = {
   select_highlights:
     '{"type":"select_highlights","targetDuration":<s>} — keep the most energetic moments (measured loudness) up to that length',
   rename_project: '{"type":"rename_project","name":"…"}',
+  add_text:
+    '{"type":"add_text","text":"…","start":<timeline s>,"duration":3,"position":"top"|"center"|"bottom"|"lower-third","animation":"fade"|"slide-up"|"slide-left"|"scale"|"pop"|"typewriter"|"blur"|"tracking"|"kinetic"} — an animated text layer',
+  set_look: '{"type":"set_look","look":"none"|"clean"|"cinematic"|"punchy"|"warm"|"cool"|"bw"|"vintage"|"product"} — a colour/effects look on every clip (or clipIds)',
+  set_transitions: '{"type":"set_transitions","kind":"cut"|"dissolve"|"fade"|"slide"|"zoom"|"blur"|"whip","duration":0.5} — the same transition on every cut',
+  punch_in: '{"type":"punch_in","amount":1.15,"pattern":"alternate"|"all"|"none"} — zoom in on alternating clips (talking-head jump cuts)',
   sync_to_beat: '{"type":"sync_to_beat","window":0.25} — nudge cuts onto the beat of the music track (needs music with a detected beat)',
   set_fades: '{"type":"set_fades","fadeIn":0.15,"fadeOut":0.15} — audio fades on every clip, seconds',
   duck_music: '{"type":"duck_music","enabled":true,"duckDb":-12} — lower music while someone is speaking',

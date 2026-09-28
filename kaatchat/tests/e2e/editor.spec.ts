@@ -232,3 +232,46 @@ test('music: beat detection, sync to beat, ducking, mixed export', async ({ page
   expect(info.audio).toMatch(/aac|opus/);
   expect(info.duration).toBeGreaterThan(4);
 });
+
+test('motion: text layer with keyframes, transitions, look, export', async ({ page }) => {
+  await importFromHome(page);
+  const studio = page.locator('.panel.right');
+  await studio.getByRole('textbox', { name: 'Request' }).fill('Remove all boring pauses');
+  await studio.getByRole('button', { name: 'Plan it' }).click();
+  await studio.getByRole('button', { name: 'Apply' }).click();
+  const before = await timelineSeconds(page);
+
+  // Text layer at the playhead, edited in the inspector.
+  await page.locator('body').press('Home');
+  await page.getByRole('button', { name: 'Text', exact: true }).click();
+  await expect(page.getByLabel('Titles and graphics track').getByRole('button')).toHaveCount(1);
+  await studio.getByRole('tab', { name: 'Clip' }).click();
+  const text = studio.getByRole('textbox', { name: 'Text', exact: true });
+  await text.fill('Kaatchat');
+  await text.blur();
+  await expect(page.getByLabel('Titles and graphics track').getByText('Kaatchat')).toBeVisible();
+  await studio.getByRole('button', { name: '◆ Keyframe here' }).click();
+  await expect(studio.getByText('◆ 0.00s')).toBeVisible();
+
+  // Transitions + look via the command bar (built-in rules).
+  await page.getByRole('textbox', { name: 'Ask Kaatchat' }).fill('add dissolve transitions and make it cinematic');
+  await page.getByRole('textbox', { name: 'Ask Kaatchat' }).press('Enter');
+  await expect(studio.getByText('dissolve transitions (0.5s)')).toBeVisible();
+  await expect(studio.getByRole('listitem').filter({ hasText: 'cinematic look' })).toBeVisible();
+  await studio.getByRole('button', { name: 'Apply' }).click();
+  // Transitions overlap the cut; they never change the length.
+  expect(await timelineSeconds(page)).toBeCloseTo(before, 1);
+
+  await page.getByRole('button', { name: 'Export' }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Export' });
+  await dialog.getByRole('button', { name: /^Export \d/ }).click();
+  const save = dialog.getByRole('link', { name: 'Save file' });
+  await expect(save).toBeVisible({ timeout: 150_000 });
+  const dl = page.waitForEvent('download');
+  await save.click();
+  const path = test.info().outputPath('motion.mp4');
+  await (await dl).saveAs(path);
+  const info = probe(path);
+  expect(info.duration).toBeCloseTo(before, 0);
+  expect(info.video).toMatch(/1920x1080/);
+});

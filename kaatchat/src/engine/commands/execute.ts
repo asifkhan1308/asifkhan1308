@@ -19,6 +19,8 @@ import {
   trimClip,
 } from '../timeline';
 import { snapCutsToBeats, timelineBeats } from '../beats';
+import { LOOKS } from '../motion';
+import { textOverlay } from '../overlays';
 import { detectSilences, rangeFocus, rangeLevelDb, rangeMeanDb, SILENCE_PRESETS, SILENT_DB } from '../dsp';
 
 export class CommandError extends Error {}
@@ -211,6 +213,30 @@ export function applyCommand(doc: EditView, cmd: Command, ctx: ExecContext): Exe
         doc: withClips(doc, keepTimelineRanges(doc.clips, ranges, newId)),
         notes: [`Kept ${ranges.length} loudness-ranked moment(s), ${total.toFixed(1)}s`],
       };
+    }
+    case 'add_text': {
+      const o = textOverlay(newId(), cmd.text, cmd.start, cmd.duration, { position: cmd.position, anim: cmd.animation });
+      return { doc: { ...doc, overlays: [...doc.overlays, o] }, notes: [`Added “${cmd.text.slice(0, 40)}” at ${cmd.start.toFixed(1)}s (${cmd.animation})`] };
+    }
+    case 'set_look': {
+      const look = LOOKS[cmd.look];
+      const only = cmd.clipIds ? new Set(cmd.clipIds) : null;
+      let n = 0;
+      const clips = doc.clips.map((c) => {
+        if (only && !only.has(c.id)) return c;
+        n++;
+        return { ...c, effects: cmd.look === 'none' ? undefined : { ...look.effects } };
+      });
+      return { doc: withClips(doc, clips), notes: [`${look.label} look on ${n} clip(s)`] };
+    }
+    case 'set_transitions': {
+      const clips = doc.clips.map((c, i) => (i === 0 ? c : { ...c, transition: cmd.kind === 'cut' ? undefined : { kind: cmd.kind, duration: cmd.duration } }));
+      return { doc: withClips(doc, clips), notes: [cmd.kind === 'cut' ? 'Plain cuts' : `${cmd.kind} (${cmd.duration}s) on ${Math.max(0, clips.length - 1)} cut(s)`] };
+    }
+    case 'punch_in': {
+      const clips = doc.clips.map((c, i) => ({ ...c, scale: cmd.pattern === 'none' ? 1 : cmd.pattern === 'all' || i % 2 === 1 ? cmd.amount : 1 }));
+      const n = clips.filter((c) => (c.scale ?? 1) > 1).length;
+      return { doc: withClips(doc, clips), notes: [cmd.pattern === 'none' ? 'Punch-ins removed' : `Punched in ${Math.round((cmd.amount - 1) * 100)}% on ${n} clip(s)`] };
     }
     case 'sync_to_beat': {
       const beats = timelineBeats(doc.audio, (id) => index[id]?.beats);

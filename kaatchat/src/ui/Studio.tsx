@@ -68,14 +68,17 @@ const SUGGESTIONS = [
   'Add captions',
   'Remove um and uh',
   'Keep the best 60 seconds',
+  'Add dissolve transitions',
+  'Make it cinematic',
+  'Punch in on alternate clips',
+  'Sync the cuts to the beat',
 ];
 
 /** Features named in the roadmap that this build does not have. Shown, disabled, with the reason. */
 const NOT_IN_BUILD = [
   { label: 'Generate B-roll', why: 'Needs an image/video generation provider adapter — not in this build.' },
   { label: 'Generate image', why: 'Needs an image generation provider adapter — not in this build.' },
-  { label: 'Motion graphics', why: 'The motion-graphics engine is not in this build.' },
-  { label: 'Music & sound design', why: 'Needs the multi-track timeline — not in this build.' },
+  { label: 'Generate music', why: 'Needs a music generation provider adapter — not in this build. Import your own music instead.' },
 ];
 
 /** Plans that only change settings are applied in one click (still undoable). */
@@ -120,6 +123,14 @@ const describe = (c: Command): string => {
       return `Set clip gain to ${c.gainDb} dB`;
     case 'rename_project':
       return `Rename project to “${c.name}”`;
+    case 'add_text':
+      return `Add text “${c.text.slice(0, 40)}” (${c.animation}, ${c.position})`;
+    case 'set_look':
+      return `${c.look} look`;
+    case 'set_transitions':
+      return c.kind === 'cut' ? 'Plain cuts' : `${c.kind} transitions (${c.duration}s)`;
+    case 'punch_in':
+      return c.pattern === 'none' ? 'Remove punch-ins' : `Punch in ${Math.round((c.amount - 1) * 100)}% (${c.pattern})`;
     case 'sync_to_beat':
       return `Nudge cuts onto the beat (±${c.window}s)`;
     case 'set_fades':

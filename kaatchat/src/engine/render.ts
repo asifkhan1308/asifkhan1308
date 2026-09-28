@@ -3,17 +3,57 @@
 
 import type { CaptionStyleId, Clip } from './types';
 import { cropRect } from './dsp';
+import { drawPostEffects, effectsFilter, effectsOf, isNeutral } from './motion';
 import type { CaptionCue } from './transcript';
 
 type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
-export function drawClipFrame(ctx: Ctx, src: CanvasImageSource, srcW: number, srcH: number, clip: Clip, outW: number, outH: number) {
+/**
+ * Draw one clip's frame: crop/fit around the focus point, punch-in scale,
+ * colour effects (filter), opacity, then post effects (tint, vignette,
+ * grain, sharpen).
+ */
+export function drawClipFrame(
+  ctx: Ctx,
+  src: CanvasImageSource,
+  srcW: number,
+  srcH: number,
+  clip: Clip,
+  outW: number,
+  outH: number,
+  frameIndex = 0,
+) {
+  ctx.save();
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, outW, outH);
-  if (!srcW || !srcH) return;
+  if (!srcW || !srcH) {
+    ctx.restore();
+    return;
+  }
   const r = cropRect(srcW, srcH, outW, outH, clip.fit, clip.focusX, clip.focusY);
+  const e = effectsOf(clip);
+  const scale = Math.max(1, clip.scale ?? 1);
+  let { sx, sy, sw, sh } = r;
+  if (scale > 1.0001) {
+    // Punch in around the focus point, staying inside the source.
+    const nw = sw / scale;
+    const nh = sh / scale;
+    const cx = Math.min(srcW - nw / 2, Math.max(nw / 2, clip.focusX * srcW));
+    const cy = Math.min(srcH - nh / 2, Math.max(nh / 2, clip.focusY * srcH));
+    sx = Math.max(sx, Math.min(sx + sw - nw, cx - nw / 2));
+    sy = Math.max(sy, Math.min(sy + sh - nh, cy - nh / 2));
+    sw = nw;
+    sh = nh;
+  }
+  if (!isNeutral(e)) {
+    const f = effectsFilter(e, Math.min(outW, outH));
+    if (f !== 'none') ctx.filter = f;
+    ctx.globalAlpha = Math.max(0, Math.min(1, e.opacity));
+  }
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(src, r.sx, r.sy, r.sw, r.sh, r.dx, r.dy, r.dw, r.dh);
+  ctx.drawImage(src, sx, sy, sw, sh, r.dx, r.dy, r.dw, r.dh);
+  ctx.restore();
+  if (!isNeutral(e)) drawPostEffects(ctx, e, outW, outH, frameIndex);
 }
 
 /** Default caption highlight — monochrome. The Brand Kit can override it. */
