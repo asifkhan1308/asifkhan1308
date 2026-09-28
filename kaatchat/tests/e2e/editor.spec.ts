@@ -275,3 +275,49 @@ test('motion: text layer with keyframes, transitions, look, export', async ({ pa
   expect(info.duration).toBeCloseTo(before, 0);
   expect(info.video).toMatch(/1920x1080/);
 });
+
+test('brand kit and talking-head clean-up', async ({ page }) => {
+  await importFromHome(page);
+  const studio = page.locator('.panel.right');
+
+  await page.getByRole('textbox', { name: 'Ask Kaatchat' }).fill('Clean up this talking head');
+  await page.getByRole('textbox', { name: 'Ask Kaatchat' }).press('Enter');
+  await expect(studio.getByText(/Punch in 12% \(alternate\)/)).toBeVisible();
+  await studio.getByRole('button', { name: 'Apply' }).click();
+
+  await studio.getByRole('tab', { name: 'Brand' }).click();
+  const chooser = page.waitForEvent('filechooser');
+  await studio.getByRole('button', { name: 'Import' }).click();
+  await (await chooser).setFiles(fx.logo);
+  await expect(studio.getByRole('combobox').first()).toHaveValue(/.+/);
+  await studio.getByLabel('Lower third').check();
+  await studio.getByRole('textbox', { name: 'Lower third name' }).fill('Asif Khan');
+  await studio.getByRole('textbox', { name: 'Lower third title' }).fill('Creator');
+  await studio.getByRole('textbox', { name: 'Lower third title' }).blur();
+  await studio.getByLabel(/Logo watermark/).check();
+  await studio.getByRole('button', { name: 'Apply brand' }).click();
+
+  const lane = page.getByLabel('Titles and graphics track');
+  await expect(lane.getByText('Watermark')).toBeVisible();
+  await expect(lane.getByText(/Asif Khan/)).toBeVisible();
+  // The logo stayed in the bin, not on the timeline.
+  await expect(page.locator('.track:not(.music):not(.overlays) .clip')).not.toHaveCount(0);
+
+  // Asking for the brand again replaces rather than stacks.
+  await page.getByRole('textbox', { name: 'Ask Kaatchat' }).fill('use my brand');
+  await page.getByRole('textbox', { name: 'Ask Kaatchat' }).press('Enter');
+  await expect(studio.getByRole('listitem').filter({ hasText: 'Apply your Brand Kit' })).toBeVisible();
+  await studio.getByRole('button', { name: 'Apply' }).click();
+  await expect(lane.getByText('Watermark')).toHaveCount(1);
+
+  await page.getByRole('button', { name: 'Export' }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Export' });
+  await dialog.getByRole('button', { name: /^Export \d/ }).click();
+  const save = dialog.getByRole('link', { name: 'Save file' });
+  await expect(save).toBeVisible({ timeout: 150_000 });
+  const dl = page.waitForEvent('download');
+  await save.click();
+  const path = test.info().outputPath('brand.mp4');
+  await (await dl).saveAs(path);
+  expect(probe(path).video).toMatch(/1920x1080/);
+});

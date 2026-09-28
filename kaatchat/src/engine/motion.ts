@@ -162,6 +162,12 @@ export const OVERLAY_FONTS: Record<string, string> = {
   'system-sans': 'system-ui, -apple-system, "Segoe UI", sans-serif',
 };
 
+/** CSS font stack for a built-in font name or an uploaded brand font family. */
+export function fontStack(name?: string): string {
+  if (!name) return OVERLAY_FONTS.Inter;
+  return OVERLAY_FONTS[name] ?? `"${name.replace(/"/g, '')}", ${OVERLAY_FONTS.Inter}`;
+}
+
 export function drawOverlay(ctx: Ctx, o: Overlay, t: number, W: number, H: number, image?: CanvasImageSource & { width: number; height: number }) {
   if (t < 0 || t > o.duration) return;
   const st = overlayState(o, t);
@@ -179,7 +185,7 @@ export function drawOverlay(ctx: Ctx, o: Overlay, t: number, W: number, H: numbe
   let eh = 0;
   if (o.kind === 'text' && o.text) {
     const px = Math.max(4, (o.size ?? 0.06) * short);
-    ctx.font = `${o.weight ?? 700} ${px}px ${OVERLAY_FONTS[o.font ?? 'Inter'] ?? OVERLAY_FONTS.Inter}`;
+    ctx.font = `${o.weight ?? 700} ${px}px ${fontStack(o.font)}`;
     ctx.textBaseline = 'middle';
     const lines = o.text.split('\n');
     const total = o.text.replace(/\n/g, '').length;

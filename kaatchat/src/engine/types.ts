@@ -104,6 +104,8 @@ export interface Clip {
   fadeIn?: number;
   fadeOut?: number;
   muted?: boolean;
+  /** Added by the Brand Kit, so re-applying replaces it. */
+  brandRole?: 'intro' | 'outro';
 }
 
 /** Music / extra audio, placed on its own track at a timeline time. */
@@ -227,7 +229,8 @@ export interface BrandKit {
   name: string;
   logoAssetId: string | null;
   colors: { ink: string; paper: string; accent: string };
-  font: 'Inter' | 'JetBrains Mono' | 'system-serif' | 'system-sans';
+  /** One of the built-in fonts, or the family name of an uploaded brand font. */
+  font: string;
   captionStyle: CaptionStyleId;
   lowerThird: { enabled: boolean; name: string; title: string };
   watermark: { enabled: boolean; position: 'tl' | 'tr' | 'bl' | 'br'; opacity: number };

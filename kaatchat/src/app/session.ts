@@ -4,7 +4,7 @@
 import { EditorStore } from '../engine/store';
 import { JobQueue } from '../engine/jobs';
 import { analyzeAudio, analyzeFrames, importFile, matchesAsset, media, transcribe, ImportError } from '../engine/media';
-import { autosave, getIndex, getMedia, putIndex, putMedia, saveProject, MAX_STORED_BYTES } from '../engine/persist';
+import { autosave, getFont, getIndex, getMedia, putIndex, putMedia, registerFont, saveProject, MAX_STORED_BYTES } from '../engine/persist';
 import { parseSubtitles } from '../engine/transcript';
 import type { MediaAsset, ProjectDoc, ProjectIndex } from '../engine/types';
 import { getPrefs } from './prefs';
@@ -36,6 +36,11 @@ export class EditorSession {
         media.set(a.id, blob);
         assets[a.id] = { ...a, storage: 'local' };
       } else assets[a.id] = { ...a, storage: 'missing' };
+    }
+    const font = doc.brand?.font;
+    if (font && !['Inter', 'JetBrains Mono', 'system-serif', 'system-sans'].includes(font)) {
+      const blob = await getFont(font).catch(() => undefined);
+      if (blob) await registerFont(font, blob).catch(() => undefined);
     }
     const s = new EditorSession({ ...doc, assets }, index);
     s.savedAt = doc.updatedAt;
@@ -75,13 +80,13 @@ export class EditorSession {
 
   // ---------------------------------------------------------------- import
 
-  async importFiles(files: File[]): Promise<{ imported: MediaAsset[]; errors: string[] }> {
+  async importFiles(files: File[], addToTimeline = true): Promise<{ imported: MediaAsset[]; errors: string[] }> {
     const imported: MediaAsset[] = [];
     const errors: string[] = [];
     for (const f of files) {
       try {
         const asset = await importFile(f);
-        this.store.addAsset(asset);
+        this.store.addAsset(asset, addToTimeline);
         imported.push(asset);
         if (asset.storage === 'session')
           errors.push(`“${asset.name}” is larger than ${Math.round(MAX_STORED_BYTES / 1024 / 1024)} MB, so it was not copied into browser storage. It works now; after a reload you will be asked to relink it.`);

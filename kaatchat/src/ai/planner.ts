@@ -197,6 +197,17 @@ export function rulePlan(text: string, doc: EditView, index: ProjectIndex, playh
     cmds.push({ type: 'set_captions', enabled: true, style: 'bold' });
     said.push('bold captions');
   }
+  if (/(use|apply|add) my brand|brand (kit|it)|on-brand|apply (the )?brand/.test(t)) {
+    cmds.push({ type: 'apply_brand' });
+    said.push('apply your Brand Kit');
+  }
+  if (/(clean|tidy|polish)( up)?.*(talking[- ]head|podcast|interview|vlog)|(talking[- ]head|podcast) (clean|edit)/.test(t)) {
+    if (!cmds.some((c) => c.type === 'remove_silence')) cmds.push({ type: 'remove_silence', preset: 'balanced' });
+    if (hasTranscript) cmds.push({ type: 'remove_fillers' });
+    cmds.push({ type: 'match_levels', targetDb: -18 }, { type: 'punch_in', amount: 1.12, pattern: 'alternate' });
+    if (hasTranscript) cmds.push({ type: 'set_captions', enabled: true, style: /podcast/.test(t) ? 'podcast' : 'clean' });
+    said.push(`talking-head clean-up: pauses${hasTranscript ? ', fillers' : ''}, levels, punch-ins${hasTranscript ? ', captions' : ''}`);
+  }
   if (/(sync|snap|cut|match).*(beat|music|rhythm|bpm)|on the beat|beat sync/.test(t)) {
     cmds.push({ type: 'sync_to_beat', window: 0.25 });
     said.push('nudge cuts onto the beat');

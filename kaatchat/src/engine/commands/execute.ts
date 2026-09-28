@@ -20,6 +20,8 @@ import {
 } from '../timeline';
 import { snapCutsToBeats, timelineBeats } from '../beats';
 import { LOOKS } from '../motion';
+import { applyBrand } from '../brand';
+import { audioOffset } from '../multicam';
 import { textOverlay } from '../overlays';
 import { detectSilences, rangeFocus, rangeLevelDb, rangeMeanDb, SILENCE_PRESETS, SILENT_DB } from '../dsp';
 
@@ -237,6 +239,28 @@ export function applyCommand(doc: EditView, cmd: Command, ctx: ExecContext): Exe
       const clips = doc.clips.map((c, i) => ({ ...c, scale: cmd.pattern === 'none' ? 1 : cmd.pattern === 'all' || i % 2 === 1 ? cmd.amount : 1 }));
       const n = clips.filter((c) => (c.scale ?? 1) > 1).length;
       return { doc: withClips(doc, clips), notes: [cmd.pattern === 'none' ? 'Punch-ins removed' : `Punched in ${Math.round((cmd.amount - 1) * 100)}% on ${n} clip(s)`] };
+    }
+    case 'apply_brand': {
+      if (!doc.brand) throw new CommandError('There is no Brand Kit for this project yet. Set one up in AI Studio → Brand.');
+      const r = applyBrand(doc, doc.brand, newId);
+      return { doc: r.view, notes: r.notes };
+    }
+    case 'switch_angle': {
+      const c = requireClip(doc, cmd.clipId);
+      const target = doc.assets[cmd.assetId];
+      if (!target || target.kind !== 'video') throw new CommandError('That angle is not a video in this project.');
+      if (target.id === c.assetId) return { doc, notes: ['Already on that angle'] };
+      const a = index[c.assetId]?.audio;
+      const b = index[target.id]?.audio;
+      const m = a && b ? audioOffset(a, b) : null;
+      if (!m) throw new CommandError('Could not line up the two recordings by their sound. Both need measured audio of the same moment.');
+      const tin = c.in + m.offset;
+      const tout = c.out + m.offset;
+      if (tin < 0 || tout > target.duration + 0.05) throw new CommandError('The other camera did not record this part.');
+      return {
+        doc: withClips(doc, doc.clips.map((x) => (x.id === c.id ? { ...x, assetId: target.id, in: tin, out: Math.min(tout, target.duration) } : x))),
+        notes: [`Switched to “${target.name}” (offset ${m.offset.toFixed(2)}s, match ${Math.round(m.confidence * 100)}%)`],
+      };
     }
     case 'sync_to_beat': {
       const beats = timelineBeats(doc.audio, (id) => index[id]?.beats);

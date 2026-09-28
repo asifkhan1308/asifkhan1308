@@ -142,6 +142,33 @@ export function Inspector({ session, clipId, time }: { session: EditorSession; c
         <span className="faint tiny">Click to choose what stays in view when the frame is cropped.</span>
       </div>
 
+      {Object.values(doc.assets).filter((a) => a.kind === 'video').length > 1 && (
+        <label className="field">
+          Camera angle
+          <select
+            className="select"
+            value={clip.assetId}
+            onChange={(e) => {
+              try {
+                const notes = store.run([{ type: 'switch_angle', clipId: clip.id, assetId: e.target.value }], 'Switch angle');
+                toast(notes.join(' · '));
+              } catch (err) {
+                toast(err instanceof Error ? err.message : String(err), 'err');
+              }
+            }}
+          >
+            {Object.values(doc.assets)
+              .filter((a) => a.kind === 'video')
+              .map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+          </select>
+          <span className="faint tiny">Lined up by sound, so the words stay in sync.</span>
+        </label>
+      )}
+
       <ClipLook session={session} clipId={clip.id} index={idx} />
 
       <div className="row" style={{ flexWrap: 'wrap' }}>

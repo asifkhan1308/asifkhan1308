@@ -133,3 +133,14 @@ export async function storageEstimate(): Promise<{ usage: number; quota: number 
     return null;
   }
 }
+
+/** Uploaded brand fonts live next to media, keyed by family name. */
+export const putFont = (family: string, blob: Blob) => tx('media', 'readwrite', (s) => s.put(blob, `font:${family}`));
+export const getFont = (family: string) => tx<Blob | undefined>('media', 'readonly', (s) => s.get(`font:${family}`));
+
+/** Register an uploaded font with the page so the canvas can draw it. */
+export async function registerFont(family: string, blob: Blob): Promise<void> {
+  const face = new FontFace(family, await blob.arrayBuffer());
+  await face.load();
+  document.fonts.add(face);
+}

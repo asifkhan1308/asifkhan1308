@@ -11,8 +11,9 @@ import { Icon, fmtTime, toast } from './bits';
 import { t } from '../i18n';
 import { Inspector } from './Inspector';
 import { Repurpose } from './Repurpose';
+import { BrandPanel } from './Brand';
 
-export type StudioTab = 'ask' | 'find' | 'clips' | 'clip' | 'history';
+export type StudioTab = 'ask' | 'find' | 'clips' | 'brand' | 'clip' | 'history';
 
 interface Props {
   session: EditorSession;
@@ -35,6 +36,7 @@ export function Studio(p: Props) {
             ['ask', t('ai.tab.ask')],
             ['find', t('ai.tab.find')],
             ['clips', 'Repurpose'],
+            ['brand', 'Brand'],
             ['clip', 'Clip'],
             ['history', t('ai.tab.history')],
           ] as const
@@ -51,6 +53,7 @@ export function Studio(p: Props) {
         </div>
         {p.tab === 'find' && <Find {...p} />}
         {p.tab === 'clips' && <Repurpose session={p.session} onSeek={p.onSeek} onPlay={p.onPlay} />}
+        {p.tab === 'brand' && <BrandPanel session={p.session} />}
         {p.tab === 'clip' && <Inspector session={p.session} clipId={p.selected} time={p.time} />}
         {p.tab === 'history' && <History session={p.session} />}
       </div>
@@ -72,6 +75,8 @@ const SUGGESTIONS = [
   'Make it cinematic',
   'Punch in on alternate clips',
   'Sync the cuts to the beat',
+  'Clean up this talking head',
+  'Use my brand',
 ];
 
 /** Features named in the roadmap that this build does not have. Shown, disabled, with the reason. */
@@ -131,6 +136,10 @@ const describe = (c: Command): string => {
       return c.kind === 'cut' ? 'Plain cuts' : `${c.kind} transitions (${c.duration}s)`;
     case 'punch_in':
       return c.pattern === 'none' ? 'Remove punch-ins' : `Punch in ${Math.round((c.amount - 1) * 100)}% (${c.pattern})`;
+    case 'apply_brand':
+      return 'Apply your Brand Kit';
+    case 'switch_angle':
+      return 'Switch a clip to another camera';
     case 'sync_to_beat':
       return `Nudge cuts onto the beat (±${c.window}s)`;
     case 'set_fades':

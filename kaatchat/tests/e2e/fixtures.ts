@@ -45,6 +45,8 @@ export function ensureFixtures() {
       '-c:a', 'libopus', '-b:a', '96k', '-ac', '2', music,
     ]);
   }
+  const logo = join(FIXTURES, 'logo.png');
+  if (!existsSync(logo)) execFileSync(ffmpeg, ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=white:s=256x256,drawbox=x=48:y=48:w=160:h=160:color=black:t=fill', '-frames:v', '1', logo]);
   const srt = join(FIXTURES, 'talk.srt');
   if (!existsSync(srt)) {
     writeFileSync(
@@ -52,7 +54,7 @@ export function ensureFixtures() {
       `1\n00:00:01,000 --> 00:00:04,000\nUm today we talk about AI and design.\n\n2\n00:00:06,000 --> 00:00:09,000\nMoney matters when you start a company.\n`,
     );
   }
-  return { talk, srt, music };
+  return { talk, srt, music, logo };
 }
 
 /** Decode a file fully with ffmpeg and return its duration and stream summary. */
