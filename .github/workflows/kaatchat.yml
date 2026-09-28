@@ -71,6 +71,10 @@ jobs:
           name: web-dist
           path: kaatchat/dist
       - run: npm --prefix desktop run copy-web
+      # Ubuntu 24.04 runners block the unprivileged user namespaces Chromium's sandbox
+      # needs, so Electron fails to launch. Lift that runner restriction rather than
+      # passing --no-sandbox: the smoke test checks the renderer really is sandboxed.
+      - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: xvfb-run -a npx playwright test -c playwright.desktop.config.ts
 
   windows-installer:
