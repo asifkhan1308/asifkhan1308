@@ -48,6 +48,11 @@ export const CommandSchema = z.discriminatedUnion('type', [
     })
     .strict(),
   z.object({ type: z.literal('rename_project'), name: z.string().min(1).max(120) }).strict(),
+  z.object({ type: z.literal('sync_to_beat'), window: z.number().min(0.05).max(1).default(0.25) }).strict(),
+  z
+    .object({ type: z.literal('set_fades'), fadeIn: z.number().min(0).max(5).default(0.15), fadeOut: z.number().min(0).max(5).default(0.15) })
+    .strict(),
+  z.object({ type: z.literal('duck_music'), enabled: z.boolean(), duckDb: z.number().min(-30).max(0).default(-12) }).strict(),
 ]);
 
 export type Command = z.infer<typeof CommandSchema>;
@@ -88,6 +93,9 @@ export const COMMAND_DOCS: Record<CommandType, string> = {
   select_highlights:
     '{"type":"select_highlights","targetDuration":<s>} — keep the most energetic moments (measured loudness) up to that length',
   rename_project: '{"type":"rename_project","name":"…"}',
+  sync_to_beat: '{"type":"sync_to_beat","window":0.25} — nudge cuts onto the beat of the music track (needs music with a detected beat)',
+  set_fades: '{"type":"set_fades","fadeIn":0.15,"fadeOut":0.15} — audio fades on every clip, seconds',
+  duck_music: '{"type":"duck_music","enabled":true,"duckDb":-12} — lower music while someone is speaking',
 };
 
 export interface ValidationResult {

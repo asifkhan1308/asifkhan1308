@@ -36,6 +36,15 @@ export function ensureFixtures() {
       { stdio: 'inherit' },
     );
   }
+  // music.ogg — 12 s, 120 bpm clicks over a soft pad (Opus).
+  const music = join(FIXTURES, 'music.ogg');
+  if (!existsSync(music)) {
+    execFileSync(ffmpeg, [
+      '-v', 'error', '-y',
+      '-f', 'lavfi', '-i', "aevalsrc='0.9*sin(2*PI*1200*t)*exp(-mod(t-0.1,0.5)*60)*gte(t,0.1)+0.05*sin(2*PI*220*t)':s=48000:d=12",
+      '-c:a', 'libopus', '-b:a', '96k', '-ac', '2', music,
+    ]);
+  }
   const srt = join(FIXTURES, 'talk.srt');
   if (!existsSync(srt)) {
     writeFileSync(
@@ -43,7 +52,7 @@ export function ensureFixtures() {
       `1\n00:00:01,000 --> 00:00:04,000\nUm today we talk about AI and design.\n\n2\n00:00:06,000 --> 00:00:09,000\nMoney matters when you start a company.\n`,
     );
   }
-  return { talk, srt };
+  return { talk, srt, music };
 }
 
 /** Decode a file fully with ffmpeg and return its duration and stream summary. */

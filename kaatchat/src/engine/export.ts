@@ -3,7 +3,6 @@
 
 import {
   ALL_FORMATS,
-  AudioBufferSink,
   AudioBufferSource,
   BlobSource,
   BufferTarget,
@@ -26,7 +25,7 @@ import { ASPECTS } from './types';
 import { clipLength, clipStarts, sequenceDuration } from './timeline';
 import { drawCaption, drawClipFrame, CAPTION_FONT } from './render';
 import { captionCues, cueAt } from './transcript';
-import { applyGain, mapChannels, planesOf, StreamResampler } from './audio';
+import { TimelineMixer, SAMPLE_RATE } from './mixer';
 import { throwIfAborted, type JobControl } from './jobs';
 import { media } from './media';
 
@@ -82,12 +81,11 @@ export interface ExportResult {
 }
 
 const even = (n: number) => Math.max(2, Math.round(n / 2) * 2);
-const SAMPLE_RATE = 48000;
 
 export async function exportProject(doc: EditView, index: ProjectIndex, opts: ExportOptions, ctl: JobControl): Promise<ExportResult> {
   const started = performance.now();
   if (doc.clips.length === 0) throw new Error('The timeline is empty — nothing to export.');
-  const missing = [...new Set(doc.clips.map((c) => c.assetId))].filter((id) => !media.get(id));
+  const missing = [...new Set([...doc.clips.map((c) => c.assetId), ...doc.audio.map((a) => a.assetId)])].filter((id) => !media.get(id));
   if (missing.length)
     throw new Error(`${missing.length} media file(s) need relinking before export: ${missing.map((id) => doc.assets[id]?.name).join(', ')}. Your originals are untouched.`);
 
@@ -100,7 +98,8 @@ export async function exportProject(doc: EditView, index: ProjectIndex, opts: Ex
   const videoCodec = await getFirstEncodableVideoCodec(vCandidates, { width, height });
   if (!videoCodec)
     throw new Error(`This device cannot encode ${width}×${height} ${opts.format.toUpperCase()} video. Try a smaller size or the other format.`);
-  const hasAudio = doc.clips.some((c) => doc.assets[c.assetId]?.hasAudio);
+  const mixer = new TimelineMixer(doc, index);
+  const hasAudio = doc.clips.some((c) => doc.assets[c.assetId]?.hasAudio) || doc.audio.length > 0;
   const audioCodec = hasAudio ? await getFirstEncodableAudioCodec(aCandidates, { numberOfChannels: 2, sampleRate: SAMPLE_RATE }) : null;
 
   const output = new Output({
@@ -188,9 +187,16 @@ export async function exportProject(doc: EditView, index: ProjectIndex, opts: Ex
 
       // ---- audio (sample-exact to the timeline)
       if (audioSource) {
-        const want = Math.round(clipEnd * SAMPLE_RATE) - samplesDone;
-        const pushed = await addClipAudio(audioSource, blob, asset.hasAudio && asset.kind === 'video', clip, want, ctl.signal);
-        samplesDone += pushed;
+        const until = Math.round(clipEnd * SAMPLE_RATE);
+        while (samplesDone < until) {
+          const next = Math.min(until, samplesDone + SAMPLE_RATE);
+          const planes = await mixer.render(samplesDone, next, ctl.signal);
+          const ab = new AudioBuffer({ length: next - samplesDone, numberOfChannels: 2, sampleRate: SAMPLE_RATE });
+          ab.copyToChannel(planes[0] as Float32Array<ArrayBuffer>, 0);
+          ab.copyToChannel(planes[1] as Float32Array<ArrayBuffer>, 1);
+          await audioSource.add(ab);
+          samplesDone = next;
+        }
       }
     }
     throwIfAborted(ctl.signal);
@@ -199,6 +205,8 @@ export async function exportProject(doc: EditView, index: ProjectIndex, opts: Ex
   } catch (e) {
     await output.cancel().catch(() => undefined);
     throw e;
+  } finally {
+    mixer.dispose();
   }
 
   const buf = (output.target as BufferTarget).buffer;
@@ -212,59 +220,4 @@ export async function exportProject(doc: EditView, index: ProjectIndex, opts: Ex
     seconds: total,
     elapsedMs: performance.now() - started,
   };
-}
-
-/** Add exactly `want` stereo samples for this clip; silence where there is no audio. */
-async function addClipAudio(src: AudioBufferSource, blob: Blob, hasAudio: boolean, clip: Clip, want: number, signal: AbortSignal): Promise<number> {
-  let pushed = 0;
-  const emit = async (planes: Float32Array[]) => {
-    const n = Math.min(planes[0].length, want - pushed);
-    if (n <= 0) return;
-    const ab = new AudioBuffer({ length: n, numberOfChannels: 2, sampleRate: SAMPLE_RATE });
-    for (let ch = 0; ch < 2; ch++) ab.copyToChannel(planes[ch].subarray(0, n) as Float32Array<ArrayBuffer>, ch);
-    await src.add(ab);
-    pushed += n;
-  };
-
-  if (hasAudio) {
-    const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
-    try {
-      const track = await input.getPrimaryAudioTrack();
-      if (track && (await track.canDecode())) {
-        const sr = await track.getSampleRate();
-        const rs = new StreamResampler(sr, SAMPLE_RATE, 2);
-        let cursor = clip.in; // source seconds consumed so far
-        for await (const { buffer, timestamp } of new AudioBufferSink(track).buffers(clip.in, clip.out)) {
-          throwIfAborted(signal);
-          let planes = mapChannels(planesOf(buffer), 2).map((p) => p.slice());
-          let ts = timestamp;
-          // Skip audio before the in-point / already consumed.
-          const skip = Math.round((cursor - ts) * sr);
-          if (skip > 0) {
-            if (skip >= planes[0].length) continue;
-            planes = planes.map((p) => p.subarray(skip));
-            ts = cursor;
-          } else if (skip < -8) {
-            // A gap in the source: fill with silence.
-            await emit(rs.push([new Float32Array(-skip), new Float32Array(-skip)]));
-          }
-          const endAt = Math.round((clip.out - ts) * sr);
-          if (endAt <= 0) break;
-          if (endAt < planes[0].length) planes = planes.map((p) => p.subarray(0, endAt));
-          applyGain(planes, clip.gainDb);
-          await emit(rs.push(planes));
-          cursor = ts + planes[0].length / sr;
-          if (pushed >= want) break;
-        }
-      }
-    } finally {
-      input.dispose();
-    }
-  }
-  // Pad (or top up after resampling rounding) with silence.
-  while (pushed < want) {
-    const n = Math.min(SAMPLE_RATE, want - pushed);
-    await emit([new Float32Array(n), new Float32Array(n)]);
-  }
-  return pushed;
 }

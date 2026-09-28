@@ -301,6 +301,8 @@ export interface Transcript {
 
 export interface AssetIndex {
   audio?: AudioAnalysis;
+  /** Tempo and beat grid (music files). */
+  beats?: { bpm: number; beats: number[]; confidence: number };
   framing?: FramingAnalysis;
   /** Small JPEG data URLs, evenly spaced, for filmstrips and the bin. */
   thumbs?: { t: number; url: string }[];

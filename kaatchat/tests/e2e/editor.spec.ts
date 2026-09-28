@@ -195,3 +195,40 @@ test('repurpose: find clips → sequences → export all', async ({ page }) => {
     expect(info.video).toMatch(/\d+x\d+/);
   }
 });
+
+test('music: beat detection, sync to beat, ducking, mixed export', async ({ page }) => {
+  await importFromHome(page);
+  const chooser = page.waitForEvent('filechooser');
+  await page.locator('.panel.left').getByRole('button', { name: 'Import' }).click();
+  await (await chooser).setFiles(fx.music);
+  const lane = page.getByLabel('Music track');
+  await expect(lane.getByText(/\d+ bpm/)).toBeVisible();
+  const bpm = Number(/(\d+) bpm/.exec(await lane.innerText())![1]);
+  expect(bpm).toBeGreaterThanOrEqual(115);
+  expect(bpm).toBeLessThanOrEqual(125);
+
+  // Make some cuts, then snap them to the beat.
+  const studio = page.locator('.panel.right');
+  await studio.getByRole('textbox', { name: 'Request' }).fill('remove the pauses and sync the cuts to the beat');
+  await studio.getByRole('button', { name: 'Plan it' }).click();
+  await expect(studio.getByText('Nudge cuts onto the beat (±0.25s)')).toBeVisible();
+  await studio.getByRole('button', { name: 'Apply' }).click();
+
+  // Mute/solo are real mix settings.
+  await page.getByRole('group', { name: 'Track mix' }).getByTitle('Solo music').click();
+  await expect(page.getByRole('group', { name: 'Track mix' }).getByTitle('Solo music')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('body').press('Control+z');
+
+  await page.getByRole('button', { name: 'Export' }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Export' });
+  await dialog.getByRole('button', { name: /^Export \d/ }).click();
+  const save = dialog.getByRole('link', { name: 'Save file' });
+  await expect(save).toBeVisible({ timeout: 120_000 });
+  const dl = page.waitForEvent('download');
+  await save.click();
+  const path = test.info().outputPath('music.mp4');
+  await (await dl).saveAs(path);
+  const info = probe(path);
+  expect(info.audio).toMatch(/aac|opus/);
+  expect(info.duration).toBeGreaterThan(4);
+});

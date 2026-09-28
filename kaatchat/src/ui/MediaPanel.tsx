@@ -58,7 +58,8 @@ function MediaBin({ session, onImport }: { session: EditorSession; onImport(): v
                 {a.name}
               </span>
               <span className="faint tiny mono">
-                {a.kind === 'image' ? 'image' : fmtTime(a.duration)} · {a.width}×{a.height} · {fmtBytes(a.size)}
+                {a.kind === 'image' ? 'image' : fmtTime(a.duration)}
+                {a.kind === 'audio' ? ' · audio' : ` · ${a.width}×${a.height}`} · {fmtBytes(a.size)}
               </span>
               <div className="row" style={{ flexWrap: 'wrap', gap: 4 }}>
                 {a.storage === 'missing' && <span className="badge err">Needs relink</span>}
@@ -67,6 +68,7 @@ function MediaBin({ session, onImport }: { session: EditorSession; onImport(): v
                 {idx.audio && <span className="badge ok" title={`Level ${idx.audio.levelDb.toFixed(1)} dBFS`}>Loudness</span>}
                 {idx.framing && <span className="badge ok">Framing</span>}
                 {idx.transcript && <span className="badge ok" title={idx.transcript.model}>Transcript</span>}
+                {idx.beats && <span className="badge ok" title={`Beat confidence ${Math.round(idx.beats.confidence * 100)}%`}>{Math.round(idx.beats.bpm)} bpm</span>}
               </div>
               <div className="row" style={{ flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
                 {a.storage === 'missing' ? (
@@ -78,10 +80,11 @@ function MediaBin({ session, onImport }: { session: EditorSession; onImport(): v
                     className="btn sm"
                     title="Add another copy of this clip to the end of the timeline"
                     onClick={() =>
-                      store.mutate(`Add ${a.name}`, (d) => ({
-                        ...d,
-                        clips: [...d.clips, { id: uid(), assetId: a.id, in: 0, out: a.duration, gainDb: 0, focusX: 0.5, focusY: 0.5, fit: 'fill' }],
-                      }))
+                      store.mutate(`Add ${a.name}`, (d) =>
+                        a.kind === 'audio'
+                          ? { ...d, audio: [...d.audio, { id: uid(), assetId: a.id, start: 0, in: 0, out: a.duration, gainDb: -6, fadeIn: 0.5, fadeOut: 1, duck: true }] }
+                          : { ...d, clips: [...d.clips, { id: uid(), assetId: a.id, in: 0, out: a.duration, gainDb: 0, focusX: 0.5, focusY: 0.5, fit: 'fill' }] },
+                      )
                     }
                   >
                     <Icon name="plus" size={13} /> Add

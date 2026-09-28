@@ -325,6 +325,16 @@ label.field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; 
 .seqtab[aria-selected='true'] .seqname { color: var(--text); font-weight: 600; }
 .seqname .ellipsis { max-width: 180px; }
 
+/* music lane */
+.track.music { height: 44px; margin-top: 8px; background: var(--surface-2); border-radius: var(--r-md); }
+.track.music .lane-hint { position: absolute; left: 14px; top: 13px; font-size: 11px; color: var(--text-3); }
+.clip.audio { background: var(--track-audio); }
+.clip.audio .wave { height: 100%; background: transparent; }
+.clip.audio .label { top: auto; bottom: 3px; }
+.clip .beats { position: absolute; inset: 0; pointer-events: none; }
+.clip .beats i { position: absolute; top: 0; width: 1px; height: 6px; background: rgba(255, 255, 255, .6); }
+.mix .btn.icon { width: 24px; height: 24px; font-size: 11px; font-weight: 700; }
+
 /* jobs */
 .jobs { position: fixed; right: 12px; bottom: calc(var(--timeline-h) + 12px); width: min(360px, calc(100% - 24px)); z-index: 40; padding: 12px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow-2); }
 .job { display: flex; flex-direction: column; gap: 5px; }

@@ -197,6 +197,22 @@ export function rulePlan(text: string, doc: EditView, index: ProjectIndex, playh
     cmds.push({ type: 'set_captions', enabled: true, style: 'bold' });
     said.push('bold captions');
   }
+  if (/(sync|snap|cut|match).*(beat|music|rhythm|bpm)|on the beat|beat sync/.test(t)) {
+    cmds.push({ type: 'sync_to_beat', window: 0.25 });
+    said.push('nudge cuts onto the beat');
+  }
+  if (/duck|lower (the )?music|music (under|below)/.test(t)) {
+    cmds.push({ type: 'duck_music', enabled: !/no duck|stop duck|turn off duck/.test(t), duckDb: -12 });
+    said.push('duck music under speech');
+  }
+  if (/\bfade/.test(t)) {
+    cmds.push({ type: 'set_fades', fadeIn: 0.2, fadeOut: 0.2 });
+    said.push('short audio fades on every clip');
+  }
+  if (/(faster|quicker|tighter|snappier) cuts|cuts? (faster|quicker|tighter)|more punchy|punchier/.test(t) && !cmds.some((c) => c.type === 'remove_silence')) {
+    cmds.push({ type: 'remove_silence', preset: 'aggressive' }, { type: 'smart_cuts', preset: 'aggressive' });
+    said.push('tighter cuts (aggressive silence removal)');
+  }
   if (/\bsplit\b/.test(t) && cmds.length === 0) {
     cmds.push({ type: 'split_clip', at: playhead });
     said.push('split at the playhead');

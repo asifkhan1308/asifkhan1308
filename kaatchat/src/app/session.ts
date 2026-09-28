@@ -117,13 +117,20 @@ export class EditorSession {
     if (!blob) return;
     const idx = this.store.index[asset.id] ?? {};
     const group = `asset:${asset.id}`;
+    if (asset.kind === 'audio' && (force || !idx.audio)) {
+      this.jobs.add(`Loudness and beat · ${asset.name}`, group, async (ctl) => {
+        const r = await analyzeAudio(blob, ctl, true);
+        if (r) await this.setIndex(asset.id, { audio: r.audio, beats: r.beats ?? undefined });
+      });
+      return;
+    }
     if (asset.kind === 'video' && asset.hasAudio && (force || !idx.audio)) {
       this.jobs.add(`Loudness · ${asset.name}`, group, async (ctl) => {
-        const audio = await analyzeAudio(blob, ctl);
-        if (audio) await this.setIndex(asset.id, { audio });
+        const r = await analyzeAudio(blob, ctl);
+        if (r) await this.setIndex(asset.id, { audio: r.audio });
       });
     }
-    if (force || !idx.framing || !idx.thumbs) {
+    if (asset.kind !== 'audio' && (force || !idx.framing || !idx.thumbs)) {
       this.jobs.add(`Framing · ${asset.name}`, group, async (ctl) => {
         const r = await analyzeFrames(asset, blob, ctl);
         await this.setIndex(asset.id, r);

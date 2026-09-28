@@ -5,6 +5,7 @@ import { ALL_FORMATS, AudioBufferSink, BlobSource, CanvasSink, Input } from 'med
 import type { AudioAnalysis, FramingAnalysis, MediaAsset, Transcript } from './types';
 import { EnvelopeBuilder, frameFocus } from './dsp';
 import { mapChannels, planesOf, StreamResampler } from './audio';
+import { estimateBeats, OnsetDetector } from './beats';
 import { wordsToSegments } from './transcript';
 import { MAX_STORED_BYTES, putMedia } from './persist';
 import { throwIfAborted, type JobControl } from './jobs';
@@ -44,25 +45,23 @@ export const media = {
 
 const VIDEO_EXT = /\.(mp4|m4v|mov|webm|mkv|ogv)$/i;
 const IMAGE_EXT = /\.(png|jpe?g|webp|gif|avif|bmp)$/i;
+const AUDIO_EXT = /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac)$/i;
 export const IMAGE_STILL_SECONDS = 5;
 export { ACCEPT } from './formats';
 
 export class ImportError extends Error {}
 
-function kindOf(file: File): 'video' | 'image' | null {
+function kindOf(file: File): 'video' | 'image' | 'audio' | null {
   if (file.type.startsWith('video/') || VIDEO_EXT.test(file.name)) return 'video';
   if (file.type.startsWith('image/') || IMAGE_EXT.test(file.name)) return 'image';
+  if (file.type.startsWith('audio/') || AUDIO_EXT.test(file.name)) return 'audio';
   return null;
 }
 
 /** Read metadata and register the file. Does not run analysis. */
 export async function importFile(file: File): Promise<MediaAsset> {
   const kind = kindOf(file);
-  if (!kind) {
-    if (file.type.startsWith('audio/'))
-      throw new ImportError(`“${file.name}” is audio-only. Music and voice-over tracks need the multi-track timeline, which is not in this build yet.`);
-    throw new ImportError(`“${file.name}” is not a video or image Kaatchat can read.`);
-  }
+  if (!kind) throw new ImportError(`“${file.name}” is not a video, image or audio file Kaatchat can read.`);
   const id = uid();
   let asset: MediaAsset;
   if (kind === 'image') {
@@ -74,12 +73,33 @@ export async function importFile(file: File): Promise<MediaAsset> {
     }
     asset = baseAsset(id, file, 'image', { duration: IMAGE_STILL_SECONDS, width: bmp.width, height: bmp.height, fps: 30, hasAudio: false });
     bmp.close();
+  } else if (kind === 'audio') {
+    const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
+    try {
+      if (!(await input.canRead())) throw new ImportError(`“${file.name}” is not in an audio format Kaatchat can read.`);
+      const a = await input.getPrimaryAudioTrack();
+      if (!a) throw new ImportError(`“${file.name}” has no audio track.`);
+      if (!(await a.canDecode())) throw new ImportError(`This browser cannot decode the audio in “${file.name}” (${(await a.getCodec()) ?? 'unknown codec'}).`);
+      asset = baseAsset(id, file, 'audio', { duration: await input.computeDuration(), width: 0, height: 0, fps: 0, hasAudio: true });
+    } finally {
+      input.dispose();
+    }
   } else {
     const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
     try {
       if (!(await input.canRead())) throw new ImportError(`“${file.name}” is not in a container format Kaatchat can read.`);
       const v = await input.getPrimaryVideoTrack();
-      if (!v) throw new ImportError(`“${file.name}” has no video track.`);
+      if (!v) {
+        // An audio-only file with a video extension (e.g. .webm, .m4a-in-mp4).
+        const a = await input.getPrimaryAudioTrack();
+        if (a && (await a.canDecode())) {
+          asset = baseAsset(id, file, 'audio', { duration: await input.computeDuration(), width: 0, height: 0, fps: 0, hasAudio: true });
+          input.dispose();
+          media.set(id, file);
+          return storeAsset(asset, file);
+        }
+        throw new ImportError(`“${file.name}” has no video track.`);
+      }
       if (!(await v.canDecode()))
         throw new ImportError(`This browser cannot decode the video in “${file.name}” (${(await v.getCodec()) ?? 'unknown codec'}).`);
       const a = await input.getPrimaryAudioTrack();
@@ -97,9 +117,13 @@ export async function importFile(file: File): Promise<MediaAsset> {
     }
   }
   media.set(id, file);
+  return storeAsset(asset, file);
+}
+
+async function storeAsset(asset: MediaAsset, file: File): Promise<MediaAsset> {
   if (file.size <= MAX_STORED_BYTES) {
     try {
-      await putMedia(id, file);
+      await putMedia(asset.id, file);
     } catch {
       asset.storage = 'session';
     }
@@ -135,13 +159,18 @@ async function withInput<T>(blob: Blob, fn: (input: Input) => Promise<T>): Promi
 }
 
 /** Loudness envelope. Progress = seconds decoded / duration. */
-export async function analyzeAudio(blob: Blob, ctl: JobControl): Promise<AudioAnalysis | null> {
+export async function analyzeAudio(
+  blob: Blob,
+  ctl: JobControl,
+  withBeats = false,
+): Promise<{ audio: AudioAnalysis; beats: ReturnType<typeof estimateBeats> } | null> {
   return withInput(blob, async (input) => {
     const track = await input.getPrimaryAudioTrack();
     if (!track || !(await track.canDecode())) return null;
     const duration = await input.computeDuration();
     const sr = await track.getSampleRate();
     const env = new EnvelopeBuilder(sr);
+    const onsets = withBeats ? new OnsetDetector(sr) : null;
     const sink = new AudioBufferSink(track);
     let expected = 0; // samples pushed so far
     for await (const { buffer, timestamp } of sink.buffers()) {
@@ -153,10 +182,11 @@ export async function analyzeAudio(blob: Blob, ctl: JobControl): Promise<AudioAn
       }
       const mono = mapChannels(planesOf(buffer), 1)[0];
       env.push(mono);
+      onsets?.push(mono);
       expected += mono.length;
-      ctl.progress(duration ? timestamp / duration : null, 'Measuring loudness');
+      ctl.progress(duration ? timestamp / duration : null, withBeats ? 'Measuring loudness and beat' : 'Measuring loudness');
     }
-    return env.finish();
+    return { audio: env.finish(), beats: onsets ? estimateBeats(onsets.flux, onsets.rate) : null };
   });
 }
 

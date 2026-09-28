@@ -19,6 +19,7 @@ interface Props {
 type Drag =
   | { kind: 'trim'; clipId: string; side: 'l' | 'r'; startX: number; delta: number }
   | { kind: 'move'; clipId: string; startX: number; delta: number }
+  | { kind: 'music'; clipId: string; startX: number; delta: number }
   | { kind: 'scrub' };
 
 export function Timeline({ session, time, selected, onSelect, onSeek, onSplit, onDelete }: Props) {
@@ -72,6 +73,9 @@ export function Timeline({ session, time, selected, onSelect, onSeek, onSplit, o
             'Trim clip',
           );
         }
+      } else if (drag.kind === 'music' && Math.abs(drag.delta) > 2) {
+        const dt = drag.delta / pps;
+        store.mutate('Move music', (d) => ({ ...d, audio: d.audio.map((a) => (a.id === drag.clipId ? { ...a, start: Math.max(0, Math.round((a.start + dt) * 100) / 100) } : a)) }));
       } else if (drag.kind === 'move' && Math.abs(drag.delta) > 4) {
         const from = doc.clips.findIndex((x) => x.id === drag.clipId);
         const c = doc.clips[from];
@@ -110,6 +114,7 @@ export function Timeline({ session, time, selected, onSelect, onSeek, onSplit, o
           {doc.clips.length} clip{doc.clips.length === 1 ? '' : 's'} · {fmtTime(duration)}
         </span>
         <span className="spacer" />
+        <MixToggles session={session} />
         <label className="row small muted">
           <span className="label">Zoom</span>
           <input
@@ -152,7 +157,7 @@ export function Timeline({ session, time, selected, onSelect, onSeek, onSplit, o
             {doc.clips.map((c, i) => {
               let left = 12 + starts[i] * pps;
               let w = clipLength(c) * pps;
-              if (drag && drag.kind !== 'scrub' && drag.clipId === c.id) {
+              if (drag && (drag.kind === 'move' || drag.kind === 'trim') && drag.clipId === c.id) {
                 if (drag.kind === 'move') left += drag.delta;
                 else if (drag.side === 'l') {
                   const d = Math.max(-c.in * pps, Math.min(w - 4, drag.delta));
@@ -183,6 +188,47 @@ export function Timeline({ session, time, selected, onSelect, onSeek, onSplit, o
                     } else setDrag({ kind: 'trim', clipId: c.id, side: part, startX: e.clientX, delta: 0 });
                   }}
                 />
+              );
+            })}
+          </div>
+          <div className="track music" aria-label="Music track">
+            {doc.audio.length === 0 && <span className="lane-hint">Music — import an audio file to add it here</span>}
+            {doc.audio.map((a) => {
+              const left = 12 + a.start * pps + (drag?.kind === 'music' && drag.clipId === a.id ? drag.delta : 0);
+              const w = Math.max(4, (a.out - a.in) * pps);
+              const beats = store.index[a.assetId]?.beats;
+              return (
+                <div
+                  key={a.id}
+                  className={`clip audio${selected === a.id ? ' selected' : ''}`}
+                  style={{ left, width: w }}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={selected === a.id}
+                  aria-label={`Music: ${doc.assets[a.assetId]?.name ?? 'missing'}`}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    onSelect(a.id);
+                    setDrag({ kind: 'music', clipId: a.id, startX: e.clientX, delta: 0 });
+                  }}
+                >
+                  <Wave audio={store.index[a.assetId]?.audio} from={a.in} to={a.out} width={w} height={34} />
+                  {beats && (
+                    <div className="beats" aria-hidden="true">
+                      {beats.beats
+                        .filter((b) => b >= a.in && b <= a.out)
+                        .slice(0, 800)
+                        .map((b, k) => (
+                          <i key={k} style={{ left: (b - a.in) * pps }} />
+                        ))}
+                    </div>
+                  )}
+                  <span className="label ellipsis">
+                    ♪ {doc.assets[a.assetId]?.name}
+                    {beats ? <span className="mono faint"> {Math.round(beats.bpm)} bpm</span> : null}
+                    {a.duck ? <span className="mono faint"> · ducks</span> : null}
+                  </span>
+                </div>
               );
             })}
           </div>
@@ -277,3 +323,54 @@ const ClipView = memo(function ClipView({
     </div>
   );
 });
+
+function MixToggles({ session }: { session: EditorSession }) {
+  const { store } = session;
+  const mix = store.doc.mix;
+  const set = (patch: Partial<typeof mix>, label: string) => store.mutate(label, (d) => ({ ...d, mix: { ...d.mix, ...patch } }));
+  return (
+    <div className="row mix" role="group" aria-label="Track mix">
+      <span className="faint tiny label">Main</span>
+      <button className="btn sm icon" aria-pressed={mix.mainMuted} title="Mute main track" onClick={() => set({ mainMuted: !mix.mainMuted }, 'Mute main')}>
+        M
+      </button>
+      <button className="btn sm icon" aria-pressed={mix.mainSolo} title="Solo main track" onClick={() => set({ mainSolo: !mix.mainSolo }, 'Solo main')}>
+        S
+      </button>
+      <span className="faint tiny label">Music</span>
+      <button className="btn sm icon" aria-pressed={mix.musicMuted} title="Mute music" onClick={() => set({ musicMuted: !mix.musicMuted }, 'Mute music')}>
+        M
+      </button>
+      <button className="btn sm icon" aria-pressed={mix.musicSolo} title="Solo music" onClick={() => set({ musicSolo: !mix.musicSolo }, 'Solo music')}>
+        S
+      </button>
+    </div>
+  );
+}
+
+/** Loudness envelope of a source range, drawn as a waveform. */
+function Wave({ audio, from, to, width, height }: { audio?: AudioAnalysis; from: number; to: number; width: number; height: number }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const c = ref.current;
+    if (!c) return;
+    const w = Math.max(1, Math.min(8000, Math.round(width)));
+    c.width = w;
+    c.height = height;
+    const ctx = c.getContext('2d')!;
+    ctx.clearRect(0, 0, w, height);
+    if (!audio) return;
+    ctx.fillStyle = 'rgba(255, 255, 255, .72)';
+    const len = to - from;
+    for (let x = 0; x < w; x++) {
+      const t0 = from + (x / w) * len;
+      const t1 = from + ((x + 1) / w) * len;
+      let peak = -100;
+      for (let i = Math.floor(t0 * audio.rate); i < Math.ceil(t1 * audio.rate); i++) peak = Math.max(peak, audio.rmsDb[i] ?? -100);
+      const a = Math.max(0, (peak + 60) / 60);
+      const bh = Math.max(1, a * (height - 4));
+      ctx.fillRect(x, (height - bh) / 2, 1, bh);
+    }
+  }, [audio, from, to, width, height]);
+  return <canvas className="wave" ref={ref} style={{ height }} />;
+}

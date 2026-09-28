@@ -120,6 +120,12 @@ const describe = (c: Command): string => {
       return `Set clip gain to ${c.gainDb} dB`;
     case 'rename_project':
       return `Rename project to “${c.name}”`;
+    case 'sync_to_beat':
+      return `Nudge cuts onto the beat (±${c.window}s)`;
+    case 'set_fades':
+      return `Audio fades ${c.fadeIn}s / ${c.fadeOut}s`;
+    case 'duck_music':
+      return c.enabled ? `Duck music ${c.duckDb} dB under speech` : 'Turn off ducking';
   }
 };
 

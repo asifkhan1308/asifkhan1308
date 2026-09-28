@@ -2,7 +2,8 @@ import { useState } from 'react';
 import type { EditorSession } from '../app/session';
 import { rangeLevelDb } from '../engine/dsp';
 import { clipLength } from '../engine/timeline';
-import { Icon, fmtTime } from './bits';
+import { Icon, fmtTime, toast } from './bits';
+import type { AudioClip, Clip } from '../engine/types';
 
 export function Inspector({ session, clipId }: { session: EditorSession; clipId: string | null; time: number }) {
   const { store } = session;
@@ -11,6 +12,8 @@ export function Inspector({ session, clipId }: { session: EditorSession; clipId:
   const clip = idx >= 0 ? doc.clips[idx] : null;
   const [gain, setGain] = useState<number | null>(null);
 
+  const music = doc.audio.find((a) => a.id === clipId);
+  if (music) return <MusicInspector session={session} id={music.id} />;
   if (!clip) return <p className="muted small">Select a clip on the timeline to adjust its trim, level and framing.</p>;
   const asset = doc.assets[clip.assetId];
   const index = store.index[clip.assetId];
@@ -89,6 +92,17 @@ export function Inspector({ session, clipId }: { session: EditorSession; clipId:
         </label>
       )}
 
+      {asset?.hasAudio && (
+        <div className="row" style={{ flexWrap: 'wrap' }}>
+          <Num label="Fade in (s)" value={clip.fadeIn ?? 0} max={5} onCommit={(v) => patchClip(store, clip.id, { fadeIn: v }, 'Fade in')} />
+          <Num label="Fade out (s)" value={clip.fadeOut ?? 0} max={5} onCommit={(v) => patchClip(store, clip.id, { fadeOut: v }, 'Fade out')} />
+          <label className="row small" style={{ alignSelf: 'flex-end', height: 32 }}>
+            <input type="checkbox" className="check" checked={!!clip.muted} onChange={(e) => patchClip(store, clip.id, { muted: e.target.checked }, e.target.checked ? 'Mute clip' : 'Unmute clip')} />
+            Mute
+          </label>
+        </div>
+      )}
+
       <div className="field">
         <span className="row">
           <span className="grow muted small">Framing in {doc.aspect}</span>
@@ -134,6 +148,87 @@ export function Inspector({ session, clipId }: { session: EditorSession; clipId:
         <span className="spacer" />
         <button className="btn sm danger" onClick={() => store.run([{ type: 'delete_clip', clipId: clip.id }], 'Delete clip')}>
           <Icon name="trash" size={13} /> Delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
+type Store = EditorSession['store'];
+
+function patchClip(store: Store, id: string, patch: Partial<Clip>, label: string) {
+  store.mutate(label, (d) => ({ ...d, clips: d.clips.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));
+}
+
+function Num({ label, value, min = 0, max, step = 0.05, onCommit }: { label: string; value: number; min?: number; max: number; step?: number; onCommit(v: number): void }) {
+  return (
+    <label className="field" style={{ width: 96 }}>
+      {label}
+      <input
+        className="input mono"
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        defaultValue={value}
+        key={value}
+        onBlur={(e) => {
+          const v = Math.max(min, Math.min(max, parseFloat(e.target.value)));
+          if (Number.isFinite(v) && v !== value) onCommit(Math.round(v * 100) / 100);
+        }}
+      />
+    </label>
+  );
+}
+
+function MusicInspector({ session, id }: { session: EditorSession; id: string }) {
+  const { store } = session;
+  const doc = store.doc;
+  const a = doc.audio.find((x) => x.id === id);
+  if (!a) return null;
+  const asset = doc.assets[a.assetId];
+  const beats = store.index[a.assetId]?.beats;
+  const patch = (p: Partial<AudioClip>, label: string) => store.mutate(label, (d) => ({ ...d, audio: d.audio.map((x) => (x.id === id ? { ...x, ...p } : x)) }));
+  return (
+    <div className="inspector">
+      <h3 className="ellipsis">♪ {asset?.name ?? 'Missing music'}</h3>
+      <span className="faint small mono">
+        {fmtTime(a.out - a.in)} · starts at {fmtTime(a.start)}
+        {beats ? ` · ${beats.bpm} bpm (confidence ${Math.round(beats.confidence * 100)}%)` : ' · no steady beat detected'}
+      </span>
+      <div className="row" style={{ flexWrap: 'wrap' }}>
+        <Num label="Start (s)" value={a.start} max={36000} step={0.1} onCommit={(v) => patch({ start: v }, 'Move music')} />
+        <Num label="In (s)" value={a.in} max={Math.max(0, a.out - 0.5)} step={0.1} onCommit={(v) => patch({ in: v }, 'Trim music')} />
+        <Num label="Out (s)" value={a.out} min={a.in + 0.5} max={asset?.duration ?? a.out} step={0.1} onCommit={(v) => patch({ out: v }, 'Trim music')} />
+      </div>
+      <Num label="Gain (dB)" value={a.gainDb} min={-40} max={12} step={0.5} onCommit={(v) => patch({ gainDb: v }, 'Music gain')} />
+      <div className="row">
+        <Num label="Fade in (s)" value={a.fadeIn} max={10} onCommit={(v) => patch({ fadeIn: v }, 'Music fade in')} />
+        <Num label="Fade out (s)" value={a.fadeOut} max={10} onCommit={(v) => patch({ fadeOut: v }, 'Music fade out')} />
+      </div>
+      <label className="row small">
+        <input type="checkbox" className="check" checked={a.duck} onChange={(e) => patch({ duck: e.target.checked }, e.target.checked ? 'Duck music' : 'No ducking')} />
+        Duck under speech ({doc.mix.duckDb} dB, measured from the main track)
+      </label>
+      <div className="row" style={{ flexWrap: 'wrap' }}>
+        <button
+          className="btn sm"
+          disabled={!beats}
+          title={beats ? 'Nudge cuts onto the beat (±0.25 s)' : 'No beat detected in this music'}
+          onClick={() => {
+            try {
+              const notes = store.run([{ type: 'sync_to_beat', window: 0.25 }], 'Sync to beat');
+              toast(notes.join(' · '));
+            } catch (e) {
+              toast(e instanceof Error ? e.message : String(e), 'err');
+            }
+          }}
+        >
+          Sync cuts to beat
+        </button>
+        <span className="spacer" />
+        <button className="btn sm danger" onClick={() => store.mutate('Remove music', (d) => ({ ...d, audio: d.audio.filter((x) => x.id !== id) }))}>
+          <Icon name="trash" size={13} /> Remove
         </button>
       </div>
     </div>

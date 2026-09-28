@@ -2,12 +2,13 @@
 // file and composes each frame onto a canvas with the same renderer the
 // exporter uses. Clip gain is applied through Web Audio.
 
-import type { EditView, ProjectIndex, MediaAsset } from './types';
+import type { AudioClip, EditView, ProjectIndex, MediaAsset } from './types';
 import { ASPECTS } from './types';
 import { locate, sequenceDuration, clipStarts, clipLength } from './timeline';
 import { drawCaption, drawClipFrame, CAPTION_FONT } from './render';
 import { captionCues, cueAt, type CaptionCue } from './transcript';
 import { fromDb } from './dsp';
+import { duckDbAt, fadeGain, speechRanges } from './beats';
 import { media } from './media';
 
 interface Source {
@@ -22,6 +23,8 @@ export class Player {
   private doc: EditView;
   private cues: CaptionCue[] = [];
   private sources = new Map<string, Source>();
+  private music = new Map<string, { el: HTMLAudioElement; gain: GainNode | null; url: string }>();
+  private speech: { start: number; end: number }[] = [];
   private audio: AudioContext | null = null;
   private raf = 0;
   private lastWall = 0;
@@ -33,6 +36,11 @@ export class Player {
   constructor(doc: EditView, index: ProjectIndex) {
     this.doc = doc;
     this.cues = captionCues(doc, index);
+    this.speech = this.computeSpeech(index);
+  }
+
+  private computeSpeech(index: ProjectIndex) {
+    return this.doc.audio.some((a) => a.duck) ? speechRanges(this.doc.clips, (id) => index[id]?.audio) : [];
   }
 
   get time() {
@@ -79,6 +87,12 @@ export class Player {
     const aspectChanged = doc.aspect !== this.doc.aspect;
     this.doc = doc;
     this.cues = captionCues(doc, index);
+    this.speech = this.computeSpeech(index);
+    for (const [id, m] of this.music)
+      if (!doc.audio.some((a) => a.id === id)) {
+        m.el.pause();
+        this.music.delete(id);
+      }
     if (aspectChanged) this.resize();
     const d = this.duration;
     if (this._time > d) this._time = d;
@@ -138,6 +152,7 @@ export class Player {
       try {
         this.audio = new AudioContext();
         for (const s of this.sources.values()) this.connect(s);
+        for (const m of this.music.values()) this.connectMusic(m);
       } catch {
         this.audio = null; // Preview still plays, without per-clip gain.
       }
@@ -156,6 +171,7 @@ export class Player {
     this._playing = false;
     cancelAnimationFrame(this.raf);
     for (const s of this.sources.values()) s.el?.pause();
+    for (const m of this.music.values()) m.el.pause();
     this.emit();
     this.draw();
   }
@@ -201,6 +217,66 @@ export class Player {
     }
   }
 
+  private audible(track: 'main' | 'music') {
+    const m = this.doc.mix;
+    const anySolo = m.mainSolo || m.musicSolo;
+    return track === 'main' ? !m.mainMuted && (!anySolo || m.mainSolo) : !m.musicMuted && (!anySolo || m.musicSolo);
+  }
+
+  private connectMusic(m: { el: HTMLAudioElement; gain: GainNode | null }) {
+    if (m.gain || !this.audio) return;
+    const node = this.audio.createMediaElementSource(m.el);
+    m.gain = this.audio.createGain();
+    node.connect(m.gain).connect(this.audio.destination);
+  }
+
+  private musicEl(a: AudioClip) {
+    const url = media.url(a.assetId);
+    if (!url) return null;
+    let m = this.music.get(a.id);
+    if (m && m.url === url) return m;
+    const el = document.createElement('audio');
+    el.src = url;
+    el.preload = 'auto';
+    m = { el, gain: null, url };
+    this.music.set(a.id, m);
+    this.connectMusic(m);
+    return m;
+  }
+
+  /** Clip gain, fades, ducking and mute/solo — applied every frame while playing. */
+  private applyMix() {
+    const t = this._time;
+    const hit = locate(this.doc.clips, t);
+    if (hit) {
+      const asset = this.doc.assets[hit.clip.assetId];
+      const s = asset ? this.sources.get(asset.id) : undefined;
+      if (s?.el) {
+        const c = hit.clip;
+        const g = this.audible('main') && !c.muted ? fromDb(c.gainDb) * fadeGain(hit.offset, clipLength(c), c.fadeIn ?? 0, c.fadeOut ?? 0) : 0;
+        if (s.gain) s.gain.gain.value = g;
+        else s.el.volume = Math.min(1, g);
+      }
+    }
+    for (const a of this.doc.audio) {
+      const m = this.musicEl(a);
+      if (!m) continue;
+      const len = a.out - a.in;
+      const active = this._playing && t >= a.start && t < a.start + len;
+      if (!active) {
+        if (!m.el.paused) m.el.pause();
+        continue;
+      }
+      const want = a.in + (t - a.start);
+      if (Math.abs(m.el.currentTime - want) > 0.2) m.el.currentTime = want;
+      if (m.el.paused) void m.el.play().catch(() => undefined);
+      let g = this.audible('music') ? fromDb(a.gainDb) * fadeGain(t - a.start, len, a.fadeIn, a.fadeOut) : 0;
+      if (a.duck && this.speech.length) g *= fromDb(duckDbAt(t, this.speech, this.doc.mix.duckDb));
+      if (m.gain) m.gain.gain.value = g;
+      else m.el.volume = Math.min(1, g);
+    }
+  }
+
   private tick = () => {
     if (!this._playing) return;
     const now = performance.now();
@@ -227,6 +303,7 @@ export class Player {
       this._time = clipEnd;
       this.syncActive(true);
     } else if (this.activeClipId !== hit.clip.id) this.syncActive(false);
+    this.applyMix();
     this.draw();
     this.emit();
     this.raf = requestAnimationFrame(this.tick);
@@ -262,6 +339,11 @@ export class Player {
 
   dispose() {
     this.pause();
+    for (const m of this.music.values()) {
+      m.el.removeAttribute('src');
+      m.el.load();
+    }
+    this.music.clear();
     for (const s of this.sources.values()) this.disposeSource(s);
     this.sources.clear();
     void this.audio?.close();

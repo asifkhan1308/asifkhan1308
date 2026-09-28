@@ -154,7 +154,7 @@ function EditorView({ session }: { session: EditorSession }) {
     player.update(doc, index);
   }, [player, doc, index]);
   useEffect(() => {
-    if (selected && !doc.clips.some((c) => c.id === selected)) setSelected(null);
+    if (selected && !doc.clips.some((c) => c.id === selected) && !doc.audio.some((a) => a.id === selected)) setSelected(null);
   }, [doc, selected]);
 
   const importFiles = useCallback(
@@ -213,7 +213,8 @@ function EditorView({ session }: { session: EditorSession }) {
   }, [store, player]);
   const del = useCallback(() => {
     if (!selected) return;
-    store.run([{ type: 'delete_clip', clipId: selected }], 'Delete clip');
+    if (store.doc.audio.some((a) => a.id === selected)) store.mutate('Remove music', (d) => ({ ...d, audio: d.audio.filter((a) => a.id !== selected) }));
+    else store.run([{ type: 'delete_clip', clipId: selected }], 'Delete clip');
     setSelected(null);
   }, [store, selected]);
 

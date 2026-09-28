@@ -18,6 +18,7 @@ import {
   timelineToSource,
   trimClip,
 } from '../timeline';
+import { snapCutsToBeats, timelineBeats } from '../beats';
 import { detectSilences, rangeFocus, rangeLevelDb, rangeMeanDb, SILENCE_PRESETS, SILENT_DB } from '../dsp';
 
 export class CommandError extends Error {}
@@ -209,6 +210,24 @@ export function applyCommand(doc: EditView, cmd: Command, ctx: ExecContext): Exe
       return {
         doc: withClips(doc, keepTimelineRanges(doc.clips, ranges, newId)),
         notes: [`Kept ${ranges.length} loudness-ranked moment(s), ${total.toFixed(1)}s`],
+      };
+    }
+    case 'sync_to_beat': {
+      const beats = timelineBeats(doc.audio, (id) => index[id]?.beats);
+      if (beats.length === 0) throw new CommandError('Syncing to the beat needs a music track with a detected beat. Import music first.');
+      const r = snapCutsToBeats(doc.clips, beats, cmd.window, (id) => doc.assets[id]?.duration ?? Infinity);
+      return { doc: withClips(doc, r.clips), notes: [r.moved ? `Moved ${r.moved} cut(s) onto the beat` : 'No cuts were close enough to a beat to move'] };
+    }
+    case 'set_fades':
+      return {
+        doc: withClips(doc, doc.clips.map((c) => ({ ...c, fadeIn: cmd.fadeIn, fadeOut: cmd.fadeOut }))),
+        notes: [`Audio fades ${cmd.fadeIn}s in / ${cmd.fadeOut}s out on ${doc.clips.length} clip(s)`],
+      };
+    case 'duck_music': {
+      if (doc.audio.length === 0) throw new CommandError('There is no music track to duck.');
+      return {
+        doc: { ...doc, audio: doc.audio.map((a) => ({ ...a, duck: cmd.enabled })), mix: { ...doc.mix, duckDb: cmd.duckDb } },
+        notes: [cmd.enabled ? `Music ducks ${cmd.duckDb} dB under speech` : 'Ducking off'],
       };
     }
     case 'rename_project':
