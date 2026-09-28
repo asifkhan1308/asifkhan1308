@@ -4,6 +4,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { AIError, type AIProvider, type ChatRequest, type ProviderId, type ProviderInfo, type ProviderSettings } from './types';
 import { httpError, providerFetch } from './transport';
+import { desktop } from '../platform/desktop';
 
 export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
   builtin: {
@@ -215,6 +216,10 @@ class LocalProvider implements AIProvider {
     const u = new URL(b);
     if (!['localhost', '127.0.0.1', '[::1]'].includes(u.hostname))
       throw new AIError('The local provider only talks to this computer (localhost).', 'network');
+    // Browsers' Content-Security-Policy cannot allow IPv6 literals, so the web app would be
+    // blocked silently. The desktop app sends requests from its main process, where [::1] works.
+    if (u.hostname === '[::1]' && !desktop)
+      throw new AIError('In the browser, use http://localhost or http://127.0.0.1 for the local server ([::1] is blocked by the page’s security policy).', 'network');
     return b;
   }
 

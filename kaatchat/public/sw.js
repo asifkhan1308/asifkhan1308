@@ -1,5 +1,8 @@
-/* Kaatchat offline shell (web build). Assets are content-hashed, so
-   cache-then-network is safe and keeps the editor usable offline.
+/* Kaatchat offline shell (web build).
+   - Pages (index.html) are network-first, so a new deployment reaches users on
+     their next visit even when this file is unchanged; the cached copy is only
+     the offline fallback.
+   - Everything else is content-hashed, so cache-first is safe.
    The large speech runtime (.wasm) is cached only after first use. */
 const CACHE = 'kaatchat-v2';
 const SHELL = ['./', './index.html', './favicon.svg', './manifest.webmanifest'];
@@ -20,6 +23,21 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET' || url.origin !== self.location.origin) return;
   // Never cache the release manifest: it gates the download button.
   if (url.pathname.endsWith('/release.json')) return;
+  const isPage = req.mode === 'navigate' || url.pathname.endsWith('/') || url.pathname.endsWith('/index.html');
+  if (isPage) {
+    e.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res.ok && res.type === 'basic') {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put('./index.html', copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match('./index.html').then((hit) => hit || Response.error())),
+    );
+    return;
+  }
   e.respondWith(
     caches.match(req).then((hit) => {
       if (hit) return hit;
@@ -31,7 +49,7 @@ self.addEventListener('fetch', (e) => {
           }
           return res;
         })
-        .catch(() => (req.mode === 'navigate' ? caches.match('./index.html') : Response.error()));
+        .catch(() => Response.error());
     }),
   );
 });

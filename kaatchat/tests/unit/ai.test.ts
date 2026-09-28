@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { buildContext, keywordSearch, parsePlanReply, requestPlan, rulePlan, searchFootage } from '../../src/ai/planner';
 import { createProvider } from '../../src/ai/providers';
@@ -126,6 +127,14 @@ describe('ask your footage', () => {
 describe('transport', () => {
   it('refuses to call a cloud provider without a key', async () => {
     await expect(providerFetch('openai')('https://api.openai.com/v1/models')).rejects.toMatchObject({ kind: 'no-key' });
+  });
+
+  it('local provider in the browser rejects [::1] (CSP cannot allow it) but accepts any localhost port', async () => {
+    const v6 = createProvider('local', { enabled: true, model: 'm', baseUrl: 'http://[::1]:11434' });
+    await expect(v6.generateText({ system: '', user: '', json: true })).rejects.toThrow(/127\.0\.0\.1/);
+    const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+    expect(html).toContain('http://localhost:*');
+    expect(html).toContain('http://127.0.0.1:*');
   });
 
   it('local provider only talks to localhost', async () => {
