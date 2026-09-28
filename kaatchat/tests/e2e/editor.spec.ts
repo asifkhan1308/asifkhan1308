@@ -153,3 +153,45 @@ test('layout has no horizontal overflow at common widths', async ({ page }) => {
     expect(overflow, `overflow at ${w}px`).toBeLessThanOrEqual(0);
   }
 });
+
+test('repurpose: find clips → sequences → export all', async ({ page }) => {
+  await importFromHome(page);
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: '.srt / .vtt' }).click();
+  await (await chooser).setFiles(fx.srt);
+  await expect(page.locator('.asset').getByText('Transcript')).toBeVisible();
+
+  const studio = page.locator('.panel.right');
+  await studio.getByRole('tab', { name: 'Repurpose' }).click();
+  await studio.getByRole('button', { name: '3', exact: true }).click();
+  await studio.getByRole('button', { name: '15s' }).click();
+  await studio.getByRole('button', { name: 'Find clips' }).click();
+  await expect(studio.getByText(/candidate/)).toBeVisible();
+  await expect(studio.getByText(/measured loudness/)).toBeVisible();
+  await studio.getByRole('button', { name: /^Create \d sequence/ }).click();
+
+  const tabs = page.getByRole('tablist', { name: 'Sequences' }).getByRole('tab');
+  const n = await tabs.count();
+  expect(n).toBeGreaterThanOrEqual(2);
+  await expect(page.getByRole('combobox', { name: 'Aspect' })).toHaveValue('9:16');
+
+  // Hooks (built-in: loudest full sentences) → use as opening.
+  await studio.getByRole('button', { name: 'Suggest hooks' }).click();
+  await expect(studio.getByText(/Loudest complete sentences/)).toBeVisible();
+
+  await page.getByRole('button', { name: 'Export' }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Export' });
+  await dialog.getByRole('button', { name: /All sequences/ }).click();
+  await dialog.getByRole('button', { name: `Export ${n} sequences` }).click();
+  const saves = dialog.getByRole('link', { name: 'Save file' });
+  await expect(saves).toHaveCount(n, { timeout: 150_000 });
+  for (let i = 0; i < n; i++) {
+    const dl = page.waitForEvent('download');
+    await saves.nth(i).click();
+    const path = test.info().outputPath(`batch-${i}.mp4`);
+    await (await dl).saveAs(path);
+    const info = probe(path);
+    expect(info.duration).toBeGreaterThan(1);
+    expect(info.video).toMatch(/\d+x\d+/);
+  }
+});

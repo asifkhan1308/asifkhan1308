@@ -11,6 +11,7 @@ import type { Command, EditPlan } from './commands/schema';
 import { applyCommand, previewPlan, CommandError } from './commands/execute';
 import { activeSequence, fromView, newSequence, toView } from './project';
 import { uid } from './id';
+import { buildShort, type RepurposeOptions } from './repurpose';
 
 export interface HistoryEntry {
   id: string;
@@ -237,6 +238,24 @@ export class EditorStore {
     };
     this.createSequence(seq, `New sequence “${name}”`, activate);
     return seq;
+  }
+
+  /** One new sequence per moment — cut, tightened, reframed, captioned — in one undo step. */
+  repurpose(moments: { start: number; end: number; title?: string }[], opts: RepurposeOptions, prefix = 'Clip'): Sequence[] {
+    if (moments.length === 0) return [];
+    const notes: string[] = [];
+    const created = moments.map((m, i) => {
+      const r = buildShort(this._view, this._index, m, `${prefix} ${String(i + 1).padStart(2, '0')}`, opts, uid);
+      notes.push(`${r.sequence.name}: ${r.notes.slice(-4).join(' · ')}`);
+      return r.sequence;
+    });
+    this.commit(
+      { ...this._project, sequences: [...this._project.sequences, ...created], activeSequenceId: created[0].id },
+      `Create ${created.length} clip${created.length > 1 ? 's' : ''}`,
+      'ai',
+      notes,
+    );
+    return created;
   }
 
   active(): Sequence {

@@ -22,6 +22,7 @@ export const CommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('move_clip'), clipId: id, toIndex: z.number().int().min(0).max(10000) }).strict(),
   z.object({ type: z.literal('remove_ranges'), ranges: z.array(range).min(1).max(500) }).strict(),
   z.object({ type: z.literal('keep_ranges'), ranges: z.array(range).min(1).max(200) }).strict(),
+  z.object({ type: z.literal('prepend_range'), start: seconds, end: seconds, removeOriginal: z.boolean().default(false) }).strict(),
   z.object({ type: z.literal('remove_silence'), preset: SilencePresetSchema.default('balanced') }).strict(),
   z.object({ type: z.literal('smart_cuts'), preset: SilencePresetSchema.default('balanced') }).strict(),
   z.object({ type: z.literal('match_levels'), targetDb: z.number().min(-40).max(-6).default(-18) }).strict(),
@@ -71,6 +72,8 @@ export const COMMAND_DOCS: Record<CommandType, string> = {
   remove_ranges: '{"type":"remove_ranges","ranges":[{"start":s,"end":s}]} — cut TIMELINE ranges out (ripple)',
   keep_ranges:
     '{"type":"keep_ranges","ranges":[{"start":s,"end":s}]} — keep only these TIMELINE ranges, in time order',
+  prepend_range:
+    '{"type":"prepend_range","start":s,"end":s,"removeOriginal":false} — copy (or move) a TIMELINE range to the very start, e.g. as a hook',
   remove_silence: '{"type":"remove_silence","preset":"natural"|"balanced"|"aggressive"} — cut measured quiet stretches',
   smart_cuts: '{"type":"smart_cuts","preset":…} — trim dead air from the head and tail of every clip',
   match_levels: '{"type":"match_levels","targetDb":-18} — bring every clip to the same measured loudness',

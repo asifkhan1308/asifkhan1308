@@ -242,7 +242,7 @@ label.field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; 
 .panel.left { grid-area: left; border-right: 1px solid var(--line); }
 .panel.right { grid-area: right; border-left: 1px solid var(--line); }
 .tabs { display: flex; gap: 2px; padding: 8px 8px 0; border-bottom: 1px solid var(--line); }
-.tab { padding: 8px 10px; border-radius: var(--r-sm) var(--r-sm) 0 0; color: var(--text-3); font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab { padding: 8px 8px; white-space: nowrap; border-radius: var(--r-sm) var(--r-sm) 0 0; color: var(--text-3); font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .tab:hover { color: var(--text-2); }
 .tab[aria-selected='true'] { color: var(--text); border-bottom-color: var(--accent); }
 .panel-body { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; min-height: 0; }

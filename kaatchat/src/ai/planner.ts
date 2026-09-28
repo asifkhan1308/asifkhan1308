@@ -10,6 +10,7 @@ import { COMMAND_DOCS, extractJson, validatePlan, type EditPlan, type CommandInp
 import { clipLength, clipStarts, sequenceDuration } from '../engine/timeline';
 import { rangeLevelDb } from '../engine/dsp';
 import { AIError, type AIProvider, type FootageContext, type Moment } from './types';
+import { candidateMoments, loudestSentences, topicUnitSet, type Candidate } from '../engine/repurpose';
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -295,4 +296,108 @@ export function keywordSearch(transcript: FootageContext['transcript'], query: s
       title: s.text.length > 80 ? s.text.slice(0, 77) + '…' : s.text,
       why: `Mentions ${[...new Set(hits)].join(', ')}`,
     }));
+}
+
+// ---------------------------------------------------------------------------
+// Repurposing: clips and hooks
+// ---------------------------------------------------------------------------
+
+const ClipsSchema = z.object({
+  clips: z
+    .array(
+      z.object({
+        start: z.number().finite().min(0),
+        end: z.number().finite().min(0),
+        title: z.string().max(140),
+        why: z.string().max(400).default(''),
+      }),
+    )
+    .max(20),
+});
+
+const CLIPS_SYSTEM = `You pick short clips from a video's transcript for the person using Kaatchat.
+Reply with JSON only: {"clips":[{"start":<timeline s>,"end":<timeline s>,"title":"<short>","why":"<one sentence>"}]}
+Each clip must stand on its own: start at the beginning of a sentence and end at the end of one, using only times from the transcript.
+Clips must not overlap. Say plainly why each was chosen; do not call anything "viral" or promise performance.`;
+
+export interface ClipOutcome {
+  clips: Candidate[];
+  via: 'measured' | 'keyword' | 'model';
+}
+
+export async function findClips(
+  provider: AIProvider,
+  view: EditView,
+  index: ProjectIndex,
+  opts: { topic: string; count: number; target: number },
+  signal?: AbortSignal,
+): Promise<ClipOutcome> {
+  const topic = opts.topic.trim();
+  if (provider.info.id === 'builtin') {
+    const topicSet = topic ? topicUnitSet(view, index, topic) : undefined;
+    if (topicSet && topicSet.size === 0) return { clips: [], via: 'keyword' };
+    return { clips: candidateMoments(view, index, opts.count, opts.target, topicSet), via: topic ? 'keyword' : 'measured' };
+  }
+  const ctx = buildContext(view, index, 0);
+  if (ctx.transcript.length === 0)
+    throw new AIError('Choosing clips with an AI provider needs a transcript. Transcribe first, or use Built-in (measured) selection.', 'bad-output');
+  const reply = await provider.generateText({
+    system: CLIPS_SYSTEM,
+    user: `Transcript (timeline seconds):\n${JSON.stringify(ctx.transcript).slice(0, 90000)}\n\nFind ${opts.count} clips, each about ${opts.target} seconds (between ${Math.round(opts.target * 0.6)} and ${Math.round(opts.target * 1.5)}).${topic ? ` They should be about: ${topic}.` : ' Pick the strongest self-contained moments.'}`,
+    json: true,
+    signal,
+  });
+  let parsed;
+  try {
+    parsed = ClipsSchema.safeParse(extractJson(reply));
+  } catch {
+    parsed = null;
+  }
+  if (!parsed?.success) throw new AIError('The model sent clips in the wrong shape, so they were discarded.', 'bad-output');
+  const dur = ctx.project.duration;
+  const out: Candidate[] = [];
+  for (const c of parsed.data.clips) {
+    const start = Math.max(0, Math.min(c.start, dur));
+    const end = Math.max(0, Math.min(c.end, dur));
+    if (end - start < 2) continue;
+    if (out.some((o) => start < o.end && end > o.start)) continue;
+    out.push({ start, end, title: c.title, why: c.why, score: 0 });
+    if (out.length >= opts.count) break;
+  }
+  return { clips: out.sort((a, b) => a.start - b.start), via: 'model' };
+}
+
+const HOOKS_SYSTEM = `You suggest opening hooks for a short video, taken from its own transcript.
+Reply with JSON only: {"hooks":[{"start":<timeline s>,"end":<timeline s>,"text":"<the exact words>","why":"<one sentence>"}]}
+Return 3 to 5 alternatives, each one or two complete sentences (under 12 seconds), using only times from the transcript.
+These are options for a person to choose between. Do not rank them as "best" or claim they will go viral.`;
+
+const HooksSchema = z.object({
+  hooks: z
+    .array(z.object({ start: z.number().finite().min(0), end: z.number().finite().min(0), text: z.string().max(400), why: z.string().max(300).default('') }))
+    .max(8),
+});
+
+export async function suggestHooks(provider: AIProvider, view: EditView, index: ProjectIndex, signal?: AbortSignal): Promise<ClipOutcome> {
+  const ctx = buildContext(view, index, 0);
+  if (ctx.transcript.length === 0) throw new AIError('Hook suggestions need a transcript. Transcribe first.', 'bad-output');
+  if (provider.info.id === 'builtin') return { clips: loudestSentences(view, index), via: 'measured' };
+  const reply = await provider.generateText({
+    system: HOOKS_SYSTEM,
+    user: `Transcript (timeline seconds):\n${JSON.stringify(ctx.transcript).slice(0, 90000)}`,
+    json: true,
+    signal,
+  });
+  let parsed;
+  try {
+    parsed = HooksSchema.safeParse(extractJson(reply));
+  } catch {
+    parsed = null;
+  }
+  if (!parsed?.success) throw new AIError('The model sent hooks in the wrong shape, so they were discarded.', 'bad-output');
+  const dur = ctx.project.duration;
+  const clips = parsed.data.hooks
+    .map((h) => ({ start: Math.max(0, Math.min(h.start, dur)), end: Math.max(0, Math.min(h.end, dur)), title: h.text, why: h.why, score: 0 }))
+    .filter((h) => h.end - h.start >= 0.5 && h.end - h.start <= 20);
+  return { clips, via: 'model' };
 }

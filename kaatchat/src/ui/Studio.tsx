@@ -10,8 +10,9 @@ import type { PlanPreview } from '../engine/commands/execute';
 import { Icon, fmtTime, toast } from './bits';
 import { t } from '../i18n';
 import { Inspector } from './Inspector';
+import { Repurpose } from './Repurpose';
 
-export type StudioTab = 'ask' | 'find' | 'clip' | 'history';
+export type StudioTab = 'ask' | 'find' | 'clips' | 'clip' | 'history';
 
 interface Props {
   session: EditorSession;
@@ -33,6 +34,7 @@ export function Studio(p: Props) {
           [
             ['ask', t('ai.tab.ask')],
             ['find', t('ai.tab.find')],
+            ['clips', 'Repurpose'],
             ['clip', 'Clip'],
             ['history', t('ai.tab.history')],
           ] as const
@@ -48,6 +50,7 @@ export function Studio(p: Props) {
           <Ask {...p} />
         </div>
         {p.tab === 'find' && <Find {...p} />}
+        {p.tab === 'clips' && <Repurpose session={p.session} onSeek={p.onSeek} onPlay={p.onPlay} />}
         {p.tab === 'clip' && <Inspector session={p.session} clipId={p.selected} time={p.time} />}
         {p.tab === 'history' && <History session={p.session} />}
       </div>
@@ -103,6 +106,8 @@ const describe = (c: Command): string => {
       return `Keep ${c.ranges.length} moment(s): ${c.ranges.slice(0, 3).map((r) => `${fmtTime(r.start)}–${fmtTime(r.end)}`).join(', ')}${c.ranges.length > 3 ? '…' : ''}`;
     case 'remove_ranges':
       return `Cut ${c.ranges.length} range(s)`;
+    case 'prepend_range':
+      return `Open with ${fmtTime(c.start)}–${fmtTime(c.end)}${c.removeOriginal ? ' (moved)' : ''}`;
     case 'split_clip':
       return `Split at ${fmtTime(c.at)}`;
     case 'trim_clip':

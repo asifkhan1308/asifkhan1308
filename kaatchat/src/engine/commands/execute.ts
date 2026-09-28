@@ -15,6 +15,7 @@ import {
   removeTimelineRanges,
   sequenceDuration,
   splitAt,
+  timelineToSource,
   trimClip,
 } from '../timeline';
 import { detectSilences, rangeFocus, rangeLevelDb, rangeMeanDb, SILENCE_PRESETS, SILENT_DB } from '../dsp';
@@ -81,6 +82,15 @@ export function applyCommand(doc: EditView, cmd: Command, ctx: ExecContext): Exe
         doc: withClips(doc, keepTimelineRanges(doc.clips, cmd.ranges, newId)),
         notes: [`Kept ${cmd.ranges.length} range(s)`],
       };
+    }
+    case 'prepend_range': {
+      if (cmd.end <= cmd.start) throw new CommandError('The hook range must end after it starts.');
+      const pieces = timelineToSource(doc.clips, { start: cmd.start, end: cmd.end });
+      if (pieces.length === 0) throw new CommandError('That range is outside the edit.');
+      const hook = pieces.map((p) => ({ ...doc.clips[p.clipIndex], id: newId(), in: p.start, out: p.end }));
+      const rest = cmd.removeOriginal ? removeTimelineRanges(doc.clips, [{ start: cmd.start, end: cmd.end }], newId) : doc.clips;
+      const len = hook.reduce((a, c) => a + clipLength(c), 0);
+      return { doc: withClips(doc, [...hook, ...rest]), notes: [`Opened with ${len.toFixed(1)}s from ${cmd.start.toFixed(1)}s${cmd.removeOriginal ? ' (moved)' : ' (copied)'}`] };
     }
     case 'remove_silence':
     case 'smart_cuts': {

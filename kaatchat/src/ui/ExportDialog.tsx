@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { EditorSession } from '../app/session';
 import { EXPORT_PRESETS, exportProject, projectExportSize, type ExportOptions, type ExportResult, type Quality } from '../engine/export';
 import { sequenceDuration } from '../engine/timeline';
+import { toView } from '../engine/project';
+import type { EditView } from '../engine/types';
 import { Dialog, Icon, Progress, fmtBytes, fmtTime } from './bits';
 import { useJobs } from './Jobs';
 
@@ -18,37 +20,52 @@ export function ExportDialog({ session, onClose }: { session: EditorSession; onC
   const [fps, setFps] = useState<number>(doc.fps);
   const [framing, setFraming] = useState<ExportOptions['framing']>('project');
   const [captions, setCaptions] = useState(doc.captions.enabled);
-  const [jobId, setJobId] = useState<string | null>(null);
-  const [result, setResult] = useState<ExportResult | null>(null);
+  const [scope, setScope] = useState<'one' | 'all'>('one');
+  const [jobIds, setJobIds] = useState<string[]>([]);
+  const [results, setResults] = useState<{ id: string; name: string; result: ExportResult; url: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const jobs = useJobs(session.jobs);
-  const job = jobs.find((j) => j.id === jobId);
+  const mine = jobs.filter((j) => jobIds.includes(j.id));
+  const job = mine.find((j) => j.state === 'running') ?? mine[mine.length - 1];
+  const seqCount = store.sequences.length;
   const hasTranscript = doc.clips.some((c) => store.index[c.assetId]?.transcript);
 
   const size = preset === 'project' ? proj : preset === 'custom' ? custom : EXPORT_PRESETS.find((p) => p.id === preset)!;
   const aspectMismatch = Math.abs(size.width / size.height - proj.width / proj.height) > 0.01;
-  const url = useMemo(() => (result ? URL.createObjectURL(result.blob) : null), [result]);
-  useEffect(() => () => void (url && URL.revokeObjectURL(url)), [url]);
+  const urlsRef = useRef<string[]>([]);
+  useEffect(() => {
+    urlsRef.current = results.map((r) => r.url);
+  }, [results]);
+  // Revoke download links only when the dialog closes.
+  useEffect(() => () => urlsRef.current.forEach((u) => URL.revokeObjectURL(u)), []);
 
   const start = () => {
     setError(null);
-    setResult(null);
-    const opts: ExportOptions = { width: size.width, height: size.height, fps, format, quality, framing, captions };
-    const snapshot = store.doc;
+    setResults([]);
     const idx = store.index;
-    const { id } = session.jobs.add(`Export ${size.width}×${size.height} ${format.toUpperCase()}`, 'export', async (ctl) => {
-      try {
-        const r = await exportProject(snapshot, idx, opts, ctl);
-        setResult(r);
-      } catch (e) {
-        if (!(e instanceof DOMException && e.name === 'AbortError')) setError(e instanceof Error ? e.message : String(e));
-        throw e;
-      }
-    });
-    setJobId(id);
+    const targets: EditView[] =
+      scope === 'all' ? store.sequences.map((q) => toView({ ...store.project, activeSequenceId: q.id })) : [store.doc];
+    const ids: string[] = [];
+    for (const v of targets) {
+      if (v.clips.length === 0) continue;
+      // "Project" size follows each sequence's own shape.
+      const sz = preset === 'project' ? projectExportSize(v) : size;
+      const opts: ExportOptions = { width: sz.width, height: sz.height, fps, format, quality, framing, captions };
+      const { id } = session.jobs.add(`Export “${v.name}” ${sz.width}×${sz.height} ${format.toUpperCase()}`, 'export', async (ctl) => {
+        try {
+          const r = await exportProject(v, idx, opts, ctl);
+          setResults((prev) => [...prev, { id, name: v.name, result: r, url: URL.createObjectURL(r.blob) }]);
+        } catch (e) {
+          if (!(e instanceof DOMException && e.name === 'AbortError')) setError(`“${v.name}”: ${e instanceof Error ? e.message : String(e)}`);
+          throw e;
+        }
+      });
+      ids.push(id);
+    }
+    setJobIds(ids);
   };
 
-  const running = job && (job.state === 'running' || job.state === 'queued');
+  const running = mine.some((j) => j.state === 'running' || j.state === 'queued');
   const groups = ['Instagram', 'YouTube', 'TikTok'] as const;
 
   return (
@@ -58,7 +75,7 @@ export function ExportDialog({ session, onClose }: { session: EditorSession; onC
       onClose={onClose}
       footer={
         running ? (
-          <button className="btn" onClick={() => session.jobs.cancel(job!.id)}>
+          <button className="btn" onClick={() => mine.forEach((j) => session.jobs.cancel(j.id))}>
             Cancel export
           </button>
         ) : (
@@ -67,12 +84,22 @@ export function ExportDialog({ session, onClose }: { session: EditorSession; onC
               Close
             </button>
             <button className="btn primary" onClick={start} disabled={doc.clips.length === 0}>
-              <Icon name="download" /> Export {fmtTime(sequenceDuration(doc.clips))}
+              <Icon name="download" /> {scope === 'all' ? `Export ${seqCount} sequences` : `Export ${fmtTime(sequenceDuration(doc.clips))}`}
             </button>
           </>
         )
       }
     >
+      {seqCount > 1 && (
+        <div className="suggest" role="radiogroup" aria-label="What to export">
+          <button className="chip" aria-pressed={scope === 'one'} onClick={() => setScope('one')}>
+            This sequence · {doc.name}
+          </button>
+          <button className="chip" aria-pressed={scope === 'all'} onClick={() => setScope('all')}>
+            All sequences ({seqCount})
+          </button>
+        </div>
+      )}
       <div className="col">
         <span className="muted small">Size</span>
         <div className="suggest">
@@ -156,6 +183,11 @@ export function ExportDialog({ session, onClose }: { session: EditorSession; onC
 
       <p className="faint small">Encoded on this device with WebCodecs. Nothing is uploaded.</p>
 
+      {mine.length > 1 && (
+        <span className="small muted">
+          {mine.filter((j) => j.state === 'done').length} of {mine.length} exported
+        </span>
+      )}
       {job && (
         <div className="col">
           <div className="row small">
@@ -166,20 +198,20 @@ export function ExportDialog({ session, onClose }: { session: EditorSession; onC
         </div>
       )}
       {error && <p className="note err">Export failed: {error}</p>}
-      {result && url && (
-        <div className="note">
+      {results.map(({ id, name, result, url }) => (
+        <div className="note" key={id}>
           <div className="row" style={{ flexWrap: 'wrap' }}>
             <Icon name="check" />
             <span className="grow">
-              {result.fileName} · {fmtBytes(result.blob.size)} · {result.videoCodec.toUpperCase()}
-              {result.audioCodec ? ` + ${result.audioCodec.toUpperCase()}` : ''} · encoded in {(result.elapsedMs / 1000).toFixed(1)}s
+              <b>{name}</b> · {result.fileName} · {fmtBytes(result.blob.size)} · {result.videoCodec.toUpperCase()}
+              {result.audioCodec ? ` + ${result.audioCodec.toUpperCase()}` : ''} · {(result.elapsedMs / 1000).toFixed(1)}s
             </span>
             <a className="btn primary" href={url} download={result.fileName}>
               <Icon name="download" /> Save file
             </a>
           </div>
         </div>
-      )}
+      ))}
     </Dialog>
   );
 }
