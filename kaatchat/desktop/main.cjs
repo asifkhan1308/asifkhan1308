@@ -186,6 +186,9 @@ function createWindow() {
   });
 
   const wc = mainWindow.webContents;
+  // A crashed or killed renderer leaves a blank window; say why in the log.
+  wc.on('render-process-gone', (_e, d) => console.error(`[kaatchat] renderer gone: ${d.reason} (exit ${d.exitCode})`));
+  app.on('child-process-gone', (_e, d) => console.error(`[kaatchat] ${d.type} process gone: ${d.reason} (exit ${d.exitCode})`));
   wc.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url);
     return { action: 'deny' };

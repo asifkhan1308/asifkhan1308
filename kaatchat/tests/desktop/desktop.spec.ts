@@ -16,6 +16,9 @@ const desktopDir = join(here, '..', '..', 'desktop');
 const electronPath = createRequire(join(desktopDir, 'package.json'))('electron') as unknown as string;
 let app: ElectronApplication;
 let page: Page;
+// Electron's stderr, renderer crashes and console errors, printed when a test fails
+// so CI failures can be diagnosed from the log alone.
+const log: string[] = [];
 
 test.beforeAll(async () => {
   ensureFixtures();
@@ -23,12 +26,26 @@ test.beforeAll(async () => {
   if (!existsSync(mp4))
     execFileSync(ffmpeg, ['-v', 'error', '-y', '-i', join(FIXTURES, 'talk.webm'), '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', mp4]);
   app = await electron.launch({ executablePath: electronPath, args: [desktopDir, ...(process.getuid?.() === 0 ? ['--no-sandbox'] : [])], env: { ...process.env, ELECTRON_ENABLE_LOGGING: '0' } });
+  app.process().stderr?.on('data', (d) => log.push(String(d)));
   page = await app.firstWindow();
+  page.on('crash', () => log.push('[renderer crashed]\n'));
+  page.on('console', (m) => {
+    if (m.type() === 'error') log.push(`[console] ${m.text()}\n`);
+  });
+  page.on('pageerror', (e) => log.push(`[pageerror] ${e.message}\n`));
   await page.waitForLoadState('domcontentloaded');
 });
 
+// eslint-disable-next-line no-empty-pattern -- Playwright hooks need a fixtures object first.
+test.afterEach(async ({}, info) => {
+  if (info.status !== info.expectedStatus) console.log(`--- Electron log (${info.title}) ---\n${log.slice(-120).join('')}--- end ---`);
+});
+
 test.afterAll(async () => {
-  await app?.close();
+  if (!app) return;
+  // Never let a wedged app hold the job for the whole hook timeout.
+  const closed = await Promise.race([app.close().then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), 15_000))]);
+  if (!closed) app.process().kill('SIGKILL');
 });
 
 test('loads from the kaatchat:// origin with a sandboxed, isolated renderer', async () => {
