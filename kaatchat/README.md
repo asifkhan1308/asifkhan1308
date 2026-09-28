@@ -1,6 +1,6 @@
 # Kaatchat 2
 
-**Talk to your footage.** A local-first, AI-native video editor. Your footage never leaves your device.
+**Shoot once. Edit intelligently. Create more.** A local-first video editor with an AI assistant. Your footage never leaves your device.
 
 | | |
 | --- | --- |
@@ -8,9 +8,9 @@
 | **Version** | 2.0.0-alpha.1 |
 | **Licence** | MPL-2.0 (see `LICENSE`). Built on Mediabunny (MPL-2.0), with thanks to WolfCut (MPL-2.0). |
 | **Platforms** | Web app and Windows desktop (Electron), one codebase |
-| **Status** | Phase 1 foundation plus the §82 first-release scope. See [docs/ROADMAP.md](docs/ROADMAP.md) for exactly what is and is not built. |
+| **Status** | The agreed v2 scope is built and tested. See [docs/ROADMAP.md](docs/ROADMAP.md) for exactly what is and is not built. |
 
-> **About this codebase.** Kaatchat 2 is a clean rebuild. The v0.1 TypeScript source was not available, only its built bundle and installer, so the engine was rewritten rather than patched. It keeps v0.1's product rules, design tokens, logo, fonts, silence presets, −18 dBFS level target, aspects and export presets. It also carries forward (and fixes) v0.1's Electron shell: see [docs/SECURITY.md](docs/SECURITY.md).
+> **About this codebase.** Kaatchat 2 is a clean rebuild. The v0.1 TypeScript source was not available, only its built bundle and installer, so the engine was rewritten rather than patched. It keeps v0.1's product rules, fonts, silence presets, −18 dBFS level target, aspects and export presets. The look follows the Main design canvas (monochrome), and the logo is a vector trace of the supplied mark. It also carries forward (and fixes) v0.1's Electron shell: see [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Product rules
 
@@ -20,26 +20,27 @@
 4. **Local means local.** Media is decoded, measured, transcribed and encoded on the device. AI providers receive only metadata.
 5. **AI proposes; the engine executes.** Models return a JSON edit plan. It is validated against a strict schema, previewed, and applied only when you confirm, in one undo step.
 
-## What works today
+## What it does
 
-- **Editor:** import (video and images), filmstrips and waveforms, drag to reorder, trim handles, split, delete, frame stepping, undo/redo, named versions, 16:9 / 9:16 / 1:1 / 4:5.
-- **Measurement (local):** loudness envelope, silence detection (Natural / Balanced / Aggressive), clip levels, content-aware framing, thumbnails. All run in a cancellable job queue.
-- **Transcripts:** local Whisper (transformers.js + ONNX Runtime Web, in a worker), or import `.srt` / `.vtt`.
-- **Transcript editing:** click a word to jump, shift-click to select, delete to cut the video. One click removes filler words.
-- **Captions:** Minimal, Clean, Podcast, Bold and Kinetic styles, derived live from the transcript through the edit and burned in on export. Vertical safe zone.
+- **Editor:** video, image and audio import; filmstrips and waveforms; trim, split, reorder; undo/redo and named versions; 16:9 / 9:16 / 1:1 / 4:5; **multiple sequences per project**.
+- **Measured on your machine:** loudness, silence, beats (tempo and grid), content-aware framing and thumbnails, in a cancellable job queue with real progress.
+- **Transcripts:** local Whisper, or `.srt`/`.vtt` import. Delete words to cut the video, remove fillers in one click, and captions follow the edit (five styles, word highlight).
 - **AI Studio:**
-  - The ✦ command bar (Ctrl+K), plus Ask, Find, Clip and History tabs.
-  - Plan preview ("Kaatchat wants to: …", before/after length, clips and aspect), then Apply, Cancel, Modify or Regenerate. Simple setting changes apply in one click with Undo.
-- **Ask your footage:** keyword search on the device, or meaning-based search with an AI provider. Results are timestamped; keep them (builds the edit) or cut them.
-- **One-command reels:** "Turn this into a 30 second Reel" removes silence, keeps the most energetic moments, switches to 9:16, applies a content-aware crop and turns on captions.
-- **AI providers:**
-  - Built-in rules (offline, no model).
-  - Local, any Ollama-compatible server.
-  - OpenAI, Google Gemini and Anthropic Claude, all with your own key. Each has a connection test and a privacy description.
-- **Export:** MP4 (H.264/AAC where the platform has them) or WebM (VP9/Opus). Instagram / YouTube / TikTok presets, project size or a custom size. Quality, fps and framing settings. Encoded locally.
-- **Projects:** stored in IndexedDB, with an autosave slot and crash recovery ("Recovered project — Restore / Discard"). Media over 420 MB is used for the session and relinked on reopen.
-- **Privacy Center:** exactly what stays and what leaves, for the current settings.
-- **Accessibility and languages:** keyboard shortcuts, focus states, labelled controls, accessible dialogs, high contrast, reduced motion, UI scale. English, Hindi and Hinglish strings.
+  - **Ask:** a request becomes a validated plan that you preview, then apply in one undo.
+  - **Find:** timestamped moments you can keep, cut, or turn into a new sequence.
+  - **Repurpose:** N clips → N finished sequences, plus hook suggestions.
+  - **Brand, Clip, History:** the Brand Kit, the inspector, and edit history.
+- **Magic Edit commands:** remove silence, smart cuts, match levels, reframe, highlights, sync to beat, fades, ducking, looks, transitions, punch-ins, titles, brand. Twenty-six typed commands in all.
+- **Music:** a music track with a beat grid, ducking under speech, fades, and mute/solo for each track.
+- **Motion:** text, shape and logo layers with keyframes, easing, masks and animation presets. Transitions: dissolve, fade, slide, zoom, blur and whip. Effects and one-click looks.
+- **Podcast / talking head:** a one-command clean-up (pauses, fillers, levels, punch-ins, captions). A clip can switch to another camera, lined up by cross-correlating the audio.
+- **Brand Kit:** logo, colours, an uploaded font, caption style, lower third, watermark, intro/outro. Apply it to one sequence or all of them.
+- **AI providers:** Built-in rules (offline), Local (Ollama-compatible), OpenAI, Google Gemini and Anthropic Claude, each with your own key.
+- **Export:** MP4 or WebM with presets. One sequence, or **all sequences** in a batch. Encoded locally, with a streaming mixer for the audio.
+- **Projects:** IndexedDB storage, autosave, and crash recovery.
+- **Also:** a Privacy Center; light and dark monochrome themes; English, Hindi and Hinglish; accessibility settings.
+
+What is *not* in v2, and why, is in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Architecture
 
@@ -57,15 +58,23 @@ src/
 │   ├── transcript.ts    segments, SRT/VTT, caption cues through the edit
 │   ├── render.ts        frame + caption composition (shared by preview and export)
 │   ├── playback.ts      preview transport
-│   ├── export.ts        decode → compose → encode (Mediabunny / WebCodecs)
+│   ├── export.ts        frame-driven compositor → encode (Mediabunny / WebCodecs)
+│   ├── mixer.ts         streaming audio mixer (main + music, fades, ducking, mute/solo)
+│   ├── motion.ts        keyframes, easing, overlays, effects, transitions
+│   ├── beats.ts         onsets, tempo, beat grid, snapping, ducking envelope
+│   ├── repurpose.ts     candidate moments, finished shorts, hooks
+│   ├── brand.ts         Brand Kit application
+│   ├── multicam.ts      audio-based angle sync
 │   ├── jobs.ts          cancellable job queue with measured progress
 │   └── persist.ts       IndexedDB projects, autosave, media, index
 ├── ai/                provider abstraction, BYOK keys, transport, planner
 ├── app/               session glue, preferences, AI settings state
-├── ui/                React shell (Home, Editor, Timeline, Studio, Settings, Privacy…)
+├── ui/                React shell (Home, Editor, Timeline, Studio, Repurpose, Brand, Settings, Privacy…)
+├── brand/mark.ts      the Kaatchat logo mark (vector)
 ├── i18n/              en / hi / hinglish
 └── platform/desktop.ts  the typed Electron bridge
 desktop/               Electron main, sandboxed preload, security policy, NSIS config
+site/                  static marketing site (no build step, no external requests)
 tests/unit/            engine, AI planner, transport (Vitest)
 tests/e2e/             real Chromium + real media, exports checked with ffmpeg
 tests/desktop/         launches the real Electron app
@@ -101,7 +110,7 @@ npm run dist:win     # NSIS installer in desktop/release/ (Windows or CI)
 
 CI (`.github/workflows/kaatchat.yml`) runs lint, typecheck, unit, build, web E2E and the desktop smoke tests. Pushing a tag `kaatchat-vX.Y.Z` builds the Windows installer and publishes it to a **GitHub Release** with `SHA256SUMS.txt`, but only if every test passed. Installers are never committed to git. The build is signed automatically when `WIN_CSC_LINK` / `WIN_CSC_KEY_PASSWORD` secrets exist. Until then it is published as **unsigned** and says so.
 
-To turn on the web download button, set `windowsUrl` and `sha256` in `public/release.json` to the release asset.
+To turn on the download buttons, set `windowsUrl` and `sha256` in `public/release.json` (the app) and in `site/release.json` (the website) to the release asset. Set `appUrl` in `site/config.js` once the web editor is deployed. See [site/README.md](site/README.md).
 
 ## Licences
 

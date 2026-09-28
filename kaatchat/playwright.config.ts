@@ -13,10 +13,18 @@ export default defineConfig({
     viewport: { width: 1440, height: 900 },
     launchOptions: { args: ['--autoplay-policy=no-user-gesture-required'] },
   },
-  webServer: {
-    command: 'npm run preview',
-    url: 'http://localhost:4173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-  },
+  webServer: [
+    {
+      command: 'npm run preview',
+      url: 'http://localhost:4173',
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+    },
+    {
+      command: 'python3 -m http.server 4174 --directory site',
+      url: 'http://localhost:4174',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+    },
+  ],
 });

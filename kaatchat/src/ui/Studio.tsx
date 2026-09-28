@@ -28,6 +28,10 @@ interface Props {
 
 export function Studio(p: Props) {
   useStoreVersion(p.session);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (bodyRef.current) bodyRef.current.scrollTop = 0;
+  }, [p.tab]);
   return (
     <>
       <div className="tabs" role="tablist" aria-label={t('ai.studio')}>
@@ -46,7 +50,7 @@ export function Studio(p: Props) {
           </button>
         ))}
       </div>
-      <div className="panel-body" role="tabpanel">
+      <div className="panel-body" role="tabpanel" ref={bodyRef}>
         {/* Ask stays mounted so a running request or pending plan survives tab switches. */}
         <div hidden={p.tab !== 'ask'} className="col" style={{ gap: 12 }}>
           <Ask {...p} />

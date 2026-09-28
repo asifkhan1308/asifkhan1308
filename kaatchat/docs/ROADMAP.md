@@ -1,54 +1,51 @@
-# Roadmap and status
+# Kaatchat 2.0 — scope and status
 
-Status is stated plainly: **Built** means the feature is in the app and covered by tests. **Built, unverified here** means the code is complete but could not be run end to end in the environment it was built in. **Not built** means the UI either hides it or shows it disabled with the reason.
+**Shoot once. Edit intelligently. Create more.**
 
-## First release scope (spec §82)
+The v2 scope is deliberately realistic: the editor does the editing, and AI chooses, plans and explains. Status below uses three labels:
 
-| Must have | Status |
-| --- | --- |
-| Existing editor (import, timeline, trim, split, undo, export) | Built. E2E: import → reel → export, with ffmpeg verifying the file |
-| AI command bar | Built (Ctrl+K). E2E covered |
-| Transcript | Built: `.srt`/`.vtt` import (E2E). Local Whisper: **built, unverified here**. Hugging Face was blocked from the build sandbox, so the model download and inference path has not been run. The first real run should be on a normal network |
-| Ask Your Footage | Built: keyword search on device (E2E), and model search through any provider (unit + E2E with a mocked provider) |
-| AI clip selection | Built: `keep_ranges` from search results or plans, and `select_highlights` (loudness-ranked) |
-| YouTube → Reel | Built: one command removes silence, selects highlights, switches to 9:16, applies a content-aware crop and adds captions. E2E covered |
-| Captions | Built: 5 styles, word highlight, vertical safe zone, burned in on export |
-| Smart cuts | Built (`smart_cuts`, `remove_silence`) |
-| Auto reframe | Built: content-aware crop (gradient detail + motion), plus a manual focus point |
+- **Built:** in the app and covered by tests.
+- **Built, unverified here:** the code is complete but could not be run end to end in the build environment.
+- **Not in v2:** hidden, or shown disabled with the reason.
 
-## Phases (spec §81)
+## Build (v2)
 
-| Phase | Item | Status |
+| # | Area | Status |
 | --- | --- | --- |
-| 1 Foundation | Typed command system | Built: 17 commands, zod-validated, pure executor, atomic plans |
-| | AI provider abstraction | Built: Built-in, Local (Ollama), OpenAI, Gemini, Claude |
-| | AI settings, BYOK storage | Built: OS keychain on desktop (safeStorage), browser storage on web with a warning |
-| | AI command bar | Built |
-| 2 Understand | Transcript engine | Whisper worker (unverified here) + SRT/VTT |
-| | Speaker detection | **Not built** |
-| | Timestamp alignment | Built (word timings, mapped through the edit) |
-| | Semantic indexing (embeddings) | **Not built**. Meaning-based search goes through the chosen provider |
-| | Ask Your Footage + results | Built |
-| | Transcript editing | Built |
-| 3 AI editing | Planner, JSON schema, validation, preview, apply, undo | Built. One repair round when a model returns invalid JSON |
-| 4 Repurposing | YouTube → Reel / Shorts | Built (single output per command) |
-| | Highlights / hooks | Loudness-ranked highlights built. **Hook generator not built** |
-| | Batch "one shoot → many pieces" | **Not built** (needs multiple sequences per project) |
-| 5 Creative AI | Image/video generation, B-roll, motion graphics, effects, transitions, sound design, music | **Not built**. Shown disabled with reasons. The `Capability` type already names the generation interfaces |
-| | Captions | Built |
-| | Audio AI | Loudness matching + soft limiter built. Noise reduction and voice isolation **not built** |
-| 6 Workflows | Podcast / multicam / talking head / product ad / screen recording / brand kit / templates | **Not built** |
-| 7 Production | Crash recovery | Built (autosave slot, Restore / Discard) |
-| | Security audit | Done for the Electron shell and AI transport. See SECURITY.md |
-| | Accessibility, i18n (en/hi/hinglish) | Built (foundations) |
-| | E2E, CI/CD, installer, release | Built. Installer built in CI on Windows; unsigned until signing secrets exist |
-| | Proxies, workers for analysis | Whisper runs in a worker. Loudness/framing analysis runs on the main thread in async chunks. **Proxies not built** |
-| | Marketing website | The v0.1 Magic Edit page exists separately. **The new §64 site is not built yet** |
+| 1 | Core editor: import video, images and audio; timeline; trim; split; reorder; undo/redo; waveforms; filmstrips; scrubbing; four aspect ratios; local export | Built |
+| 2 | Magic Edit: remove silence, smart cuts, loudness matching, auto reframe (content-aware crop), beat sync, punchy/clean/cinematic pacing | Built |
+| 3 | Ask Your Footage: timestamped moments → keep, cut, or **new sequence** | Built (keyword search on device; meaning-based with a provider) |
+| 4 | Transcript editing: remove words and sentences, fillers, silence; captions | Built. `.srt`/`.vtt` import tested end to end. Local Whisper: **built, unverified here** (Hugging Face was blocked in the build sandbox) |
+| 5 | YouTube → Reel | Built (one command; E2E) |
+| 6 | YouTube → Shorts | Built (same pipeline, any aspect) |
+| 7 | Multiple clips from one video → separate sequences | Built (Repurpose; one undo; E2E) |
+| 8 | Hook suggestions (user chooses; nothing called "viral") | Built |
+| 9 | AI content search | Built |
+| 10 | Auto captions: styles, word highlight, safe zones | Built (captions from any transcript; Whisper as above) |
+| 11 | Auto reframe 16:9 → 9:16 / 4:5 / 1:1 | Built |
+| 12 | AI editing commands (command bar → validated plan → preview → apply → undo) | Built — 26 typed commands |
+| 13 | Gemini, OpenAI, Claude and Local (Ollama) providers, plus built-in rules | Built. Providers tested with mocked endpoints; the desktop proxy with the real Electron app |
+| 14 | Basic motion: text/shape/logo layers, keyframes, easing, masks, presets (fade, slide, scale, pop, typewriter, blur, tracking, kinetic) | Built |
+| 15 | Basic effects: brightness, contrast, saturation, exposure, blur, sharpen, vignette, grain, opacity, tint; one-click looks | Built |
+| 16 | Transitions: dissolve, fade, slide, zoom, blur, whip | Built. Export uses media handles; preview uses held frames |
+| 17 | Audio: normalization, silence detection, fades, music ducking, gain, mute/solo | Built. Noise reduction: **not in v2** (no suitable local implementation yet) |
+| 18 | Podcast / talking-head: transcript, silence and filler removal, punch-ins, captions, clip extraction, manual camera switching (lined up by sound) | Built. Speaker labels: **not in v2**, because nothing here makes them reliable |
+| 19 | Batch repurposing → export queue | Built (Export → All sequences) |
+| 20 | Brand Kit: logo, colours, font (including upload), caption style, lower third, watermark, intro/outro, "use my brand" | Built |
+| — | Monochrome brand, new logo mark, light/dark themes | Built |
+| — | Windows installer, web app, marketing site, docs, security, tests | Built. The installer is built by CI on Windows and published unsigned until signing secrets exist |
 
-## Next, in order
+## Later (not v2)
 
-1. Run Whisper end to end on a normal network and add a transcription E2E test that uses a cached model.
-2. Multiple sequences per project, so one source can produce many outputs (§12), each an editable timeline.
-3. Move loudness and framing analysis into a worker.
-4. Multi-track timeline (music, B-roll, titles), then the generation adapters on top of it.
-5. Speaker detection and multicam for the podcast workflow.
+AI image generation · AI video generation · generative B-roll · AI music · AI sound effects · full colour grading · object tracking · face and emotion detection · AI multicam director · product-commercial generation · motion-graphics generator · AI thumbnails · templates marketplace · collaboration · cloud projects.
+
+## Not building
+
+AI-generated movies, After Effects / Premiere / DaVinci replacements, fully autonomous editing without review, AI 3D, automatic VFX, a music platform, a stock marketplace, a social network, a team platform, or complicated cloud infrastructure.
+
+## Known limits
+
+- Loudness, beat and framing analysis runs on the main thread in async chunks. Whisper runs in a worker.
+- Browser storage keeps media up to 420 MB per file. Larger files work for the session and need relinking after a reload.
+- Named versions last while a project is open.
+- Transitions in the preview hold the first or last frame. The export renders them fully.

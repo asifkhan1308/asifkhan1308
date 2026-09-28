@@ -42,9 +42,14 @@ export function Timeline({ session, time, selected, onSelect, onSeek, onSplit, o
     return () => ro.disconnect();
   }, []);
 
-  const fitPps = Math.max(2, (width - 40) / Math.max(1, duration));
+  const contentEnd = Math.max(
+    duration,
+    ...doc.audio.map((a) => a.start + (a.out - a.in)),
+    ...doc.overlays.map((o) => o.start + o.duration),
+  );
+  const fitPps = Math.max(2, (width - 40) / Math.max(1, contentEnd));
   const pps = zoom === 0 ? fitPps : fitPps * Math.pow(2, zoom);
-  const innerW = Math.max(width, duration * pps + 60);
+  const innerW = Math.max(width, contentEnd * pps + 60);
   const starts = clipStarts(doc.clips);
   const toTime = (clientX: number) => {
     const el = scrollRef.current!;

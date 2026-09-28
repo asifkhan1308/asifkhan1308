@@ -52,7 +52,13 @@ function MediaBin({ session, onImport }: { session: EditorSession; onImport(): v
         const transcribing = running.some((j) => j.label.startsWith('Transcribe'));
         return (
           <div className="asset" key={a.id}>
-            <div className="thumb" style={idx.thumbs?.[0] ? { backgroundImage: `url(${idx.thumbs[0].url})` } : undefined} />
+            {a.kind === 'audio' ? (
+              <div className="thumb audio" aria-hidden="true">
+                ♪
+              </div>
+            ) : (
+              <div className="thumb" style={idx.thumbs?.[0] ? { backgroundImage: `url(${idx.thumbs[0].url})` } : undefined} />
+            )}
             <div className="meta">
               <span className="ellipsis" title={a.name}>
                 {a.name}
