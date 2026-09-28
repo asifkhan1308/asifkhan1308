@@ -27,6 +27,15 @@ test.beforeAll(async () => {
     execFileSync(ffmpeg, ['-v', 'error', '-y', '-i', join(FIXTURES, 'talk.webm'), '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', mp4]);
   app = await electron.launch({ executablePath: electronPath, args: [desktopDir, ...(process.getuid?.() === 0 ? ['--no-sandbox'] : [])], env: { ...process.env, ELECTRON_ENABLE_LOGGING: '0' } });
   app.process().stderr?.on('data', (d) => log.push(String(d)));
+  // Record external opens instead of launching the system browser: a real xdg-open
+  // outlives the app, keeps its stdio open and stalls the test runner's shutdown.
+  await app.evaluate(({ shell }) => {
+    const opened: string[] = [];
+    (globalThis as unknown as { __opened: string[] }).__opened = opened;
+    shell.openExternal = async (url: string) => {
+      opened.push(url);
+    };
+  });
   page = await app.firstWindow();
   page.on('crash', () => log.push('[renderer crashed]\n'));
   page.on('console', (m) => {
@@ -68,6 +77,8 @@ test('cannot read files outside dist/ or navigate away', async () => {
   await page.evaluate(() => (location.href = 'https://example.com/'));
   await page.waitForTimeout(500);
   expect(page.url()).toMatch(/^kaatchat:\/\/app\//);
+  // …and the link went to the system browser instead.
+  expect(await app.evaluate(() => (globalThis as unknown as { __opened: string[] }).__opened)).toContain('https://example.com/');
 });
 
 test('AI proxy refuses other hosts and never exposes keys', async () => {
