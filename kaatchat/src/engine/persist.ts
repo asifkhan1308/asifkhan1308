@@ -6,7 +6,7 @@
 // offer the newer autosave.
 
 import type { AssetIndex, ProjectDoc } from './types';
-import { reviveProject } from './project';
+import { activeSequence, reviveProject } from './project';
 
 const DB = 'kaatchat';
 const VERSION = 1;
@@ -57,6 +57,7 @@ export interface ProjectSummary {
   savedAt: number;
   duration: number;
   clips: number;
+  sequences: number;
   aspect: string;
   hasNewerAutosave: boolean;
 }
@@ -91,15 +92,19 @@ export async function listProjects(): Promise<ProjectSummary[]> {
   // A project that crashed before its first save exists only as an autosave.
   for (const a of autos) if (!all.has(a.doc.id)) all.set(a.doc.id, { ...a, hasNewerAutosave: true });
   return [...all.values()]
-    .map((p) => ({
-      id: p.doc.id,
-      name: p.doc.name,
-      savedAt: p.savedAt,
-      duration: p.doc.clips.reduce((d, c) => d + (c.out - c.in), 0),
-      clips: p.doc.clips.length,
-      aspect: p.doc.aspect,
-      hasNewerAutosave: p.hasNewerAutosave,
-    }))
+    .map((p) => {
+      const seq = activeSequence(p.doc);
+      return {
+        id: p.doc.id,
+        name: p.doc.name,
+        savedAt: p.savedAt,
+        duration: seq.clips.reduce((d, c) => d + (c.out - c.in), 0),
+        clips: seq.clips.length,
+        sequences: p.doc.sequences.length,
+        aspect: seq.aspect,
+        hasNewerAutosave: p.hasNewerAutosave,
+      };
+    })
     .sort((a, b) => b.savedAt - a.savedAt);
 }
 

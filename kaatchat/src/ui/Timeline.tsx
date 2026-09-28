@@ -4,6 +4,7 @@ import { useStoreVersion } from '../app/hooks';
 import { clipLength, clipStarts, sequenceDuration } from '../engine/timeline';
 import type { AudioAnalysis, Clip } from '../engine/types';
 import { Icon, fmtTime } from './bits';
+import { SequenceTabs } from './Sequences';
 
 interface Props {
   session: EditorSession;
@@ -97,6 +98,7 @@ export function Timeline({ session, time, selected, onSelect, onSeek, onSplit, o
 
   return (
     <section className="timeline" aria-label="Timeline">
+      <SequenceTabs session={session} />
       <div className="tl-bar">
         <button className="btn sm" onClick={onSplit} disabled={!doc.clips.length} title="Split at playhead (S)">
           <Icon name="scissors" size={14} /> Split

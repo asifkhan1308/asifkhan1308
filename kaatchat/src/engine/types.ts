@@ -22,7 +22,7 @@ export const ASPECTS: Record<AspectId, AspectSpec> = {
 
 export const ASPECT_IDS = Object.keys(ASPECTS) as AspectId[];
 
-export type AssetKind = 'video' | 'image';
+export type AssetKind = 'video' | 'image' | 'audio';
 
 /** Where the bytes of an asset live. */
 export type AssetStorage =
@@ -37,7 +37,7 @@ export interface MediaAsset {
   mime: string;
   size: number;
   duration: number; // seconds (images: default still length)
-  width: number;
+  width: number; // 0 for audio
   height: number;
   fps: number;
   hasAudio: boolean;
@@ -47,6 +47,43 @@ export interface MediaAsset {
 }
 
 export type FitMode = 'fill' | 'fit';
+
+/** Per-clip look. Every value is neutral at its default. */
+export interface Effects {
+  brightness: number; // -1..1
+  contrast: number; // -1..1
+  saturation: number; // -1..1 (-1 = black & white)
+  exposure: number; // stops, -2..2
+  blur: number; // 0..1 (fraction of a max radius)
+  sharpen: number; // 0..1
+  vignette: number; // 0..1
+  grain: number; // 0..1
+  tint: string; // #rrggbb
+  tintAmount: number; // 0..1
+  opacity: number; // 0..1
+}
+
+export const NEUTRAL_EFFECTS: Effects = {
+  brightness: 0,
+  contrast: 0,
+  saturation: 0,
+  exposure: 0,
+  blur: 0,
+  sharpen: 0,
+  vignette: 0,
+  grain: 0,
+  tint: '#ffffff',
+  tintAmount: 0,
+  opacity: 1,
+};
+
+export type TransitionKind = 'dissolve' | 'fade' | 'slide' | 'zoom' | 'blur' | 'whip';
+
+/** Transition INTO a clip from the one before it (overlaps both). */
+export interface Transition {
+  kind: TransitionKind;
+  duration: number; // seconds
+}
 
 export interface Clip {
   id: string;
@@ -59,6 +96,92 @@ export interface Clip {
   focusX: number;
   focusY: number;
   fit: FitMode;
+  /** Punch-in: 1 = none, 1.15 = 15% closer around the focus point. */
+  scale?: number;
+  effects?: Partial<Effects>;
+  transition?: Transition;
+  /** Audio fades, seconds. */
+  fadeIn?: number;
+  fadeOut?: number;
+  muted?: boolean;
+}
+
+/** Music / extra audio, placed on its own track at a timeline time. */
+export interface AudioClip {
+  id: string;
+  assetId: string;
+  start: number; // timeline seconds
+  in: number; // source seconds
+  out: number;
+  gainDb: number;
+  fadeIn: number;
+  fadeOut: number;
+  /** Lower this clip while the main track has speech. */
+  duck: boolean;
+}
+
+export type Easing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'back-out' | 'elastic-out';
+
+export interface Keyframe {
+  /** Seconds from the overlay's start. */
+  t: number;
+  x?: number; // 0..1 of frame width (centre)
+  y?: number;
+  scale?: number;
+  rotation?: number; // degrees
+  opacity?: number;
+  blur?: number; // 0..1
+  easing?: Easing; // easing INTO this keyframe
+}
+
+export type OverlayAnimation =
+  | 'none'
+  | 'fade'
+  | 'slide-up'
+  | 'slide-left'
+  | 'scale'
+  | 'pop'
+  | 'typewriter'
+  | 'blur'
+  | 'tracking'
+  | 'kinetic';
+
+export interface Overlay {
+  id: string;
+  kind: 'text' | 'shape' | 'image';
+  name: string;
+  start: number; // timeline seconds
+  duration: number;
+  // Base transform (keyframes override per property).
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+  opacity: number;
+  keyframes: Keyframe[];
+  animIn: OverlayAnimation;
+  animOut: OverlayAnimation;
+  animDuration: number;
+  // Text
+  text?: string;
+  font?: string;
+  size?: number; // fraction of the frame's short edge
+  weight?: number;
+  color?: string;
+  background?: string | null;
+  align?: 'left' | 'center' | 'right';
+  // Shape
+  shape?: 'rect' | 'ellipse';
+  width?: number; // fraction of frame width
+  height?: number; // fraction of frame height
+  radius?: number; // fraction of the shape's short edge
+  fill?: string;
+  // Image (e.g. a logo)
+  assetId?: string;
+  /** Optional rectangular reveal mask, fraction of the element (0..1). */
+  mask?: { from: 'left' | 'right' | 'top' | 'bottom'; amount: number } | null;
+  /** Where it came from, so "Apply brand" can replace its own items. */
+  role?: 'lower-third' | 'watermark' | 'title' | 'user';
 }
 
 export type CaptionStyleId = 'minimal' | 'bold' | 'podcast' | 'kinetic' | 'clean';
@@ -68,19 +191,70 @@ export interface CaptionSettings {
   style: CaptionStyleId;
   /** Max words shown at once. */
   maxWords: number;
+  /** Highlight colour for styles that mark the active word. */
+  accent?: string;
+}
+
+export interface TrackMix {
+  mainMuted: boolean;
+  mainSolo: boolean;
+  musicMuted: boolean;
+  musicSolo: boolean;
+  /** How far ducked music drops under speech. */
+  duckDb: number;
+}
+
+export const DEFAULT_MIX: TrackMix = { mainMuted: false, mainSolo: false, musicMuted: false, musicSolo: false, duckDb: -12 };
+
+/** One edit (timeline). A project can hold many — e.g. one per Reel. */
+export interface Sequence {
+  id: string;
+  name: string;
+  createdAt: number;
+  aspect: AspectId;
+  fps: number;
+  clips: Clip[];
+  audio: AudioClip[];
+  overlays: Overlay[];
+  captions: CaptionSettings;
+  mix: TrackMix;
+  /** Set when this sequence was cut from another one. */
+  sourceSequenceId?: string;
+  note?: string;
+}
+
+export interface BrandKit {
+  name: string;
+  logoAssetId: string | null;
+  colors: { ink: string; paper: string; accent: string };
+  font: 'Inter' | 'JetBrains Mono' | 'system-serif' | 'system-sans';
+  captionStyle: CaptionStyleId;
+  lowerThird: { enabled: boolean; name: string; title: string };
+  watermark: { enabled: boolean; position: 'tl' | 'tr' | 'bl' | 'br'; opacity: number };
+  introAssetId: string | null;
+  outroAssetId: string | null;
 }
 
 export interface ProjectDoc {
-  version: 2;
+  version: 3;
   id: string;
   name: string;
   createdAt: number;
   updatedAt: number;
-  aspect: AspectId;
-  fps: number;
   assets: Record<string, MediaAsset>;
-  clips: Clip[];
-  captions: CaptionSettings;
+  sequences: Sequence[];
+  activeSequenceId: string;
+  brand: BrandKit | null;
+}
+
+/**
+ * What editing code works on: the active sequence, plus the project's
+ * assets and name. Commands take and return this.
+ */
+export interface EditView extends Sequence {
+  assets: Record<string, MediaAsset>;
+  projectName: string;
+  brand: BrandKit | null;
 }
 
 // ---------------------------------------------------------------------------

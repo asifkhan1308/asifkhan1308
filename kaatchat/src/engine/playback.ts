@@ -2,7 +2,7 @@
 // file and composes each frame onto a canvas with the same renderer the
 // exporter uses. Clip gain is applied through Web Audio.
 
-import type { ProjectDoc, ProjectIndex, MediaAsset } from './types';
+import type { EditView, ProjectIndex, MediaAsset } from './types';
 import { ASPECTS } from './types';
 import { locate, sequenceDuration, clipStarts, clipLength } from './timeline';
 import { drawCaption, drawClipFrame, CAPTION_FONT } from './render';
@@ -19,7 +19,7 @@ interface Source {
 export class Player {
   private canvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
-  private doc: ProjectDoc;
+  private doc: EditView;
   private cues: CaptionCue[] = [];
   private sources = new Map<string, Source>();
   private audio: AudioContext | null = null;
@@ -30,7 +30,7 @@ export class Player {
   private _playing = false;
   private listeners = new Set<() => void>();
 
-  constructor(doc: ProjectDoc, index: ProjectIndex) {
+  constructor(doc: EditView, index: ProjectIndex) {
     this.doc = doc;
     this.cues = captionCues(doc, index);
   }
@@ -75,7 +75,7 @@ export class Player {
     }
   }
 
-  update(doc: ProjectDoc, index: ProjectIndex) {
+  update(doc: EditView, index: ProjectIndex) {
     const aspectChanged = doc.aspect !== this.doc.aspect;
     this.doc = doc;
     this.cues = captionCues(doc, index);

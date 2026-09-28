@@ -53,6 +53,14 @@ test('import → measure → ask → reel → captions → export', async ({ pag
   await expect(studio.getByText('Found 1 moment')).toBeVisible();
   await expect(studio.getByText('Money matters when you start a company.')).toBeVisible();
 
+  // Found moments → a new sequence; the original edit is untouched.
+  await studio.getByRole('button', { name: 'New sequence' }).click();
+  const tabs = page.getByRole('tablist', { name: 'Sequences' }).getByRole('tab');
+  await expect(tabs).toHaveCount(2);
+  expect(await timelineSeconds(page)).toBeLessThan(4);
+  await tabs.first().getByRole('button').first().click();
+  expect(await timelineSeconds(page)).toBeCloseTo(afterSilence, 1);
+
   // Command bar → a reel plan.
   await page.getByRole('textbox', { name: 'Ask Kaatchat' }).fill('Turn this into a 4 second reel');
   await page.getByRole('textbox', { name: 'Ask Kaatchat' }).press('Enter');

@@ -1,5 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <rect x="0" y="0" width="64" height="64" rx="15" fill="#111111"/>
-  <path d="M20 11 L53 32 L20 29 Z" fill="#FFFFFF" transform="translate(-1.5,-1.5)"/>
-  <path d="M20 31.4 L53 32 L20 53 Z" fill="#FFFFFF" transform="translate(1.5,1.5)" opacity="0.92"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><rect width="64" height="64" rx="15" fill="#111111"/><g transform="translate(9.5 9.6) scale(0.0357)"><path fill="#FFFFFF" d="M1240.0 15.0 Q900.9 346.0 702.1 609.6 Q799.7 812.9 1020.0 1030.0 Q799.7 812.9 595.4 718.5 Q339.7 904.9 20.0 1230.0 Q339.7 904.9 522.0 647.1 Q427.1 448.1 210.0 237.0 Q427.1 448.1 632.2 538.2 Q900.9 346.0 1240.0 15.0Z"/><path fill="#FFFFFF" d="M377.0 228.1 A468.0 468.0 0 0 1 1017.5 879.9 A485.8 485.8 0 0 0 377.0 228.1Z"/><path fill="#FFFFFF" d="M219.7 391.0 A468.0 468.0 0 0 0 873.0 1021.9 A488.3 488.3 0 0 1 219.7 391.0Z"/><path fill="#FFFFFF" d="M766.6 347.0 A312.0 312.0 0 0 0 326.6 716.2 A347.2 347.2 0 0 1 766.6 347.0Z"/><path fill="#FFFFFF" d="M892.4 464.3 A312.0 312.0 0 0 1 459.7 889.6 A329.3 329.3 0 0 0 892.4 464.3Z"/></g></svg>

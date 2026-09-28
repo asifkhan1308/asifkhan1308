@@ -62,12 +62,12 @@ export class EditorSession {
     this.dirty = true;
     if (this.saveTimer) clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => {
-      void autosave(this.store.doc).catch(() => undefined);
+      void autosave(this.store.project).catch(() => undefined);
     }, 700);
   }
 
   async save() {
-    await saveProject(this.store.doc);
+    await saveProject(this.store.project);
     this.lastSavedVersion = this.store.version;
     this.savedAt = Date.now();
     this.dirty = false;

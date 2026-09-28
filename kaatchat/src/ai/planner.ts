@@ -5,7 +5,7 @@
 // The model is the brain, the engine is the hands, the timeline is the truth.
 
 import { z } from 'zod';
-import type { ProjectDoc, ProjectIndex } from '../engine/types';
+import type { EditView, ProjectIndex } from '../engine/types';
 import { COMMAND_DOCS, extractJson, validatePlan, type EditPlan, type CommandInput } from '../engine/commands/schema';
 import { clipLength, clipStarts, sequenceDuration } from '../engine/timeline';
 import { rangeLevelDb } from '../engine/dsp';
@@ -14,7 +14,7 @@ import { AIError, type AIProvider, type FootageContext, type Moment } from './ty
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
 /** Everything a provider may see. Media bytes are never included. */
-export function buildContext(doc: ProjectDoc, index: ProjectIndex, playhead: number): FootageContext {
+export function buildContext(doc: EditView, index: ProjectIndex, playhead: number): FootageContext {
   const starts = clipStarts(doc.clips);
   const transcript: FootageContext['transcript'] = [];
   doc.clips.forEach((c, i) => {
@@ -28,7 +28,7 @@ export function buildContext(doc: ProjectDoc, index: ProjectIndex, playhead: num
     }
   });
   return {
-    project: { name: doc.name, aspect: doc.aspect, duration: r2(sequenceDuration(doc.clips)) },
+    project: { name: `${doc.projectName} — ${doc.name}`, aspect: doc.aspect, duration: r2(sequenceDuration(doc.clips)) },
     clips: doc.clips.map((c, i) => {
       const audio = index[c.assetId]?.audio;
       return {
@@ -84,7 +84,7 @@ export interface PlanOutcome {
 
 export async function requestPlan(
   provider: AIProvider,
-  doc: ProjectDoc,
+  doc: EditView,
   index: ProjectIndex,
   request: string,
   playhead: number,
@@ -133,7 +133,7 @@ export function parsePlanReply(reply: string): { plan?: EditPlan; errors: string
 // Built-in rules: no model, honest about what it understands.
 // ---------------------------------------------------------------------------
 
-export function rulePlan(text: string, doc: ProjectDoc, index: ProjectIndex, playhead: number): EditPlan | null {
+export function rulePlan(text: string, doc: EditView, index: ProjectIndex, playhead: number): EditPlan | null {
   const t = text.toLowerCase();
   const cmds: CommandInput[] = [];
   const said: string[] = [];
@@ -233,7 +233,7 @@ export interface SearchOutcome {
 
 export async function searchFootage(
   provider: AIProvider,
-  doc: ProjectDoc,
+  doc: EditView,
   index: ProjectIndex,
   query: string,
   signal?: AbortSignal,

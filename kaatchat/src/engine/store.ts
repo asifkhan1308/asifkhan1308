@@ -1,10 +1,15 @@
-// Editor state. The document is immutable; every change is a transaction
-// that pushes the previous document onto the undo stack. One transaction =
-// one Ctrl+Z, however many commands it contains (a whole AI plan included).
+// Editor state. The project is immutable; every change is a transaction
+// that pushes the previous project onto the undo stack. One transaction =
+// one Ctrl+Z, however many commands it contains (a whole AI plan, or five
+// new Reels, included).
+//
+// Editing code works on an `EditView` — the active sequence plus the
+// project's assets — so commands never need to know about sequences.
 
-import type { ProjectDoc, ProjectIndex, AssetIndex, MediaAsset, Clip } from './types';
+import type { ProjectDoc, ProjectIndex, AssetIndex, MediaAsset, Clip, EditView, Sequence } from './types';
 import type { Command, EditPlan } from './commands/schema';
 import { applyCommand, previewPlan, CommandError } from './commands/execute';
+import { activeSequence, fromView, newSequence, toView } from './project';
 import { uid } from './id';
 
 export interface HistoryEntry {
@@ -16,7 +21,7 @@ export interface HistoryEntry {
 }
 
 interface Snapshot {
-  doc: ProjectDoc;
+  project: ProjectDoc;
   entry: HistoryEntry;
 }
 
@@ -25,27 +30,36 @@ const HISTORY_LIMIT = 200;
 export type Listener = () => void;
 
 export class EditorStore {
-  private _doc: ProjectDoc;
+  private _project: ProjectDoc;
+  private _view: EditView;
   private _index: ProjectIndex;
   private past: Snapshot[] = [];
   private future: Snapshot[] = [];
   private listeners = new Set<Listener>();
   private _version = 0;
-  /** Named versions: full document copies the user can return to. */
-  versions: { id: string; name: string; at: number; doc: ProjectDoc }[] = [];
+  /** Named versions: full project copies the user can return to. */
+  versions: { id: string; name: string; at: number; project: ProjectDoc }[] = [];
 
-  constructor(doc: ProjectDoc, index: ProjectIndex = {}) {
-    this._doc = doc;
+  constructor(project: ProjectDoc, index: ProjectIndex = {}) {
+    this._project = project;
+    this._view = toView(project);
     this._index = index;
   }
 
-  get doc() {
-    return this._doc;
+  /** The active sequence, as an editable view. */
+  get doc(): EditView {
+    return this._view;
+  }
+  get project(): ProjectDoc {
+    return this._project;
+  }
+  get sequences(): Sequence[] {
+    return this._project.sequences;
   }
   get index() {
     return this._index;
   }
-  /** Changes on every document or index update; handy for memo keys. */
+  /** Changes on every project or index update; handy for memo keys. */
   get version() {
     return this._version;
   }
@@ -74,109 +88,187 @@ export class EditorStore {
 
   getSnapshot = () => this._version;
 
-  private emit() {
+  private set(project: ProjectDoc) {
+    this._project = project;
+    this._view = toView(project);
     this._version++;
     for (const l of this.listeners) l();
   }
 
   private commit(next: ProjectDoc, label: string, source: HistoryEntry['source'], notes: string[]) {
-    if (next === this._doc) return;
+    if (next === this._project) return;
     const entry: HistoryEntry = { id: uid(), label, source, at: Date.now(), notes };
-    this.past.push({ doc: this._doc, entry });
+    this.past.push({ project: this._project, entry });
     if (this.past.length > HISTORY_LIMIT) this.past.shift();
     this.future = [];
-    this._doc = { ...next, updatedAt: Date.now() };
-    this.emit();
+    this.set({ ...next, updatedAt: Date.now() });
   }
 
-  /** Run commands as a single undoable step. Throws (and changes nothing) on failure. */
+  private commitView(view: EditView, label: string, source: HistoryEntry['source'], notes: string[]) {
+    if (view === this._view) return;
+    this.commit(fromView(this._project, view), label, source, notes);
+  }
+
+  /** Run commands on the active sequence as a single undoable step. Throws (and changes nothing) on failure. */
   run(commands: Command[], label: string, source: HistoryEntry['source'] = 'you'): string[] {
-    let cur = this._doc;
+    let cur = this._view;
     const notes: string[] = [];
     for (const cmd of commands) {
       const r = applyCommand(cur, cmd, { index: this._index, newId: uid });
       cur = r.doc;
       notes.push(...r.notes);
     }
-    this.commit(cur, label, source, notes);
+    this.commitView(cur, label, source, notes);
     return notes;
   }
 
-  /** Apply a validated plan atomically. */
+  /** Apply a validated plan to the active sequence atomically. */
   applyPlan(plan: EditPlan, label: string, source: HistoryEntry['source'] = 'ai') {
-    const p = previewPlan(this._doc, plan, { index: this._index, newId: uid });
+    const p = previewPlan(this._view, plan, { index: this._index, newId: uid });
     if (!p.ok) {
       const err = p.steps.find((s) => s.error)?.error ?? 'The plan could not be applied.';
       throw new CommandError(err);
     }
-    this.commit(p.doc, label, source, p.steps.flatMap((s) => s.notes));
+    this.commitView(p.doc, label, source, p.steps.flatMap((s) => s.notes));
     return p;
   }
 
   preview(plan: EditPlan) {
-    return previewPlan(this._doc, plan, { index: this._index, newId: uid });
+    return previewPlan(this._view, plan, { index: this._index, newId: uid });
   }
 
-  /** Structural edits that are not expressible as AI commands (imports etc.). */
-  mutate(label: string, fn: (doc: ProjectDoc) => ProjectDoc) {
-    this.commit(fn(this._doc), label, 'you', []);
+  /** Direct edits to the active sequence (inspector sliders, overlays…). */
+  mutate(label: string, fn: (view: EditView) => EditView, source: HistoryEntry['source'] = 'you') {
+    this.commitView(fn(this._view), label, source, []);
   }
 
-  addAsset(asset: MediaAsset, addClip = true) {
+  /** Edits that span sequences (repurposing, brand kit). */
+  mutateProject(label: string, fn: (p: ProjectDoc) => ProjectDoc, source: HistoryEntry['source'] = 'you', notes: string[] = []) {
+    this.commit(fn(this._project), label, source, notes);
+  }
+
+  addAsset(asset: MediaAsset, addToTimeline = true) {
     this.mutate(`Import ${asset.name}`, (d) => {
-      const clips: Clip[] = addClip
-        ? [
-            ...d.clips,
-            { id: uid(), assetId: asset.id, in: 0, out: asset.duration, gainDb: 0, focusX: 0.5, focusY: 0.5, fit: 'fill' },
-          ]
-        : d.clips;
-      return { ...d, assets: { ...d.assets, [asset.id]: asset }, clips };
+      const assets = { ...d.assets, [asset.id]: asset };
+      if (!addToTimeline) return { ...d, assets };
+      if (asset.kind === 'audio') {
+        const start = 0;
+        return {
+          ...d,
+          assets,
+          audio: [...d.audio, { id: uid(), assetId: asset.id, start, in: 0, out: asset.duration, gainDb: -6, fadeIn: 0.5, fadeOut: 1, duck: true }],
+        };
+      }
+      const clip: Clip = { id: uid(), assetId: asset.id, in: 0, out: asset.duration, gainDb: 0, focusX: 0.5, focusY: 0.5, fit: 'fill' };
+      return { ...d, assets, clips: [...d.clips, clip] };
     });
   }
 
   /** Update asset metadata without creating an undo step (e.g. relinking). */
   patchAsset(id: string, patch: Partial<MediaAsset>) {
-    const a = this._doc.assets[id];
+    const a = this._project.assets[id];
     if (!a) return;
-    this._doc = { ...this._doc, assets: { ...this._doc.assets, [id]: { ...a, ...patch } } };
-    // Keep history snapshots consistent so undo does not resurrect stale storage state.
-    const fix = (s: Snapshot) =>
-      s.doc.assets[id] ? { ...s, doc: { ...s.doc, assets: { ...s.doc.assets, [id]: { ...s.doc.assets[id], ...patch } } } } : s;
-    this.past = this.past.map(fix);
-    this.future = this.future.map(fix);
-    this.emit();
+    const fixP = (p: ProjectDoc) => (p.assets[id] ? { ...p, assets: { ...p.assets, [id]: { ...p.assets[id], ...patch } } } : p);
+    this.past = this.past.map((s) => ({ ...s, project: fixP(s.project) }));
+    this.future = this.future.map((s) => ({ ...s, project: fixP(s.project) }));
+    this.set(fixP(this._project));
   }
 
   setIndex(assetId: string, patch: Partial<AssetIndex>) {
     this._index = { ...this._index, [assetId]: { ...this._index[assetId], ...patch } };
-    this.emit();
+    this._version++;
+    for (const l of this.listeners) l();
   }
+
+  // ------------------------------------------------------------- sequences
+
+  /** Switching sequences is navigation, not an edit: it is not an undo step. */
+  setActiveSequence(id: string) {
+    if (id === this._project.activeSequenceId || !this._project.sequences.some((s) => s.id === id)) return;
+    this.set({ ...this._project, activeSequenceId: id });
+  }
+
+  createSequence(seq: Sequence, label = `New sequence “${seq.name}”`, activate = true, source: HistoryEntry['source'] = 'you') {
+    this.commit(
+      { ...this._project, sequences: [...this._project.sequences, seq], activeSequenceId: activate ? seq.id : this._project.activeSequenceId },
+      label,
+      source,
+      [],
+    );
+  }
+
+  duplicateSequence(id = this._project.activeSequenceId) {
+    const s = this._project.sequences.find((x) => x.id === id);
+    if (!s) return;
+    const copy: Sequence = {
+      ...structuredClone(s),
+      id: uid(),
+      name: `${s.name} copy`,
+      createdAt: Date.now(),
+      sourceSequenceId: s.id,
+    };
+    copy.clips = copy.clips.map((c) => ({ ...c, id: uid() }));
+    this.createSequence(copy, `Duplicate “${s.name}”`);
+  }
+
+  renameSequence(id: string, name: string) {
+    const n = name.trim().slice(0, 80);
+    if (!n) return;
+    this.commit({ ...this._project, sequences: this._project.sequences.map((s) => (s.id === id ? { ...s, name: n } : s)) }, `Rename sequence`, 'you', []);
+  }
+
+  deleteSequence(id: string) {
+    if (this._project.sequences.length <= 1) throw new CommandError('A project needs at least one sequence.');
+    const rest = this._project.sequences.filter((s) => s.id !== id);
+    const active = this._project.activeSequenceId === id ? rest[0].id : this._project.activeSequenceId;
+    const name = this._project.sequences.find((s) => s.id === id)?.name ?? '';
+    this.commit({ ...this._project, sequences: rest, activeSequenceId: active }, `Delete sequence “${name}”`, 'you', []);
+  }
+
+  /** A new sequence holding only these timeline ranges of the active one. */
+  sequenceFromRanges(name: string, ranges: { start: number; end: number }[], activate = true) {
+    const view = this._view;
+    const r = applyCommand(view, { type: 'keep_ranges', ranges }, { index: this._index, newId: uid });
+    const seq: Sequence = {
+      ...newSequence(name, view.aspect, r.doc.clips.map((c) => ({ ...c, id: uid() }))),
+      fps: view.fps,
+      captions: { ...view.captions },
+      sourceSequenceId: view.id,
+    };
+    this.createSequence(seq, `New sequence “${name}”`, activate);
+    return seq;
+  }
+
+  active(): Sequence {
+    return activeSequence(this._project);
+  }
+
+  // ------------------------------------------------------------- history
 
   undo() {
     const s = this.past.pop();
     if (!s) return;
-    this.future.push({ doc: this._doc, entry: s.entry });
-    this._doc = s.doc;
-    this.emit();
+    this.future.push({ project: this._project, entry: s.entry });
+    this.set(s.project);
   }
 
   redo() {
     const s = this.future.pop();
     if (!s) return;
-    this.past.push({ doc: this._doc, entry: s.entry });
-    this._doc = s.doc;
-    this.emit();
+    this.past.push({ project: this._project, entry: s.entry });
+    this.set(s.project);
   }
 
   saveVersion(name: string) {
-    this.versions = [...this.versions, { id: uid(), name, at: Date.now(), doc: this._doc }];
-    this.emit();
+    this.versions = [...this.versions, { id: uid(), name, at: Date.now(), project: this._project }];
+    this._version++;
+    for (const l of this.listeners) l();
   }
 
   restoreVersion(id: string) {
     const v = this.versions.find((x) => x.id === id);
     if (!v) return;
     // Media added since the version was saved stays in the bin.
-    this.commit({ ...v.doc, assets: { ...this._doc.assets, ...v.doc.assets } }, `Restore “${v.name}”`, 'you', []);
+    this.commit({ ...v.project, assets: { ...this._project.assets, ...v.project.assets } }, `Restore “${v.name}”`, 'you', []);
   }
 }

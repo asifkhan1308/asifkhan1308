@@ -1,13 +1,14 @@
 import { useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
 import { t } from '../i18n';
+import { MARK_PATHS, MARK_VIEWBOX } from '../brand/mark';
 
-/** The Kaatchat mark (monochrome, from the Main design canvas). Inverts in dark theme. */
+/** The Kaatchat mark, drawn in the current ink colour (inverts with the theme). */
 export function Logo({ size = 24 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-      <rect width="64" height="64" rx="15" style={{ fill: 'var(--accent)' }} />
-      <path d="M20 11 L53 32 L20 29 Z" style={{ fill: 'var(--accent-ink)' }} transform="translate(-1.5,-1.5)" />
-      <path d="M20 31.4 L53 32 L20 53 Z" style={{ fill: 'var(--accent-ink)' }} transform="translate(1.5,1.5)" opacity="0.92" />
+    <svg width={size} height={size} viewBox={MARK_VIEWBOX} aria-hidden="true" focusable="false">
+      {MARK_PATHS.map((d, i) => (
+        <path key={i} d={d} fill="currentColor" />
+      ))}
     </svg>
   );
 }

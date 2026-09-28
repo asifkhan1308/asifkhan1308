@@ -169,7 +169,7 @@ function EditorView({ session }: { session: EditorSession }) {
 
   // Files dropped on the home screen.
   useEffect(() => {
-    void importFiles(pendingImport.take(doc.id));
+    void importFiles(pendingImport.take(store.project.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -301,11 +301,11 @@ function EditorView({ session }: { session: EditorSession }) {
         <input
           className="name"
           aria-label="Project name"
-          defaultValue={doc.name}
-          key={doc.name}
+          defaultValue={doc.projectName}
+          key={doc.projectName}
           onBlur={(e) => {
             const v = e.target.value.trim();
-            if (v && v !== doc.name) store.run([{ type: 'rename_project', name: v.slice(0, 120) }], 'Rename');
+            if (v && v !== doc.projectName) store.run([{ type: 'rename_project', name: v.slice(0, 120) }], 'Rename');
           }}
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
         />

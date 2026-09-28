@@ -1,7 +1,7 @@
 // Transcripts: building sentences from word timings, importing subtitle
 // files, and turning transcripts into caption cues on the timeline.
 
-import type { Clip, ProjectDoc, ProjectIndex, Transcript, TranscriptSegment, Word } from './types';
+import type { Clip, EditView, ProjectIndex, Transcript, TranscriptSegment, Word } from './types';
 import { clipStarts } from './timeline';
 
 /** Group words into sentence-like segments. */
@@ -74,7 +74,7 @@ export interface CaptionCue {
 }
 
 /** Caption cues on the timeline, derived from transcripts through the current edit. */
-export function captionCues(doc: ProjectDoc, index: ProjectIndex): CaptionCue[] {
+export function captionCues(doc: EditView, index: ProjectIndex): CaptionCue[] {
   const starts = clipStarts(doc.clips);
   const cues: CaptionCue[] = [];
   const maxWords = Math.max(1, doc.captions.maxWords);

@@ -4,7 +4,7 @@ import { applyCommand, previewPlan, CommandError } from '../../src/engine/comman
 import { EditorStore } from '../../src/engine/store';
 import { sequenceDuration } from '../../src/engine/timeline';
 import type { ProjectIndex, Transcript } from '../../src/engine/types';
-import { asset, clip, doc, envelope, seqId } from './helpers';
+import { asset, clip, doc, envelope, projectOf, seqId } from './helpers';
 
 const A = asset('A', 10);
 const base = doc([clip('c1', 'A', 0, 10)], [A]);
@@ -127,7 +127,7 @@ describe('plans and undo', () => {
   });
 
   it('applies a whole plan as one undo step', () => {
-    const store = new EditorStore(base, index);
+    const store = new EditorStore(projectOf(base), index);
     const plan = validatePlan({
       summary: 'Reel',
       commands: [{ type: 'remove_silence' }, { type: 'set_aspect', aspect: '9:16' }, { type: 'reframe' }],
@@ -144,7 +144,7 @@ describe('plans and undo', () => {
   });
 
   it('restores named versions as an undoable step', () => {
-    const store = new EditorStore(base, index);
+    const store = new EditorStore(projectOf(base), index);
     store.saveVersion('Original');
     store.run([{ type: 'set_aspect', aspect: '1:1' }], 'Square');
     store.restoreVersion(store.versions[0].id);

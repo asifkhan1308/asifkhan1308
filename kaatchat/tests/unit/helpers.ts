@@ -1,5 +1,5 @@
-import type { AudioAnalysis, Clip, MediaAsset, ProjectDoc } from '../../src/engine/types';
-import { newProject } from '../../src/engine/project';
+import type { AudioAnalysis, Clip, EditView, MediaAsset, ProjectDoc } from '../../src/engine/types';
+import { fromView, newProject, toView } from '../../src/engine/project';
 import { loudestShareDb, percentile, ANALYSIS_RATE } from '../../src/engine/dsp';
 
 let n = 0;
@@ -28,9 +28,15 @@ export function clip(id: string, assetId: string, i: number, o: number): Clip {
   return { id, assetId, in: i, out: o, gainDb: 0, focusX: 0.5, focusY: 0.5, fit: 'fill' };
 }
 
-export function doc(clips: Clip[], assets: MediaAsset[]): ProjectDoc {
-  const d = newProject('Test');
-  return { ...d, clips, assets: Object.fromEntries(assets.map((a) => [a.id, a])) };
+export function doc(clips: Clip[], assets: MediaAsset[]): EditView {
+  const v = toView(newProject('Test'));
+  return { ...v, clips, assets: Object.fromEntries(assets.map((a) => [a.id, a])) };
+}
+
+/** A whole project whose active sequence is `view`. */
+export function projectOf(view: EditView): ProjectDoc {
+  const p = newProject('Test');
+  return fromView({ ...p, activeSequenceId: p.sequences[0].id }, { ...view, id: p.sequences[0].id });
 }
 
 /** Build an envelope from [seconds, dB] runs. */

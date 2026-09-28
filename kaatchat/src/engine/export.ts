@@ -21,7 +21,7 @@ import {
   type AudioCodec,
   type VideoCodec,
 } from 'mediabunny';
-import type { AspectId, Clip, ProjectDoc, ProjectIndex } from './types';
+import type { AspectId, Clip, EditView, ProjectIndex } from './types';
 import { ASPECTS } from './types';
 import { clipLength, clipStarts, sequenceDuration } from './timeline';
 import { drawCaption, drawClipFrame, CAPTION_FONT } from './render';
@@ -67,7 +67,7 @@ export interface ExportOptions {
   captions: boolean;
 }
 
-export function projectExportSize(doc: ProjectDoc) {
+export function projectExportSize(doc: EditView) {
   const a = ASPECTS[doc.aspect];
   return { width: a.width, height: a.height };
 }
@@ -84,7 +84,7 @@ export interface ExportResult {
 const even = (n: number) => Math.max(2, Math.round(n / 2) * 2);
 const SAMPLE_RATE = 48000;
 
-export async function exportProject(doc: ProjectDoc, index: ProjectIndex, opts: ExportOptions, ctl: JobControl): Promise<ExportResult> {
+export async function exportProject(doc: EditView, index: ProjectIndex, opts: ExportOptions, ctl: JobControl): Promise<ExportResult> {
   const started = performance.now();
   if (doc.clips.length === 0) throw new Error('The timeline is empty — nothing to export.');
   const missing = [...new Set(doc.clips.map((c) => c.assetId))].filter((id) => !media.get(id));
@@ -203,7 +203,7 @@ export async function exportProject(doc: ProjectDoc, index: ProjectIndex, opts: 
 
   const buf = (output.target as BufferTarget).buffer;
   if (!buf) throw new Error('The encoder produced no data.');
-  const safe = doc.name.replace(/[^\p{L}\p{N} _-]+/gu, '').trim() || 'kaatchat';
+  const safe = (doc.name === 'Main edit' ? doc.projectName : `${doc.projectName} ${doc.name}`).replace(/[^\p{L}\p{N} _-]+/gu, '').trim() || 'kaatchat';
   return {
     blob: new Blob([buf], { type: opts.format === 'mp4' ? 'video/mp4' : 'video/webm' }),
     fileName: `${safe} ${width}x${height}.${opts.format}`,

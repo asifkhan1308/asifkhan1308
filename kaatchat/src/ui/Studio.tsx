@@ -457,6 +457,19 @@ function Find({ session, onSeek, onPlay }: Props) {
               >
                 Cut these
               </button>
+              <button
+                className="btn"
+                disabled={chosen.length === 0}
+                title="Put these moments in a new sequence; this edit stays as it is"
+                onClick={() => {
+                  const name = q.trim().slice(0, 40) || 'Found moments';
+                  store.sequenceFromRanges(name, chosen.map((m) => ({ start: m.start, end: m.end })));
+                  setRes(null);
+                  toast(`New sequence “${name}” with ${chosen.length} moment(s).`, 'info', { label: 'Undo', run: () => store.undo() });
+                }}
+              >
+                New sequence
+              </button>
             </div>
           )}
         </>

@@ -2,7 +2,7 @@
 // No side effects, so a plan can be dry-run for "Preview changes" and then
 // applied for real inside one undo step.
 
-import type { Clip, ProjectDoc, ProjectIndex, TimeRange } from '../types';
+import type { Clip, EditView, ProjectIndex, TimeRange } from '../types';
 import { ASPECTS } from '../types';
 import type { Command, EditPlan } from './schema';
 import {
@@ -27,7 +27,7 @@ export interface ExecContext {
 }
 
 export interface ExecResult {
-  doc: ProjectDoc;
+  doc: EditView;
   notes: string[];
 }
 
@@ -35,17 +35,17 @@ const FILLERS = new Set(['um', 'umm', 'uh', 'uhh', 'uhm', 'erm', 'er', 'ah', 'hm
 
 export const normalizeWord = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}']/gu, '');
 
-function requireClip(doc: ProjectDoc, clipId: string): Clip {
+function requireClip(doc: EditView, clipId: string): Clip {
   const c = doc.clips.find((x) => x.id === clipId);
   if (!c) throw new CommandError(`No clip with id "${clipId}".`);
   return c;
 }
 
-function withClips(doc: ProjectDoc, clips: Clip[]): ProjectDoc {
+function withClips(doc: EditView, clips: Clip[]): EditView {
   return { ...doc, clips };
 }
 
-export function applyCommand(doc: ProjectDoc, cmd: Command, ctx: ExecContext): ExecResult {
+export function applyCommand(doc: EditView, cmd: Command, ctx: ExecContext): ExecResult {
   const { index, newId } = ctx;
   switch (cmd.type) {
     case 'split_clip': {
@@ -202,7 +202,7 @@ export function applyCommand(doc: ProjectDoc, cmd: Command, ctx: ExecContext): E
       };
     }
     case 'rename_project':
-      return { doc: { ...doc, name: cmd.name }, notes: [`Renamed to "${cmd.name}"`] };
+      return { doc: { ...doc, projectName: cmd.name }, notes: [`Renamed to "${cmd.name}"`] };
   }
 }
 
@@ -221,7 +221,7 @@ const round3 = (v: number) => Math.round(v * 1000) / 1000;
  * Deterministic highlight picker: candidate windows (transcript sentences when
  * available, else 4s windows) ranked by measured loudness, kept in time order.
  */
-export function pickHighlights(doc: ProjectDoc, index: ProjectIndex, target: number): TimeRange[] {
+export function pickHighlights(doc: EditView, index: ProjectIndex, target: number): TimeRange[] {
   type Cand = { start: number; end: number; score: number };
   const cands: Cand[] = [];
   let t = 0;
@@ -261,7 +261,7 @@ export function pickHighlights(doc: ProjectDoc, index: ProjectIndex, target: num
 }
 
 export interface PlanPreview {
-  doc: ProjectDoc;
+  doc: EditView;
   steps: { command: Command; notes: string[]; error?: string }[];
   ok: boolean;
   before: { duration: number; clips: number; aspect: string };
@@ -269,7 +269,7 @@ export interface PlanPreview {
 }
 
 /** Dry-run a plan. The whole plan fails if any step fails (atomic apply). */
-export function previewPlan(doc: ProjectDoc, plan: EditPlan, ctx: ExecContext): PlanPreview {
+export function previewPlan(doc: EditView, plan: EditPlan, ctx: ExecContext): PlanPreview {
   let cur = doc;
   let ok = true;
   const steps: PlanPreview['steps'] = [];
@@ -291,11 +291,11 @@ export function previewPlan(doc: ProjectDoc, plan: EditPlan, ctx: ExecContext): 
     ok = false;
     steps.push({ command: plan.commands[plan.commands.length - 1], notes: [], error: 'This plan would remove every clip.' });
   }
-  const stat = (d: ProjectDoc) => ({ duration: sequenceDuration(d.clips), clips: d.clips.length, aspect: d.aspect });
+  const stat = (d: EditView) => ({ duration: sequenceDuration(d.clips), clips: d.clips.length, aspect: d.aspect });
   return { doc: cur, steps, ok, before: stat(doc), after: stat(cur) };
 }
 
 /** Timeline time under the playhead, for commands that need "here". */
-export function clipAt(doc: ProjectDoc, t: number): Clip | null {
+export function clipAt(doc: EditView, t: number): Clip | null {
   return locate(doc.clips, t)?.clip ?? null;
 }
