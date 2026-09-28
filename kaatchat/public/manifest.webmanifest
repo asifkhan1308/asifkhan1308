@@ -1,0 +1,15 @@
+{
+  "name": "Kaatchat",
+  "short_name": "Kaatchat",
+  "description": "A local-first, AI-native video editor. Your footage never leaves your device.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#09080F",
+  "theme_color": "#09080F",
+  "categories": ["video", "productivity"],
+  "icons": [
+    { "src": "./favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "./favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

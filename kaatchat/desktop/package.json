@@ -1,0 +1,42 @@
+{
+  "name": "kaatchat-desktop",
+  "productName": "Kaatchat",
+  "version": "2.0.0-alpha.1",
+  "description": "Kaatchat — a local-first, AI-native video editor",
+  "author": "Asif Khan",
+  "license": "MPL-2.0",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "copy-web": "node -e \"const fs=require('fs');fs.rmSync('dist',{recursive:true,force:true});fs.cpSync('../dist','dist',{recursive:true})\"",
+    "start": "npm run copy-web && electron .",
+    "dist:win": "npm run copy-web && electron-builder --win nsis --publish never",
+    "test": "node --test test/*.test.cjs"
+  },
+  "devDependencies": {
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.asifkhan.kaatchat",
+    "productName": "Kaatchat",
+    "copyright": "© Asif Khan · MPL-2.0",
+    "files": ["main.cjs", "preload.cjs", "policy.cjs", "build/icon.png", "dist/**/*", "package.json"],
+    "directories": { "output": "release", "buildResources": "build" },
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "build/kaatchat.ico",
+      "artifactName": "Kaatchat-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Kaatchat",
+      "uninstallDisplayName": "Kaatchat",
+      "license": "../LICENSE"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "version": "2.0.0-alpha.1",
+  "windowsUrl": null,
+  "sha256": null,
+  "size": null,
+  "notes": "Set windowsUrl (a GitHub Release asset URL) and sha256 to turn on the Windows download button."
+}
