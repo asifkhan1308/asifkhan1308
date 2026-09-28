@@ -16,7 +16,17 @@ export function drawClipFrame(ctx: Ctx, src: CanvasImageSource, srcW: number, sr
   ctx.drawImage(src, r.sx, r.sy, r.sw, r.sh, r.dx, r.dy, r.dw, r.dh);
 }
 
-export const ACCENT = '#FF8A1F';
+/** Default caption highlight — monochrome. The Brand Kit can override it. */
+export const ACCENT = '#FFFFFF';
+
+/** Black or white text, whichever reads on `hex`. */
+export function inkOn(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return '#111111';
+  const n = parseInt(m[1], 16);
+  const l = (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+  return l > 0.55 ? '#111111' : '#FFFFFF';
+}
 
 interface StyleSpec {
   label: string;
@@ -41,7 +51,16 @@ export const CAPTION_STYLES: Record<CaptionStyleId, StyleSpec> = {
  * Draw the caption cue active at `t`. Vertical formats sit higher, clear of
  * the app UI that Reels/Shorts/TikTok overlay at the bottom.
  */
-export function drawCaption(ctx: Ctx, cue: CaptionCue | null, t: number, style: CaptionStyleId, outW: number, outH: number, fontFamily: string) {
+export function drawCaption(
+  ctx: Ctx,
+  cue: CaptionCue | null,
+  t: number,
+  style: CaptionStyleId,
+  outW: number,
+  outH: number,
+  fontFamily: string,
+  accent: string = ACCENT,
+) {
   if (!cue) return;
   const s = CAPTION_STYLES[style];
   const short = Math.min(outW, outH);
@@ -99,7 +118,13 @@ export function drawCaption(ctx: Ctx, cue: CaptionCue | null, t: number, style: 
         ctx.scale(Math.max(1, scale), Math.max(1, scale));
         ctx.translate(-cx, -cy);
       }
-      if (s.stroke) {
+      const lit = s.highlight && active;
+      if (lit) {
+        const pad = px * 0.14;
+        ctx.fillStyle = accent;
+        roundRect(ctx, x - pad, y - px * 0.86, ww + pad * 2, px * 1.08, px * 0.16);
+        ctx.fill();
+      } else if (s.stroke) {
         ctx.lineWidth = Math.max(2, px * 0.14);
         ctx.strokeStyle = 'rgba(0,0,0,0.9)';
         ctx.strokeText(w.text, x, y);
@@ -108,7 +133,7 @@ export function drawCaption(ctx: Ctx, cue: CaptionCue | null, t: number, style: 
         ctx.shadowBlur = px * 0.18;
         ctx.shadowOffsetY = px * 0.04;
       }
-      ctx.fillStyle = s.highlight && active ? ACCENT : '#FFFFFF';
+      ctx.fillStyle = lit ? inkOn(accent) : '#FFFFFF';
       ctx.fillText(w.text, x, y);
       ctx.restore();
       x += ww + space;

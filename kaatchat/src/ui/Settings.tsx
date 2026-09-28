@@ -96,6 +96,14 @@ export function Settings() {
                 <option value="hinglish">Hinglish</option>
               </select>
             </label>
+            <label className="field">
+              Appearance
+              <select className="select" value={prefs.theme} onChange={(e) => setPrefs({ theme: e.target.value as 'system' | 'light' | 'dark' })}>
+                <option value="system">Follow system</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </label>
             <label className="field" style={{ minWidth: 200 }}>
               Interface size · {Math.round(prefs.uiScale * 100)}%
               <input className="range" type="range" min={0.9} max={1.3} step={0.05} value={prefs.uiScale} onChange={(e) => setPrefs({ uiScale: +e.target.value })} />

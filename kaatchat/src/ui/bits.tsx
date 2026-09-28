@@ -1,20 +1,13 @@
 import { useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
 import { t } from '../i18n';
 
-/** The Kaatchat mark, exactly as supplied (favicon.svg geometry). */
-export function Logo({ size = 24, mono = false }: { size?: number; mono?: boolean }) {
+/** The Kaatchat mark (monochrome, from the Main design canvas). Inverts in dark theme. */
+export function Logo({ size = 24 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-      <defs>
-        <linearGradient id="kc-g" x1="4" y1="4" x2="60" y2="60" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#FFB627" />
-          <stop offset="0.55" stopColor="#FF8A1E" />
-          <stop offset="1" stopColor="#FF2E77" />
-        </linearGradient>
-      </defs>
-      <rect width="64" height="64" rx="16" fill={mono ? '#111111' : 'url(#kc-g)'} />
-      <path d="M20 11 L53 32 L20 29 Z" fill="#fff" transform="translate(-1.5,-1.5)" />
-      <path d="M20 31.4 L53 32 L20 53 Z" fill="#fff" transform="translate(1.5,1.5)" opacity="0.95" />
+      <rect width="64" height="64" rx="15" style={{ fill: 'var(--accent)' }} />
+      <path d="M20 11 L53 32 L20 29 Z" style={{ fill: 'var(--accent-ink)' }} transform="translate(-1.5,-1.5)" />
+      <path d="M20 31.4 L53 32 L20 53 Z" style={{ fill: 'var(--accent-ink)' }} transform="translate(1.5,1.5)" opacity="0.92" />
     </svg>
   );
 }

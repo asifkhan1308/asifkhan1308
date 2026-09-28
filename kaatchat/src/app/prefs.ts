@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react';
 
 export interface Prefs {
+  theme: 'system' | 'light' | 'dark';
   uiScale: number; // 0.9 – 1.3
   highContrast: boolean;
   reducedMotion: 'system' | 'on' | 'off';
@@ -13,6 +14,7 @@ export interface Prefs {
 
 const KEY = 'kaatchat.prefs';
 const defaults: Prefs = {
+  theme: 'system',
   uiScale: 1,
   highContrast: false,
   reducedMotion: 'system',
@@ -29,8 +31,14 @@ let prefs: Prefs = (() => {
 })();
 const listeners = new Set<() => void>();
 
+const darkQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: dark)') : null;
+darkQuery?.addEventListener('change', () => applyPrefs());
+
 export function applyPrefs() {
   const r = document.documentElement;
+  const dark = prefs.theme === 'dark' || (prefs.theme === 'system' && !!darkQuery?.matches);
+  r.dataset.theme = dark ? 'dark' : 'light';
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0D0D0F' : '#F2F2F4');
   r.style.fontSize = `${Math.round(prefs.uiScale * 100)}%`;
   r.style.setProperty('--ui-scale', String(prefs.uiScale));
   r.dataset.contrast = prefs.highContrast ? 'high' : 'normal';

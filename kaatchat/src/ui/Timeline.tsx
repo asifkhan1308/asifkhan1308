@@ -225,7 +225,7 @@ const ClipView = memo(function ClipView({
     const ctx = c.getContext('2d')!;
     ctx.clearRect(0, 0, w, h);
     if (!audio) return;
-    ctx.fillStyle = 'rgba(66, 211, 146, .75)';
+    ctx.fillStyle = 'rgba(255, 255, 255, .72)';
     for (let x = 0; x < w; x++) {
       const t0 = clip.in + (x / w) * len;
       const t1 = clip.in + ((x + 1) / w) * len;

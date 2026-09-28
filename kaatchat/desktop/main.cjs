@@ -165,7 +165,7 @@ function createWindow() {
     height: 920,
     minWidth: 960,
     minHeight: 640,
-    backgroundColor: '#09080F',
+    backgroundColor: '#F2F2F4',
     show: false,
     title: 'Kaatchat',
     icon: path.join(__dirname, 'build', 'icon.png'),
