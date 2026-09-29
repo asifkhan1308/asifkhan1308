@@ -35,6 +35,13 @@
       <a class="icon-btn" href="https://www.linkedin.com/in/asif-khan-957957206/" target="_blank" rel="noreferrer noopener" title="LinkedIn" aria-label="LinkedIn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="5" /><line x1="7.5" y1="10.5" x2="7.5" y2="16.5" /><circle cx="7.5" cy="7.3" r="0.9" fill="currentColor" stroke="none" /><path d="M11 16.5 V12.2 C11 10.8 12 10 13.1 10 C14.3 10 15 10.8 15 12.2 V16.5" stroke-linecap="round" /></svg>
       </a>
+      <a class="icon-btn" href="https://github.com/asifkhan1308/asifkhan1308/tree/main/kaatchat" target="_blank" rel="noreferrer noopener" title="Source code on GitHub" aria-label="GitHub">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.23c0 4.52 2.87 8.35 6.84 9.7.5.1.68-.22.68-.49v-1.7c-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.49-1.11-1.49-.91-.63.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.9 1.57 2.35 1.12 2.92.85.09-.66.35-1.12.64-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.04 1.03-2.76-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05A9.4 9.4 0 0 1 12 6.98c.85 0 1.7.12 2.5.34 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.64 1.03 2.76 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9v2.82c0 .27.18.6.69.49A10.2 10.2 0 0 0 22 12.23C22 6.58 17.52 2 12 2Z"/></svg>
+      </a>
+      <button type="button" class="btn support-open" aria-haspopup="dialog">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.3C.9 8.2 3.1 4.5 6.7 4.5c2.1 0 3.6 1.1 5.3 3 1.7-1.9 3.2-3 5.3-3 3.6 0 5.8 3.7 4.3 7.2C19.5 16.4 12 21 12 21Z"/></svg>
+        <span>Support</span>
+      </button>
       <a class="btn primary app-link" href="#" hidden>Open Kaatchat</a>
     </header>
 
@@ -156,8 +163,22 @@
 
     <footer class="foot">
       <span class="mono">Kaatchat · MPL-2.0 · Asif Khan</span>
+      <span class="small"><a href="#support" class="support-open">Support the artist</a> · <a href="https://github.com/asifkhan1308/asifkhan1308/tree/main/kaatchat" target="_blank" rel="noreferrer noopener">Source code on GitHub</a></span>
       <span class="muted small">Built on Mediabunny (MPL-2.0). Thanks to the WolfCut project. Inter and JetBrains Mono are SIL OFL 1.1.</span>
     </footer>
+    <dialog id="support" class="support" aria-labelledby="support-title">
+      <form method="dialog" class="support-close-row"><button class="icon-btn" aria-label="Close" value="close">✕</button></form>
+      <h2 id="support-title">Support the artist</h2>
+      <p class="muted small">Kaatchat is free. If it helped you, you can send any amount to Asif Khan with any UPI app.</p>
+      <img src="assets/support-upi.png" width="360" height="500" alt="UPI QR code for Asif Khan, UPI ID aafatkhan666-1@okicici" />
+      <p class="mono small upi-id">aafatkhan666-1@okicici</p>
+      <div class="support-actions">
+        <a class="btn primary" href="upi://pay?pa=aafatkhan666-1@okicici&amp;pn=Asif%20Khan&amp;aid=uGICAgMD70qePNQ">Open UPI app</a>
+        <button type="button" class="btn" id="support-copy">Copy UPI ID</button>
+        <button type="button" class="btn" id="support-share">Share</button>
+      </div>
+      <p class="tiny muted" id="support-status" role="status" aria-live="polite"></p>
+    </dialog>
     <script src="config.js"></script>
     <script src="site.js"></script>
   </body>

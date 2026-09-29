@@ -48,3 +48,35 @@ test('marketing site: a real release turns the download on, with its checksum', 
   await expect(page.getByText(`SHA-256 ${'a'.repeat(64)}`)).toBeVisible();
   await expect(page.getByText(/not code-signed yet/)).toBeVisible();
 });
+
+test('marketing site: support the artist — QR, UPI link, share, GitHub', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: SITE.replace(/\/$/, '') });
+  await page.goto(SITE);
+  await expect(page.getByRole('link', { name: 'GitHub', exact: true })).toHaveAttribute('href', 'https://github.com/asifkhan1308/asifkhan1308/tree/main/kaatchat');
+
+  await page.locator('header').getByRole('button', { name: 'Support' }).click();
+  const dlg = page.getByRole('dialog', { name: 'Support the artist' });
+  await expect(dlg).toBeVisible();
+  const qr = dlg.getByRole('img', { name: /UPI QR code/ });
+  await expect(qr).toBeVisible();
+  expect(await qr.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0)).toBe(true);
+  // The button pays exactly what the QR encodes.
+  await expect(dlg.getByRole('link', { name: 'Open UPI app' })).toHaveAttribute('href', 'upi://pay?pa=aafatkhan666-1@okicici&pn=Asif%20Khan&aid=uGICAgMD70qePNQ');
+
+  await dlg.getByRole('button', { name: 'Copy UPI ID' }).click();
+  await expect(dlg.getByText('UPI ID copied.')).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('aafatkhan666-1@okicici');
+
+  // Without the Web Share API, Share copies a link that opens this dialog.
+  await page.evaluate(() => Object.defineProperty(navigator, 'share', { value: undefined }));
+  await dlg.getByRole('button', { name: 'Share' }).click();
+  await expect(dlg.getByText(/Link copied/)).toBeVisible();
+  const shared = await page.evaluate(() => navigator.clipboard.readText());
+  expect(shared).toBe(`${SITE}#support`);
+
+  await dlg.getByRole('button', { name: 'Close' }).click();
+  await expect(dlg).toBeHidden();
+  const fresh = await context.newPage();
+  await fresh.goto(shared);
+  await expect(fresh.getByRole('dialog', { name: 'Support the artist' })).toBeVisible();
+});
