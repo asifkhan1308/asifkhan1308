@@ -8,6 +8,11 @@ on:
   pull_request:
     paths: ['kaatchat/**', '.github/workflows/kaatchat.yml']
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish the installer as a GitHub Release (tag kaatchat-v<desktop version>, created on this commit)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -119,13 +124,29 @@ jobs:
             kaatchat/desktop/release/*.exe
             kaatchat/desktop/release/SHA256SUMS.txt
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/kaatchat-v')
+        if: startsWith(github.ref, 'refs/tags/kaatchat-v') || (github.event_name == 'workflow_dispatch' && inputs.publish)
         shell: pwsh
         working-directory: kaatchat/desktop/release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # A tag push names the release; a manual publish derives it from the app version
+          # and creates the tag on this exact commit.
+          $tag = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "kaatchat-v" + (Get-Content ../package.json -Raw | ConvertFrom-Json).version }
           $signed = if ("${{ secrets.WIN_CSC_LINK }}" -ne "") { "Signed" } else { "**Unsigned build.** Windows SmartScreen may warn that the publisher is unknown. Verify the SHA-256 below before running." }
           $sums = Get-Content SHA256SUMS.txt -Raw
-          $notes = "Kaatchat ${{ github.ref_name }}`n`n$signed`n`nSystem requirements: Windows 10/11 64-bit, a GPU/CPU with hardware video decode recommended.`n`nSHA-256:`n``````n$sums``````"
-          gh release create "${{ github.ref_name }}" (Get-ChildItem *.exe).FullName SHA256SUMS.txt --title "Kaatchat ${{ github.ref_name }}" --notes $notes --prerelease
+          $notes = "Kaatchat $tag`n`n$signed`n`nSystem requirements: Windows 10/11 64-bit, a GPU/CPU with hardware video decode recommended.`n`nSHA-256:`n``````n$sums``````"
+          $exe = (Get-ChildItem *.exe).FullName
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            # Only replace files on a release whose tag is this exact commit, so a tag's
+            # binaries always match its source. A later commit needs a version bump.
+            $tagSha = gh api "repos/${{ github.repository }}/commits/$tag" --jq .sha
+            if ($tagSha -ne "${{ github.sha }}") {
+              Write-Error "Release $tag already exists at $tagSha, not ${{ github.sha }}. Bump the version in kaatchat/desktop/package.json to publish this commit."
+              exit 1
+            }
+            gh release upload $tag $exe SHA256SUMS.txt --clobber
+          } else {
+            gh release create $tag $exe SHA256SUMS.txt --target "${{ github.sha }}" --title "Kaatchat $tag" --notes $notes --prerelease
+          }
