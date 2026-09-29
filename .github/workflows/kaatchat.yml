@@ -139,6 +139,13 @@ jobs:
           $exe = (Get-ChildItem *.exe).FullName
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
+            # Only replace files on a release whose tag is this exact commit, so a tag's
+            # binaries always match its source. A later commit needs a version bump.
+            $tagSha = gh api "repos/${{ github.repository }}/commits/$tag" --jq .sha
+            if ($tagSha -ne "${{ github.sha }}") {
+              Write-Error "Release $tag already exists at $tagSha, not ${{ github.sha }}. Bump the version in kaatchat/desktop/package.json to publish this commit."
+              exit 1
+            }
             gh release upload $tag $exe SHA256SUMS.txt --clobber
           } else {
             gh release create $tag $exe SHA256SUMS.txt --target "${{ github.sha }}" --title "Kaatchat $tag" --notes $notes --prerelease
