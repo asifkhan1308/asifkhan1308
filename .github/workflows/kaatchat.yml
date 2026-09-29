@@ -135,7 +135,7 @@ jobs:
           $tag = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "kaatchat-v" + (Get-Content ../package.json -Raw | ConvertFrom-Json).version }
           $signed = if ("${{ secrets.WIN_CSC_LINK }}" -ne "") { "Signed" } else { "**Unsigned build.** Windows SmartScreen may warn that the publisher is unknown. Verify the SHA-256 below before running." }
           $sums = Get-Content SHA256SUMS.txt -Raw
-          $notes = "Kaatchat $tag`n`n$signed`n`nSystem requirements: Windows 10/11 64-bit, a GPU/CPU with hardware video decode recommended.`n`nSHA-256:`n``````n$sums``````"
+          $notes = "Kaatchat $tag`n`n$signed`n`nSystem requirements: Windows 10/11 64-bit, a GPU/CPU with hardware video decode recommended.`n`nSHA-256:`n```````n$sums`n``````"
           $exe = (Get-ChildItem *.exe).FullName
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {

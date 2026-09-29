@@ -7,6 +7,10 @@ test('marketing site: self-contained, responsive, no dead links', async ({ page 
   page.on('request', (r) => {
     if (!r.url().startsWith(SITE)) external.push(r.url());
   });
+  // The unreleased state, whatever release.json currently holds.
+  await page.route('**/release.json', (r) =>
+    r.fulfill({ contentType: 'application/json', body: JSON.stringify({ version: '2.0.0', windowsUrl: null, sha256: null }) }),
+  );
   await page.goto(SITE);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/Shoot once\.\s*Edit intelligently\.\s*Create more\./);
   await page.waitForLoadState('networkidle');
@@ -20,6 +24,14 @@ test('marketing site: self-contained, responsive, no dead links', async ({ page 
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow, `overflow at ${w}px`).toBeLessThanOrEqual(0);
   }
+});
+
+test('marketing site: the committed release manifest points at a real installer', async ({ page }) => {
+  const rel = await (await page.request.get(`${SITE}release.json`)).json();
+  if (rel.windowsUrl === null) return; // not released yet
+  expect(rel.windowsUrl).toMatch(/^https:\/\/github\.com\/.+\/releases\/download\/.+\.exe$/);
+  expect(rel.sha256).toMatch(/^[a-f0-9]{64}$/);
+  expect(rel.size).toBeGreaterThan(10_000_000);
 });
 
 test('marketing site: a real release turns the download on, with its checksum', async ({ page }) => {
