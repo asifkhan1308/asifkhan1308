@@ -42,7 +42,9 @@ test.beforeAll(async () => {
     if (m.type() === 'error') log.push(`[console] ${m.text()}\n`);
   });
   page.on('pageerror', (e) => log.push(`[pageerror] ${e.message}\n`));
-  await page.waitForLoadState('domcontentloaded');
+  // firstWindow() can resolve while the window is still on its initial blank page,
+  // before the app URL commits; wait for the app itself, not just any load.
+  await page.waitForURL('kaatchat://app/**', { waitUntil: 'domcontentloaded' });
 });
 
 // eslint-disable-next-line no-empty-pattern -- Playwright hooks need a fixtures object first.
@@ -58,7 +60,7 @@ test.afterAll(async () => {
 });
 
 test('loads from the kaatchat:// origin with a sandboxed, isolated renderer', async () => {
-  expect(page.url()).toBe('kaatchat://app/index.html');
+  await expect(page).toHaveURL('kaatchat://app/index.html');
   await expect(page).toHaveTitle('Kaatchat');
   const probe = await page.evaluate(() => ({
     bridge: typeof window.kaatchat,
