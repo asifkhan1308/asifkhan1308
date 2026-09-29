@@ -1,0 +1,8 @@
+{
+  "version": "2.0.0",
+  "windowsUrl": null,
+  "sha256": null,
+  "size": null,
+  "signed": false,
+  "notes": "Set windowsUrl (the GitHub Release asset URL), sha256 and size after the first tagged release."
+}
