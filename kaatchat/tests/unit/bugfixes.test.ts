@@ -61,6 +61,20 @@ describe('vertical video detection (bug 3)', () => {
     expect(s.doc.aspect).toBe('9:16');
   });
 
+  it("the Media bin's Add follows the same rule as import", () => {
+    const s = new EditorStore(projectOf(doc([], [])));
+    const land = asset('L', 5, { width: 1920, height: 1080 });
+    s.addAsset(asset('V', 8, { width: 720, height: 1280 }));
+    s.addAsset(land, false);
+    s.addToTimeline(land);
+    expect(s.doc.aspect).toBe('9:16');
+    expect(s.doc.clips.map((c) => c.fit)).toEqual(['fill', 'fit']);
+    // On an empty timeline, Add sets the canvas like an import would.
+    const e = new EditorStore(projectOf(doc([], [asset('V', 8, { width: 720, height: 1280 })])));
+    e.addToTimeline(e.project.assets.V);
+    expect(e.doc.aspect).toBe('9:16');
+  });
+
   it('one undo removes the clip and restores the previous canvas', () => {
     const s = new EditorStore(projectOf(doc([], [])));
     s.addAsset(asset('V', 8, { width: 720, height: 1280 }));

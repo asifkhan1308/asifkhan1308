@@ -154,24 +154,14 @@ export class EditorStore {
 
   addAsset(asset: MediaAsset, addToTimeline = true) {
     this.mutate(`Import ${asset.name}`, (d) => {
-      const assets = { ...d.assets, [asset.id]: asset };
-      if (!addToTimeline) return { ...d, assets };
-      if (asset.kind === 'audio') {
-        const start = 0;
-        return {
-          ...d,
-          assets,
-          audio: [...d.audio, { id: uid(), assetId: asset.id, start, in: 0, out: asset.duration, gainDb: -6, fadeIn: 0.5, fadeOut: 1, duck: true }],
-        };
-      }
-      // The first picture on an empty timeline sets the canvas shape (a vertical
-      // phone clip makes a 9:16 edit). Later clips of another shape are letterboxed
-      // rather than cropped; reframe or switch them to fill when that is wanted.
-      const aspect = d.clips.length === 0 ? (nearestAspect(asset.width, asset.height) ?? d.aspect) : d.aspect;
-      const fit: FitMode = shapeDiffers(asset.width, asset.height, aspect) ? 'fit' : 'fill';
-      const clip: Clip = { id: uid(), assetId: asset.id, in: 0, out: asset.duration, gainDb: 0, focusX: 0.5, focusY: 0.5, fit };
-      return { ...d, assets, aspect, clips: [...d.clips, clip] };
+      const withAsset = { ...d, assets: { ...d.assets, [asset.id]: asset } };
+      return addToTimeline ? appendToTimeline(withAsset, asset) : withAsset;
     });
+  }
+
+  /** Adds another copy of an imported asset to the end of the timeline (Media bin "Add"). */
+  addToTimeline(asset: MediaAsset) {
+    this.mutate(`Add ${asset.name}`, (d) => appendToTimeline(d, asset));
   }
 
   /** Update asset metadata without creating an undo step (e.g. relinking). */
@@ -299,4 +289,19 @@ export class EditorStore {
     // Media added since the version was saved stays in the bin.
     this.commit({ ...v.project, assets: { ...this._project.assets, ...v.project.assets } }, `Restore “${v.name}”`, 'you', []);
   }
+}
+
+/**
+ * Appends an asset to the timeline: audio goes on the audio track; pictures
+ * become a clip. The first picture on an empty timeline sets the canvas shape
+ * (a vertical phone clip makes a 9:16 edit). Later clips of another shape are
+ * letterboxed rather than cropped; reframe or switch them to fill when wanted.
+ */
+function appendToTimeline(d: EditView, asset: MediaAsset): EditView {
+  if (asset.kind === 'audio')
+    return { ...d, audio: [...d.audio, { id: uid(), assetId: asset.id, start: 0, in: 0, out: asset.duration, gainDb: -6, fadeIn: 0.5, fadeOut: 1, duck: true }] };
+  const aspect = d.clips.length === 0 ? (nearestAspect(asset.width, asset.height) ?? d.aspect) : d.aspect;
+  const fit: FitMode = shapeDiffers(asset.width, asset.height, aspect) ? 'fit' : 'fill';
+  const clip: Clip = { id: uid(), assetId: asset.id, in: 0, out: asset.duration, gainDb: 0, focusX: 0.5, focusY: 0.5, fit };
+  return { ...d, aspect, clips: [...d.clips, clip] };
 }

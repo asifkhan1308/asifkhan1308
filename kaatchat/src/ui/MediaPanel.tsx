@@ -8,7 +8,6 @@ import { WHISPER_MODELS } from '../engine/media';
 import { usePrefs } from '../app/prefs';
 import { Icon, fmtBytes, fmtTime, toast } from './bits';
 import { t } from '../i18n';
-import { uid } from '../engine/id';
 
 export function MediaPanel({ session, time, onSeek, onImport }: { session: EditorSession; time: number; onSeek(t: number): void; onImport(): void }) {
   const [tab, setTab] = useState<'media' | 'transcript'>('media');
@@ -85,13 +84,7 @@ function MediaBin({ session, onImport }: { session: EditorSession; onImport(): v
                   <button
                     className="btn sm"
                     title="Add another copy of this clip to the end of the timeline"
-                    onClick={() =>
-                      store.mutate(`Add ${a.name}`, (d) =>
-                        a.kind === 'audio'
-                          ? { ...d, audio: [...d.audio, { id: uid(), assetId: a.id, start: 0, in: 0, out: a.duration, gainDb: -6, fadeIn: 0.5, fadeOut: 1, duck: true }] }
-                          : { ...d, clips: [...d.clips, { id: uid(), assetId: a.id, in: 0, out: a.duration, gainDb: 0, focusX: 0.5, focusY: 0.5, fit: 'fill' }] },
-                      )
-                    }
+                    onClick={() => store.addToTimeline(a)}
                   >
                     <Icon name="plus" size={13} /> Add
                   </button>
