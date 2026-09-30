@@ -81,11 +81,21 @@ test('an hour-long recording cut into 1,200 clips stays responsive', async ({ pa
   // Transcript open, playing: the playhead moves, the current word is highlighted.
   await page.getByRole('tab', { name: 'Transcript' }).click();
   await expect(page.locator('.transcript .w').first()).toBeVisible();
+  const cdp = process.env.KAATCHAT_PROFILE ? await page.context().newCDPSession(page) : null;
+  if (cdp) {
+    await cdp.send('Profiler.enable');
+    await cdp.send('Profiler.start');
+  }
   const play = await smoothness(page, async () => {
     await page.getByRole('button', { name: 'Play', exact: true }).click();
     await page.waitForTimeout(4000);
     await page.getByRole('button', { name: 'Pause', exact: true }).click();
   });
+  if (cdp) {
+    const { profile } = await cdp.send('Profiler.stop');
+    const { writeFileSync } = await import('node:fs');
+    writeFileSync(process.env.KAATCHAT_PROFILE!, JSON.stringify(profile));
+  }
   report['playback fps'] = play.fps.toFixed(1);
   console.log('[scale] playback', play);
   report['playback longest frame'] = `${play.longestFrameMs}ms`;
@@ -98,12 +108,13 @@ test('an hour-long recording cut into 1,200 clips stays responsive', async ({ pa
   console.log('[scale] drawn', drawn);
 
   // Scrubbing along the timeline.
-  const ruler = page.locator('.ruler');
-  const box = (await ruler.boundingBox())!;
+  // Across the visible part of the ruler (zoomed in, the ruler itself is far wider than the screen).
+  const view = (await page.locator('.tl-scroll').boundingBox())!;
+  const y = (await page.locator('.ruler').boundingBox())!.y + 8;
   const scrub = await smoothness(page, async () => {
-    await page.mouse.move(box.x + 20, box.y + box.height / 2);
+    await page.mouse.move(view.x + 20, y);
     await page.mouse.down();
-    for (let x = 20; x < box.width - 20; x += 12) await page.mouse.move(box.x + x, box.y + box.height / 2);
+    for (let x = 20; x < view.width - 20; x += 8) await page.mouse.move(view.x + x, y);
     await page.mouse.up();
   });
   report['scrub fps'] = scrub.fps.toFixed(1);
