@@ -240,6 +240,8 @@ function TranscriptView({ session, time, onSeek }: { session: EditorSession; tim
                 return (
                   <span
                     key={wi}
+                    data-t0={w.t0.toFixed(2)}
+                    data-t1={w.t1.toFixed(2)}
                     className={`w${cut ? ' cut' : ''}${inSel(asset.id, si, wi) ? ' sel' : ''}${now ? ' now' : ''}`}
                     onClick={(e) => {
                       if (e.shiftKey && sel && sel.assetId === asset.id) setSel({ ...sel, b: [si, wi] });
@@ -255,7 +257,11 @@ function TranscriptView({ session, time, onSeek }: { session: EditorSession; tim
               })}
             </p>
           ))}
-          <p className="faint tiny">{tr.model}</p>
+          <p className="faint tiny">
+            {tr.model}
+            {tr.wordTimings === 'exact' && ' · exact word timings'}
+            {tr.wordTimings === 'estimated' && ' · word timings estimated from sentences; cuts may be a word off. Pick a model with exact word timings in Settings for precise cuts.'}
+          </p>
         </div>
       ))}
     </div>

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ensureFixtures, ensureSpeechFixture } from './fixtures';
+import { ensureFixtures, ensureSpeechFixture, silences } from './fixtures';
 
 const fx = ensureFixtures();
 
@@ -36,8 +36,10 @@ test('Whisper: transcribes real speech end to end, and the transcript drives Fin
   const speech = ensureSpeechFixture();
   expect(speech, 'espeak-ng is needed to make the speech fixture').toBeTruthy();
 
+  // The default model: multilingual, with exact word timings.
   await page.goto('/#/settings');
-  await page.getByRole('region', { name: 'Transcription' }).getByLabel('Model').selectOption('onnx-community/whisper-base.en');
+  await expect(page.getByRole('region', { name: 'Transcription' }).getByLabel('Model')).toHaveValue('onnx-community/whisper-base_timestamped');
+  await page.getByRole('region', { name: 'Transcription' }).getByLabel('Spoken language').selectOption({ label: 'English' });
   await page.goto('/');
   await page.locator('input[type=file]').setInputFiles(speech!);
   await expect(page.locator('.asset').first().getByText('Loudness')).toBeVisible();
@@ -54,6 +56,22 @@ test('Whisper: transcribes real speech end to end, and the transcript drives Fin
   expect(text).toMatch(/test/);
   expect(text).toMatch(/money/);
 
+  // Each word is timed by the model, and the timings match the audio: the first
+  // word of each sentence starts where ffmpeg hears the pause before it end.
+  await expect(page.locator('.transcript')).toContainText('exact word timings');
+  const words = await page.locator('.transcript .w').evaluateAll((els) =>
+    els.map((e) => ({ text: (e.textContent ?? '').trim().toLowerCase().replace(/[^a-z]/g, ''), t0: +e.getAttribute('data-t0')!, t1: +e.getAttribute('data-t1')! })),
+  );
+  for (let i = 1; i < words.length; i++) expect(words[i].t0).toBeGreaterThanOrEqual(words[i - 1].t0 - 0.01);
+  const pauses = silences(speech!.replace(/\.webm$/, '.wav')).filter((p) => p.start > 0.2);
+  expect(pauses.length, 'the speech has pauses between sentences').toBeGreaterThanOrEqual(2);
+  for (const first of ['this', 'money']) {
+    const w = words.find((x) => x.text === first);
+    expect(w, `"${first}" is in the transcript`).toBeTruthy();
+    const nearest = Math.min(...pauses.map((p) => Math.abs(p.end - w!.t0)));
+    expect(nearest, `"${first}" starts at ${w!.t0}s; pauses end at ${pauses.map((p) => p.end.toFixed(2)).join(', ')}`).toBeLessThan(0.3);
+  }
+
   // Find uses the transcript.
   const studio = page.locator('.panel.right');
   await studio.getByRole('tab', { name: 'Find' }).click();
@@ -64,4 +82,20 @@ test('Whisper: transcribes real speech end to end, and the transcript drives Fin
   // Captions come from it.
   await page.getByRole('button', { name: 'Captions', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Captions', exact: true })).toHaveAttribute('aria-pressed', 'true');
+});
+
+// Every model offered in Settings must exist with the quantized files the app
+// loads, and the "exact word timings" ones must really have them.
+test('Whisper: every model offered in Settings is downloadable, with the files the app loads', async ({ request }) => {
+  test.skip(process.env.KAATCHAT_WHISPER_E2E !== '1', 'Needs network access to huggingface.co (set KAATCHAT_WHISPER_E2E=1)');
+  const { WHISPER_MODELS } = await import('../../src/engine/whisperModels');
+  for (const m of WHISPER_MODELS) {
+    for (const f of ['config.json', 'onnx/encoder_model_quantized.onnx', 'onnx/decoder_model_merged_quantized.onnx']) {
+      const r = await request.head(`https://huggingface.co/${m.id}/resolve/main/${f}`, { maxRedirects: 0 });
+      expect([200, 302, 307], `${m.id}/${f} → ${r.status()}`).toContain(r.status());
+    }
+    const cfg = await (await request.get(`https://huggingface.co/${m.id}/resolve/main/generation_config.json`)).json();
+    // Word timings need the alignment heads; the timed exports also output cross-attentions.
+    if (m.wordTimings) expect(cfg.alignment_heads, `${m.id} has alignment heads`).toBeTruthy();
+  }
 });

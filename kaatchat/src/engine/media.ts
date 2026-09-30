@@ -277,11 +277,8 @@ async function snapshot(src: CanvasImageSource, w: number, h: number): Promise<s
 // Transcription (local Whisper in a worker)
 // ---------------------------------------------------------------------------
 
-export const WHISPER_MODELS = [
-  { id: 'onnx-community/whisper-base', label: 'Whisper Base (multilingual, ~80 MB)', multilingual: true },
-  { id: 'onnx-community/whisper-tiny', label: 'Whisper Tiny (multilingual, ~40 MB, faster, less accurate)', multilingual: true },
-  { id: 'onnx-community/whisper-base.en', label: 'Whisper Base English (~80 MB)', multilingual: false },
-] as const;
+export { WHISPER_MODELS } from './whisperModels';
+
 
 /** Decode audio to 16 kHz mono — the format Whisper expects. */
 export async function decodeForSpeech(blob: Blob, ctl: JobControl): Promise<Float32Array | null> {
@@ -378,7 +375,7 @@ export async function transcribe(blob: Blob, model: string, language: string | u
         const words = m.chunks
           .filter((c) => Number.isFinite(c.start))
           .map((c) => ({ t0: c.start, t1: Math.max(c.end, c.start + 0.05), text: c.text.trim() }));
-        resolve({ model, language: m.language, createdAt: Date.now(), segments: wordsToSegments(words) });
+        resolve({ model, language: m.language, createdAt: Date.now(), segments: wordsToSegments(words), wordTimings: m.wordLevel ? 'exact' : 'estimated' });
       }
     };
     w.addEventListener('message', onMsg);

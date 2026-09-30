@@ -127,6 +127,7 @@ export function ensureSpeechFixture(): string | null {
   const wav = join(FIXTURES, 'speech.wav');
   const r = spawnSync('espeak-ng', ['-v', 'en-us', '-s', '140', '-w', wav, 'Hello world. This is a test of the video editor. Money matters when you start a company.']);
   if (r.error || r.status !== 0) return null;
+  // Keep the WAV: tests measure where the pauses between sentences really are.
   execFileSync(ffmpeg, [
     '-v', 'error', '-y',
     '-f', 'lavfi', '-i', 'color=c=0x303030:s=640x360:r=30',
@@ -135,5 +136,22 @@ export function ensureSpeechFixture(): string | null {
     '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuv420p', '-deadline', 'realtime', '-cpu-used', '8',
     '-c:a', 'libopus', '-b:a', '64k', '-ar', '48000', out,
   ]);
+  return out;
+}
+
+/** Pauses of at least `min` seconds in a file's audio, measured by ffmpeg. */
+export function silences(file: string, min = 0.15, noiseDb = -40): { start: number; end: number }[] {
+  const r = spawnSync(ffmpeg, ['-hide_banner', '-i', file, '-af', `silencedetect=n=${noiseDb}dB:d=${min}`, '-f', 'null', '-'], { encoding: 'utf8' });
+  const out: { start: number; end: number }[] = [];
+  let start: number | null = null;
+  for (const line of (r.stderr ?? '').split('\n')) {
+    const s = /silence_start: (-?[\d.]+)/.exec(line);
+    if (s) start = Math.max(0, +s[1]);
+    const e = /silence_end: ([\d.]+)/.exec(line);
+    if (e && start !== null) {
+      out.push({ start, end: +e[1] });
+      start = null;
+    }
+  }
   return out;
 }

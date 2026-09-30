@@ -10,7 +10,7 @@ import { splitChunksIntoWords } from './transcript';
 export type WorkerIn = { type: 'transcribe'; id: string; model: string; audio: Float32Array; language?: string };
 export type WorkerOut =
   | { type: 'status'; id: string; phase: 'download' | 'transcribe'; progress: number | null; detail?: string }
-  | { type: 'result'; id: string; chunks: { text: string; start: number; end: number }[]; language: string }
+  | { type: 'result'; id: string; chunks: { text: string; start: number; end: number }[]; language: string; wordLevel: boolean }
   | { type: 'error'; id: string; message: string };
 
 env.allowLocalModels = false;
@@ -75,7 +75,7 @@ self.onmessage = async (e: MessageEvent<WorkerIn>) => {
         chunks = splitChunksIntoWords(toChunks((await pipe(msg.audio, { ...opts, return_timestamps: true })) as AsrOutput));
       }
     } else chunks = splitChunksIntoWords(toChunks((await pipe(msg.audio, { ...opts, return_timestamps: true })) as AsrOutput));
-    post({ type: 'result', id, chunks, language: englishOnly ? 'english' : (msg.language ?? 'auto') });
+    post({ type: 'result', id, chunks, language: englishOnly ? 'english' : (msg.language ?? 'auto'), wordLevel: cur.wordLevel });
   } catch (err) {
     current = null;
     post({ type: 'error', id, message: err instanceof Error ? err.message : String(err) });

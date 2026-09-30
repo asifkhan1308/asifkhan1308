@@ -303,6 +303,8 @@ export interface Transcript {
   language: string;
   createdAt: number;
   segments: TranscriptSegment[];
+  /** 'exact': each word timed by the model. 'estimated': sentence timings spread over words. Absent on older transcripts. */
+  wordTimings?: 'exact' | 'estimated';
 }
 
 export interface AssetIndex {
