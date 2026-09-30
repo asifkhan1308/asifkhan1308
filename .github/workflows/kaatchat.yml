@@ -258,7 +258,9 @@ jobs:
             npm run dist:mac -- -c.mac.notarize=true
           else
             unset CSC_LINK CSC_KEY_PASSWORD
-            CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist:mac -- -c.mac.identity=-
+            # Ad-hoc signing uses no credentials, so it is safe on pull requests too
+            # (electron-builder otherwise skips all signing there).
+            CSC_FOR_PULL_REQUEST=true CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist:mac -- -c.mac.identity=-
           fi
       - name: Check both apps' architecture and signature
         working-directory: kaatchat/desktop/release
