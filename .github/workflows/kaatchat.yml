@@ -150,9 +150,12 @@ jobs:
         run: |
           $exe = (Get-ChildItem Kaatchat-Setup-*.exe).FullName
           Start-Process -FilePath $exe -ArgumentList '/S' -Wait
-          $app = Join-Path $env:LOCALAPPDATA 'Programs\Kaatchat\Kaatchat.exe'
-          if (-not (Test-Path $app)) { Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Programs') -Recurse -Depth 2 | Select-Object FullName; Write-Error "Kaatchat.exe was not installed at $app"; exit 1 }
+          # One-click per-user installs go under %LOCALAPPDATA%\Programs\<package name>; find it rather than assume.
+          $programs = Join-Path $env:LOCALAPPDATA 'Programs'
+          $app = Get-ChildItem $programs -Recurse -Depth 2 -Filter 'Kaatchat.exe' -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $app) { Get-ChildItem $programs -Recurse -Depth 2 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }; Write-Error "Kaatchat.exe was not found under $programs after installing"; exit 1 }
           "KAATCHAT_EXE=$app" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "KAATCHAT_DIR=$(Split-Path $app)" | Out-File -FilePath $env:GITHUB_ENV -Append
           Write-Host "Installed: $app"
       - uses: actions/setup-python@v5
         with:
@@ -171,7 +174,7 @@ jobs:
       - name: Uninstall it cleanly
         shell: pwsh
         run: |
-          $dir = Join-Path $env:LOCALAPPDATA 'Programs\Kaatchat'
+          $dir = $env:KAATCHAT_DIR
           Start-Process -FilePath (Join-Path $dir 'Uninstall Kaatchat.exe') -ArgumentList '/S' -Wait
           Start-Sleep -Seconds 5
           if (Test-Path (Join-Path $dir 'Kaatchat.exe')) { Write-Error 'Kaatchat.exe is still there after uninstalling'; exit 1 }
