@@ -20,6 +20,8 @@ const { pathToFileURL } = require('node:url');
 const { resolveInsideRoot, PROVIDERS, isProvider, checkProviderUrl, sanitizeHeaders, RELEASES_API, RELEASE_MANIFEST, updateFromManifest, pickUpdate, isAllowedDownload, sumFor } = require('./policy.cjs');
 const { createHash } = require('node:crypto');
 const { spawn } = require('node:child_process');
+const { Readable, Transform } = require('node:stream');
+const { pipeline } = require('node:stream/promises');
 
 const APP_SCHEME = 'kaatchat';
 const APP_ORIGIN = `${APP_SCHEME}://app`;
@@ -125,23 +127,26 @@ async function downloadTo(url, file, expectedSize) {
   if (!res.ok || !res.body) throw new Error(`Download failed (${res.status}).`);
   const total = Number(res.headers.get('content-length')) || expectedSize || 0;
   const hash = createHash('sha256');
-  const out = fs.createWriteStream(file);
   let got = 0;
   let last = 0;
-  try {
-    for await (const chunk of res.body) {
-      hash.update(chunk);
-      got += chunk.length;
-      if (!out.write(chunk)) await new Promise((r) => out.once('drain', r));
-      const now = Date.now();
-      if (total && now - last > 200) {
-        last = now;
-        sendProgress(got / total);
-      }
-    }
-  } finally {
-    await new Promise((r) => out.end(r));
-  }
+  // pipeline() propagates errors from every stage (network, a full or unwritable
+  // disk) and closes the file, so a failure always surfaces as an install error.
+  await pipeline(
+    Readable.fromWeb(res.body),
+    new Transform({
+      transform(chunk, _enc, cb) {
+        hash.update(chunk);
+        got += chunk.length;
+        const now = Date.now();
+        if (total && now - last > 200) {
+          last = now;
+          sendProgress(got / total);
+        }
+        cb(null, chunk);
+      },
+    }),
+    fs.createWriteStream(file),
+  );
   return hash.digest('hex');
 }
 
@@ -165,7 +170,13 @@ async function installUpdate() {
     const dir = fs.mkdtempSync(path.join(app.getPath('temp'), 'kaatchat-update-'));
     const file = path.join(dir, u.installer.name);
     sendProgress(0);
-    const actual = await downloadTo(u.installer.url, file, u.installer.size);
+    let actual;
+    try {
+      actual = await downloadTo(u.installer.url, file, u.installer.size);
+    } catch (e) {
+      fs.rmSync(dir, { recursive: true, force: true });
+      throw new Error(`Downloading the update failed: ${e.message}`, { cause: e });
+    }
     if (actual !== expected) {
       fs.rmSync(dir, { recursive: true, force: true });
       throw new Error('The downloaded installer did not match its published checksum, so it was deleted and not run.');
