@@ -150,6 +150,18 @@
             </div>
             <p class="small muted" id="win-pending">The Windows installer is published on GitHub Releases after every tagged build passes its tests. This page links it once a release exists.</p>
           </div>
+          <div class="card" id="mac-card">
+            <h3>macOS</h3>
+            <p class="muted">macOS 12 or later. Apple Silicon or Intel.</p>
+            <div id="mac-ready" hidden>
+              <a class="btn primary" id="mac-arm64-link" href="#">Download for Apple Silicon</a>
+              <a class="btn" id="mac-x64-link" href="#">Download for Intel</a>
+              <p class="mono small" id="mac-meta"></p>
+              <p class="mono tiny break" id="mac-sha"></p>
+              <p class="small muted" id="mac-signed"></p>
+            </div>
+            <p class="small muted" id="mac-pending">The macOS app is published on GitHub Releases with the Windows installer. This page links it once a release includes it.</p>
+          </div>
           <div class="card">
             <h3>Web</h3>
             <p class="muted">Chrome, Edge or another Chromium browser with WebCodecs.</p>
@@ -157,7 +169,7 @@
             <p class="small muted app-pending">The web app link appears here once it is deployed.</p>
           </div>
         </div>
-        <p class="small muted">macOS and Linux builds are planned; the editor already runs in the browser on both.</p>
+        <p class="small muted">A Linux build is planned; the editor already runs in the browser there.</p>
       </section>
     </main>
 

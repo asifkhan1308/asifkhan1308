@@ -1,8 +1,9 @@
-// Runs against the INSTALLED app (Windows CI: the NSIS installer, silently
-// installed). Checks what only a real install can show: the packaged app
-// starts from Program Files-style paths, uses the per-user data folder, has
-// the OS credential store, decodes and encodes H.264/AAC with the system
-// codecs, and exports a file that plays.
+// Runs against the INSTALLED app: on Windows CI the NSIS installer, silently
+// installed; on macOS CI the app copied out of the .dmg into Applications.
+// Checks what only a real install can show: the packaged app starts from its
+// installed location, uses the per-user data folder, has the OS credential
+// store, decodes and encodes H.264/AAC with the system codecs, and exports a
+// file that plays.
 
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
@@ -16,7 +17,7 @@ let app: ElectronApplication;
 let page: Page;
 const log: string[] = [];
 
-test.skip(!exe || !existsSync(exe), 'KAATCHAT_EXE is not set to an installed Kaatchat.exe');
+test.skip(!exe || !existsSync(exe), 'KAATCHAT_EXE is not set to an installed Kaatchat app');
 
 test.beforeAll(async () => {
   ensureFixtures();
@@ -41,7 +42,7 @@ test.afterAll(async () => {
   if (!closed) app.process().kill();
 });
 
-test('the installed app starts as a packaged, sandboxed Windows app', async () => {
+test('the installed app starts as a packaged, sandboxed desktop app', async () => {
   const info = await app.evaluate(({ app: a, safeStorage }) => ({
     packaged: a.isPackaged,
     version: a.getVersion(),
@@ -51,13 +52,13 @@ test('the installed app starts as a packaged, sandboxed Windows app', async () =
     secure: safeStorage.isEncryptionAvailable(),
     platform: process.platform,
   }));
-  expect(info.platform).toBe('win32');
+  expect(info.platform).toBe(process.platform);
   expect(info.packaged).toBe(true);
   expect(info.version).toBe(VERSION);
   expect(info.exe.toLowerCase()).toBe(exe.toLowerCase());
-  // Per-user install: data lives in the user's roaming profile, not next to the program.
-  expect(info.userData).toMatch(/\\AppData\\Roaming\\Kaatchat$/i);
-  // DPAPI: API keys are encrypted by Windows.
+  // Per-user data, never next to the program.
+  expect(info.userData).toMatch(process.platform === 'win32' ? /\\AppData\\Roaming\\Kaatchat$/i : /\/Library\/Application Support\/Kaatchat$/);
+  // API keys are encrypted by the OS: DPAPI on Windows, the Keychain on macOS.
   expect(info.secure).toBe(true);
   await expect(page).toHaveTitle('Kaatchat');
   expect(await page.evaluate(() => ({ desktop: window.kaatchat?.desktop, version: window.kaatchat?.version, require: typeof (window as unknown as { require?: unknown }).require })))
@@ -105,7 +106,7 @@ test('the update check answers from the installed app', async () => {
   const r = await page.evaluate(() => window.kaatchat!.updates!.check().then((x) => x, (e: Error) => ({ error: e.message })));
   if ('status' in r) {
     expect(['current', 'available']).toContain(r.status);
-    // A packaged Windows build is the one build that installs updates itself.
-    if (r.status === 'available') expect(r.canInstall).toBe(true);
+    // A packaged Windows build installs updates itself; macOS opens the release page.
+    if (r.status === 'available') expect(r.canInstall).toBe(process.platform === 'win32');
   } else expect(r.error).toMatch(/rate-limiting|answered|fetch failed/);
 });

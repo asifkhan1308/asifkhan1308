@@ -285,12 +285,19 @@ export function applyCommand(doc: EditView, cmd: Command, ctx: ExecContext): Exe
       const hit = doc.clips.filter(target);
       if (!hit.length) throw new CommandError('There are no clips with sound to clean up.');
       const strength = Math.round(cmd.strength * 100) / 100;
-      const unmeasured = hit.filter((c) => !index[c.assetId]?.noise).length;
-      const notes = [
-        strength > 0 ? `Noise reduction ${Math.round(strength * 100)}% on ${hit.length} clip${hit.length === 1 ? '' : 's'}` : `Noise reduction off on ${hit.length} clip${hit.length === 1 ? '' : 's'}`,
-      ];
+      const voice = cmd.mode === 'voice';
+      const n = `${hit.length} clip${hit.length === 1 ? '' : 's'}`;
+      const notes = [strength > 0 ? `${voice ? 'Voice isolation' : 'Noise reduction'} ${Math.round(strength * 100)}% on ${n}` : `Noise reduction off on ${n}`];
+      // Voice isolation needs no measurement; the steady-noise filter uses each file's measured noise.
+      const unmeasured = voice ? 0 : hit.filter((c) => !index[c.assetId]?.noise).length;
       if (strength > 0 && unmeasured) notes.push(`${unmeasured} clip${unmeasured === 1 ? '' : 's'} will be cleaned once the background noise is measured`);
-      return { doc: withClips(doc, doc.clips.map((c) => (target(c) ? { ...c, denoise: strength > 0 ? strength : undefined } : c))), notes };
+      const apply = (c: Clip): Clip => {
+        const next: Clip = { ...c, denoise: strength > 0 ? strength : undefined, denoiseMode: strength > 0 && voice ? 'voice' : undefined };
+        if (next.denoise === undefined) delete next.denoise;
+        if (next.denoiseMode === undefined) delete next.denoiseMode;
+        return next;
+      };
+      return { doc: withClips(doc, doc.clips.map((c) => (target(c) ? apply(c) : c))), notes };
     }
     case 'rename_project':
       return { doc: { ...doc, projectName: cmd.name }, notes: [`Renamed to "${cmd.name}"`] };

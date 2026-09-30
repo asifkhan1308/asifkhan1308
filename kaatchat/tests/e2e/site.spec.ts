@@ -16,9 +16,10 @@ test('marketing site: self-contained, responsive, no dead links', async ({ page 
   await page.waitForLoadState('networkidle');
   expect(external).toEqual([]);
   // Nothing configured yet → no download / app buttons, and the page says why.
-  await expect(page.getByRole('link', { name: 'Download for Windows' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /Download for (Windows|Apple Silicon|Intel)/ })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /Open (the web app|Kaatchat)/ })).toHaveCount(0);
-  await expect(page.getByText(/published on GitHub Releases/)).toBeVisible();
+  await expect(page.locator('#win-pending')).toBeVisible();
+  await expect(page.locator('#mac-pending')).toBeVisible();
   for (const w of [390, 768, 1440]) {
     await page.setViewportSize({ width: w, height: 900 });
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -47,6 +48,30 @@ test('marketing site: a real release turns the download on, with its checksum', 
   await expect(dl).toHaveAttribute('href', /Kaatchat-Setup-2\.0\.0\.exe$/);
   await expect(page.getByText(`SHA-256 ${'a'.repeat(64)}`)).toBeVisible();
   await expect(page.getByText(/not code-signed yet/)).toBeVisible();
+  // No macOS build in this release: its card still says so.
+  await expect(page.locator('#mac-pending')).toBeVisible();
+});
+
+test('marketing site: a release with the macOS app offers both Macs, with checksums and the Gatekeeper step', async ({ page }) => {
+  const mac = (arch: string, c: string) => ({ url: `https://github.com/x/y/releases/download/v2/Kaatchat-2.0.0-mac-${arch}.dmg`, sha256: c.repeat(64), size: 125000000 });
+  await page.route('**/release.json', (r) =>
+    r.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        version: '2.0.0',
+        windowsUrl: 'https://github.com/x/y/releases/download/v2/Kaatchat-Setup-2.0.0.exe',
+        sha256: 'a'.repeat(64),
+        mac: { version: '2.0.0', arm64: mac('arm64', 'b'), x64: mac('x64', 'c'), signed: false },
+      }),
+    }),
+  );
+  await page.goto(SITE);
+  await expect(page.getByRole('link', { name: 'Download for Apple Silicon' })).toHaveAttribute('href', /mac-arm64\.dmg$/);
+  await expect(page.getByRole('link', { name: 'Download for Intel' })).toHaveAttribute('href', /mac-x64\.dmg$/);
+  await expect(page.locator('#mac-sha')).toContainText('b'.repeat(64));
+  await expect(page.locator('#mac-sha')).toContainText('c'.repeat(64));
+  await expect(page.getByText(/Open Anyway/)).toBeVisible();
+  await expect(page.locator('#mac-pending')).toBeHidden();
 });
 
 test('marketing site: support the artist — QR, UPI link, share, GitHub', async ({ page, context }) => {

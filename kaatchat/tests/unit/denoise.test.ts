@@ -140,4 +140,35 @@ describe('noise reduction as an edit', () => {
     expect(rulePlan('turn off noise reduction', view, {}, 0)!.commands).toContainEqual({ type: 'reduce_noise', strength: 0 });
     expect(rulePlan('clean up this talking head', view, {}, 0)!.commands.map((c) => c.type)).toContain('reduce_noise');
   });
+
+  it('voice isolation is its own mode, needs no measurement, and switching back clears it', async () => {
+    const { EditorStore } = await import('../../src/engine/store');
+    const { applyCommand } = await import('../../src/engine/commands/execute');
+    const { validatePlan } = await import('../../src/engine/commands/schema');
+    const { asset, clip, doc, projectOf } = await import('./helpers');
+    const s = new EditorStore(projectOf(doc([clip('c1', 'A', 0, 5)], [asset('A', 10)])), {});
+    s.run([{ type: 'reduce_noise', strength: 0.9, mode: 'voice' }], 'Isolate voice');
+    expect(s.doc.clips[0]).toMatchObject({ denoise: 0.9, denoiseMode: 'voice' });
+    s.run([{ type: 'reduce_noise', strength: 0.6 }], 'Reduce noise');
+    expect(s.doc.clips[0].denoise).toBe(0.6);
+    expect('denoiseMode' in s.doc.clips[0]).toBe(false);
+    s.run([{ type: 'reduce_noise', strength: 0, mode: 'voice' }], 'Off');
+    expect('denoise' in s.doc.clips[0] || 'denoiseMode' in s.doc.clips[0]).toBe(false);
+    // Unmeasured files are fine for voice isolation.
+    const r = applyCommand(doc([clip('c1', 'A', 0, 5)], [asset('A', 10)]), { type: 'reduce_noise', strength: 0.6, mode: 'voice' }, { index: {}, newId: () => 'x' } as never);
+    expect(r.notes.join(' ')).toMatch(/Voice isolation 60% on 1 clip/);
+    expect(r.notes.join(' ')).not.toMatch(/measured/);
+    // AI plans may ask for it; anything else is rejected.
+    expect(validatePlan({ summary: 's', commands: [{ type: 'reduce_noise', strength: 1, mode: 'voice' }] }).ok).toBe(true);
+    expect(validatePlan({ summary: 's', commands: [{ type: 'reduce_noise', strength: 1, mode: 'magic' }] }).ok).toBe(false);
+  });
+
+  it('the built-in assistant picks voice isolation for noise that comes and goes', async () => {
+    const { rulePlan } = await import('../../src/ai/planner');
+    const { asset, clip, doc } = await import('./helpers');
+    const view = doc([clip('c1', 'A', 0, 5)], [asset('A', 10)]);
+    for (const ask of ['remove the traffic noise', 'get rid of the keyboard typing', 'isolate my voice', 'remove the background music behind me', 'cut the wind noise'])
+      expect(rulePlan(ask, view, {}, 0)!.commands, ask).toContainEqual({ type: 'reduce_noise', strength: 0.6, mode: 'voice' });
+    expect(rulePlan('remove the hiss', view, {}, 0)!.commands).toContainEqual({ type: 'reduce_noise', strength: 0.6 });
+  });
 });

@@ -270,7 +270,7 @@ label.field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; 
 
 /* transcript */
 .transcript { line-height: 1.9; font-size: 14px; user-select: none; }
-.transcript .seg { margin-bottom: 10px; }
+.transcript .seg { margin-bottom: 10px; content-visibility: auto; contain-intrinsic-size: auto 3em; }
 .transcript .w { padding: 1px 1px; border-radius: 3px; cursor: pointer; }
 .transcript .w:hover { background: var(--glass-strong); }
 .transcript .w.sel { background: var(--accent-wash); color: var(--text); }

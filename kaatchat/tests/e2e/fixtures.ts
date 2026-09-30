@@ -127,6 +127,7 @@ export function ensureSpeechFixture(): string | null {
   const wav = join(FIXTURES, 'speech.wav');
   const r = spawnSync('espeak-ng', ['-v', 'en-us', '-s', '140', '-w', wav, 'Hello world. This is a test of the video editor. Money matters when you start a company.']);
   if (r.error || r.status !== 0) return null;
+  // Keep the WAV: tests measure where the pauses between sentences really are.
   execFileSync(ffmpeg, [
     '-v', 'error', '-y',
     '-f', 'lavfi', '-i', 'color=c=0x303030:s=640x360:r=30',
@@ -136,4 +137,84 @@ export function ensureSpeechFixture(): string | null {
     '-c:a', 'libopus', '-b:a', '64k', '-ar', '48000', out,
   ]);
   return out;
+}
+
+/** Pauses of at least `min` seconds in a file's audio, measured by ffmpeg. */
+export function silences(file: string, min = 0.15, noiseDb = -40): { start: number; end: number }[] {
+  const r = spawnSync(ffmpeg, ['-hide_banner', '-i', file, '-af', `silencedetect=n=${noiseDb}dB:d=${min}`, '-f', 'null', '-'], { encoding: 'utf8' });
+  const out: { start: number; end: number }[] = [];
+  let start: number | null = null;
+  for (const line of (r.stderr ?? '').split('\n')) {
+    const s = /silence_start: (-?[\d.]+)/.exec(line);
+    if (s) start = Math.max(0, +s[1]);
+    const e = /silence_end: ([\d.]+)/.exec(line);
+    if (e && start !== null) {
+      out.push({ start, end: +e[1] });
+      start = null;
+    }
+  }
+  return out;
+}
+
+/**
+ * street.webm — 1.5 s of traffic-like noise that swells and fades (brown noise,
+ * gated every 0.35 s), then real speech (espeak-ng) over the same noise, then
+ * 1 s more noise. Null where espeak-ng is not installed.
+ */
+export function ensureStreetFixture(): { file: string; speechStart: number; speechEnd: number } | null {
+  mkdirSync(FIXTURES, { recursive: true });
+  const out = join(FIXTURES, 'street.webm');
+  const wav = join(FIXTURES, 'street-voice.wav');
+  if (!existsSync(wav)) {
+    const r = spawnSync('espeak-ng', ['-v', 'en-us', '-s', '140', '-w', wav, 'This is a test of the video editor.']);
+    if (r.error || r.status !== 0) return null;
+  }
+  const speechLen = +(/Duration: \d+:\d+:([\d.]+)/.exec(spawnSync(ffmpeg, ['-hide_banner', '-i', wav], { encoding: 'utf8' }).stderr ?? '')?.[1] ?? 0);
+  const total = 1.5 + speechLen + 1;
+  if (!existsSync(out))
+    execFileSync(ffmpeg, [
+      '-v', 'error', '-y',
+      '-f', 'lavfi', '-i', `testsrc2=s=640x360:r=30:d=${total}`,
+      '-i', wav,
+      '-f', 'lavfi', '-i', `anoisesrc=color=brown:amplitude=0.5:sample_rate=48000:d=${total}:seed=5`,
+      '-filter_complex',
+      `[1]aresample=48000,adelay=1500:all=1,apad[v];[2]volume='if(mod(floor(t/0.35),2),1,0.15)':eval=frame[n];[v][n]amix=inputs=2:normalize=0:duration=shortest,aformat=channel_layouts=stereo[a]`,
+      '-map', '0:v', '-map', '[a]', '-t', String(total),
+      '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuv420p', '-deadline', 'realtime', '-cpu-used', '8',
+      '-c:a', 'libopus', '-b:a', '128k', out,
+    ]);
+  return { file: out, speechStart: 1.5, speechEnd: 1.5 + speechLen };
+}
+
+/**
+ * hour.webm — a one-hour recording (small picture, 2 fps) whose audio talks in
+ * 2.2 s bursts with 0.8 s pauses, so removing pauses leaves ~1,200 clips; and
+ * hour.srt, a matching transcript of 1,200 lines (~9,600 words).
+ */
+export function ensureHourFixture(): { video: string; srt: string; pauses: number } {
+  mkdirSync(FIXTURES, { recursive: true });
+  const video = join(FIXTURES, 'hour.webm');
+  const srt = join(FIXTURES, 'hour.srt');
+  const D = 3600;
+  if (!existsSync(video))
+    execFileSync(ffmpeg, [
+      '-v', 'error', '-y',
+      '-f', 'lavfi', '-i', `testsrc2=s=160x90:r=2:d=${D}`,
+      '-f', 'lavfi', '-i', `aevalsrc='lt(mod(t,3),2.2)*0.4*sin(2*PI*(180+40*sin(2*PI*0.5*t))*t)':s=48000:d=${D}`,
+      '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuv420p', '-b:v', '40k', '-g', '60', '-deadline', 'realtime', '-cpu-used', '8',
+      '-c:a', 'libopus', '-b:a', '24k', '-ac', '1', video,
+    ]);
+  if (!existsSync(srt)) {
+    const ts = (s: number) => {
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = Math.floor(s % 60);
+      const ms = Math.round((s % 1) * 1000);
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+    };
+    const lines: string[] = [];
+    for (let i = 0; i < D / 3; i++) lines.push(`${i + 1}\n${ts(i * 3)} --> ${ts(i * 3 + 2.2)}\nLine ${i + 1} is about topic ${i % 37} and money now.\n`);
+    writeFileSync(srt, lines.join('\n'));
+  }
+  return { video, srt, pauses: D / 3 };
 }

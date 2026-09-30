@@ -107,6 +107,8 @@ export interface Clip {
   muted?: boolean;
   /** Background-noise reduction, 0 (off) … 1 (strongest). Uses the asset's measured noise profile. */
   denoise?: number;
+  /** 'voice': AI voice isolation (RNNoise), for noise that comes and goes; needs no measured profile. Absent: steady-noise filter. */
+  denoiseMode?: 'voice';
   /** Added by the Brand Kit, so re-applying replaces it. */
   brandRole?: 'intro' | 'outro';
 }
@@ -303,6 +305,8 @@ export interface Transcript {
   language: string;
   createdAt: number;
   segments: TranscriptSegment[];
+  /** 'exact': each word timed by the model. 'estimated': sentence timings spread over words. Absent on older transcripts. */
+  wordTimings?: 'exact' | 'estimated';
 }
 
 export interface AssetIndex {

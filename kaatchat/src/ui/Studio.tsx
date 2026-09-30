@@ -153,7 +153,7 @@ const describe = (c: Command): string => {
     case 'duck_music':
       return c.enabled ? `Duck music ${c.duckDb} dB under speech` : 'Turn off ducking';
     case 'reduce_noise':
-      return c.strength > 0 ? `Reduce background noise (${Math.round(c.strength * 100)}%)` : 'Turn off noise reduction';
+      return c.strength > 0 ? `${c.mode === 'voice' ? 'Isolate the voice (AI)' : 'Reduce background noise'} (${Math.round(c.strength * 100)}%)` : 'Turn off noise reduction';
   }
 };
 

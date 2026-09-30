@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { EditorSession } from '../app/session';
 import { useStoreVersion } from '../app/hooks';
 import { clipLength, clipStarts, sequenceDuration } from '../engine/timeline';
@@ -34,12 +34,23 @@ export function Timeline({ session, time, selected, onSelect, onSeek, onSplit, o
   const [width, setWidth] = useState(800);
   const [zoom, setZoom] = useState(0); // 0 = fit
   const [drag, setDrag] = useState<Drag | null>(null);
+  const [scrollX, setScrollX] = useState(0);
 
   useLayoutEffect(() => {
     const el = scrollRef.current!;
     const ro = new ResizeObserver(() => setWidth(el.clientWidth));
     ro.observe(el);
-    return () => ro.disconnect();
+    // Only what is on screen (plus a screen either side) is drawn; track the scroll, once per frame.
+    let raf = 0;
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(() => ((raf = 0), setScrollX(el.scrollLeft)));
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      ro.disconnect();
+      el.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(raf);
+    };
   }, []);
 
   const contentEnd = Math.max(
@@ -50,7 +61,8 @@ export function Timeline({ session, time, selected, onSelect, onSeek, onSplit, o
   const fitPps = Math.max(2, (width - 40) / Math.max(1, contentEnd));
   const pps = zoom === 0 ? fitPps : fitPps * Math.pow(2, zoom);
   const innerW = Math.max(width, contentEnd * pps + 60);
-  const starts = clipStarts(doc.clips);
+  const starts = useMemo(() => clipStarts(doc.clips), [doc.clips]);
+  const seen = (left: number, w: number) => left + w >= scrollX - width && left <= scrollX + 2 * width;
   const toTime = (clientX: number) => {
     const el = scrollRef.current!;
     const x = clientX - el.getBoundingClientRect().left + el.scrollLeft - 12;
@@ -118,7 +130,20 @@ export function Timeline({ session, time, selected, onSelect, onSeek, onSplit, o
 
   const tickStep = [0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600].find((s) => s * pps >= 70) ?? 1200;
   const ticks: number[] = [];
-  for (let t = 0; t <= duration + 0.001; t += tickStep) ticks.push(t);
+  const firstTick = Math.max(0, Math.floor((scrollX - width - 12) / pps / tickStep)) * tickStep;
+  for (let t = firstTick; t <= duration + 0.001 && 12 + t * pps <= scrollX + 2 * width; t += tickStep) ticks.push(t);
+
+  // One stable handler for every clip, so a clip re-renders only when its own props change.
+  const clipDown = useRef<(e: React.PointerEvent, part: 'l' | 'r' | 'body', id: string) => void>(() => undefined);
+  clipDown.current = (e, part, id) => {
+    e.stopPropagation();
+    onSelect(id);
+    if (part === 'body') {
+      onSeek(toTime(e.clientX));
+      setDrag({ kind: 'move', clipId: id, startX: e.clientX, delta: 0 });
+    } else setDrag({ kind: 'trim', clipId: id, side: part, startX: e.clientX, delta: 0 });
+  };
+  const onClipDown = useCallback((e: React.PointerEvent, part: 'l' | 'r' | 'body', id: string) => clipDown.current(e, part, id), []);
 
   return (
     <section className="timeline" aria-label="Timeline">
@@ -172,6 +197,7 @@ export function Timeline({ session, time, selected, onSelect, onSeek, onSplit, o
               const dragging = drag?.kind === 'overlay' && drag.clipId === o.id ? drag : null;
               const left = 12 + o.start * pps + (dragging?.edge === 'move' ? dragging.delta : 0);
               const w = Math.max(6, o.duration * pps + (dragging?.edge === 'end' ? dragging.delta : 0));
+              if (!dragging && selected !== o.id && !seen(left, w)) return null;
               return (
                 <div
                   key={o.id}
@@ -216,6 +242,8 @@ export function Timeline({ session, time, selected, onSelect, onSeek, onSplit, o
             {doc.clips.map((c, i) => {
               let left = 12 + starts[i] * pps;
               let w = clipLength(c) * pps;
+              const active = selected === c.id || (!!drag && 'clipId' in drag && drag.clipId === c.id);
+              if (!active && !seen(left, w)) return null;
               if (drag && (drag.kind === 'move' || drag.kind === 'trim') && drag.clipId === c.id) {
                 if (drag.kind === 'move') left += drag.delta;
                 else if (drag.side === 'l') {
@@ -238,14 +266,7 @@ export function Timeline({ session, time, selected, onSelect, onSeek, onSplit, o
                   width={w}
                   selected={selected === c.id}
                   dragging={drag?.kind === 'move' && drag.clipId === c.id}
-                  onPointerDown={(e, part) => {
-                    e.stopPropagation();
-                    onSelect(c.id);
-                    if (part === 'body') {
-                      onSeek(toTime(e.clientX));
-                      setDrag({ kind: 'move', clipId: c.id, startX: e.clientX, delta: 0 });
-                    } else setDrag({ kind: 'trim', clipId: c.id, side: part, startX: e.clientX, delta: 0 });
-                  }}
+                  onDown={onClipDown}
                 />
               );
             })}
@@ -307,7 +328,7 @@ const ClipView = memo(function ClipView({
   width,
   selected,
   dragging,
-  onPointerDown,
+  onDown,
 }: {
   clip: Clip;
   name: string;
@@ -317,15 +338,17 @@ const ClipView = memo(function ClipView({
   width: number;
   selected: boolean;
   dragging: boolean;
-  onPointerDown(e: React.PointerEvent, part: 'l' | 'r' | 'body'): void;
+  onDown(e: React.PointerEvent, part: 'l' | 'r' | 'body', id: string): void;
 }) {
+  const onPointerDown = (e: React.PointerEvent, part: 'l' | 'r' | 'body') => onDown(e, part, clip.id);
   const waveRef = useRef<HTMLCanvasElement>(null);
   const len = clipLength(clip);
 
   useEffect(() => {
     const c = waveRef.current;
     if (!c) return;
-    const w = Math.max(1, Math.round(width));
+    // Browsers cap canvas size; a long clip zoomed in is drawn at up to 8,192 px and stretched.
+    const w = Math.max(1, Math.min(8192, Math.round(width)));
     const h = 26;
     c.width = w;
     c.height = h;

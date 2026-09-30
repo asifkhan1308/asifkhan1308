@@ -128,6 +128,7 @@ export function denoiseParams(strength: number) {
 export class Denoiser {
   /** One hop of zero prefix plus one hop of ready-queue slack, so a request never outruns the frames. */
   static readonly latency = 2 * HOP;
+  readonly latency = Denoiser.latency;
   private noise: Float64Array;
   private floor: number;
   private over: number;

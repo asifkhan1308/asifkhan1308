@@ -7,7 +7,7 @@
 | **Owner** | Asif Khan |
 | **Version** | 2.0.0-alpha.4 |
 | **Licence** | MPL-2.0 (see `LICENSE`). Built on Mediabunny (MPL-2.0), with thanks to WolfCut (MPL-2.0). |
-| **Platforms** | Web app and Windows desktop (Electron), one codebase |
+| **Platforms** | Web app, Windows and macOS desktop (Electron; Apple Silicon and Intel), one codebase |
 | **Status** | The agreed v2 scope is built and tested. See [docs/ROADMAP.md](docs/ROADMAP.md) for exactly what is and is not built. |
 
 > **About this codebase.** Kaatchat 2 is a clean rebuild. The v0.1 TypeScript source was not available, only its built bundle and installer, so the engine was rewritten rather than patched. It keeps v0.1's product rules, fonts, silence presets, −18 dBFS level target, aspects and export presets. The look follows the Main design canvas (monochrome), and the logo is a vector trace of the supplied mark. It also carries forward (and fixes) v0.1's Electron shell: see [docs/SECURITY.md](docs/SECURITY.md).
@@ -24,7 +24,7 @@
 
 - **Editor:** video, image and audio import; filmstrips and waveforms; trim, split, reorder; undo/redo and named versions; 16:9 / 9:16 / 1:1 / 4:5; **multiple sequences per project**.
 - **Measured on your machine:** loudness, silence, beats (tempo and grid), content-aware framing and thumbnails, in a cancellable job queue with real progress.
-- **Transcripts:** local Whisper, or `.srt`/`.vtt` import. Delete words to cut the video, remove fillers in one click, and captions follow the edit (five styles, word highlight).
+- **Transcripts:** local Whisper with **exact word timings** (each word is timed by the model), or `.srt`/`.vtt` import. Delete words to cut the video, remove fillers in one click, and captions follow the edit (five styles, word highlight).
 - **AI Studio:**
   - **Ask:** a request becomes a validated plan that you preview, then apply in one undo.
   - **Find:** timestamped moments you can keep, cut, or turn into a new sequence.
@@ -36,11 +36,12 @@
 - **Podcast / talking head:** a one-command clean-up (pauses, fillers, levels, punch-ins, captions). A clip can switch to another camera, lined up by cross-correlating the audio.
 - **Brand Kit:** logo, colours, an uploaded font, caption style, lower third, watermark, intro/outro. Apply it to one sequence or all of them.
 - **AI providers:** Built-in rules (offline); Local AI on your own computer (Ollama, LM Studio, llama.cpp, Jan, vLLM, KoboldCpp or any OpenAI-compatible server, found automatically, with no key or account); OpenAI, Google Gemini and Anthropic Claude with your own key.
-- **Noise reduction:** Off / Light / Medium / Strong per clip (Inspector) or "remove the background noise" in Ask. Removes steady hiss, hum, fans and room tone; you hear it in the preview and export uses the same processing.
+- **Noise reduction:** Off / Light / Medium / Strong per clip (Inspector) or "remove the background noise" in Ask. Two kinds: **Steady** removes hiss, hum, fans and room tone from a measured noise profile; **Changing (AI)** is voice isolation with RNNoise, a neural network running on this device, for traffic, keyboards, wind, crowds and background music. You hear it in the preview and export uses the same processing.
 - **Languages:** English, Hindi and Hinglish on the main screens (Settings → Interface).
 - **Updates (desktop):** Settings → Updates and Help → Check for updates. The new installer is checked against its published SHA-256 before it runs.
 - **Export:** MP4 or WebM with presets. One sequence, or **all sequences** in a batch. Encoded locally, with a streaming mixer for the audio.
 - **Projects:** IndexedDB storage, autosave, and crash recovery.
+- **Long projects:** tested with a one-hour recording cut into 1,200 clips with a 1,200-line transcript: the timeline draws only what is on screen and the transcript updates only the line being played.
 - **Also:** a Privacy Center; light and dark monochrome themes; English, Hindi and Hinglish; accessibility settings.
 
 What is *not* in v2, and why, is in [docs/ROADMAP.md](docs/ROADMAP.md).
@@ -105,13 +106,14 @@ cd desktop && npm install
 npm start            # runs Electron against ../dist
 npm test             # security policy tests
 npm run dist:win     # NSIS installer in desktop/release/ (Windows or CI)
+npm run dist:mac     # Apple Silicon and Intel .dmg in desktop/release/ (macOS or CI)
 ```
 
 `npx playwright test -c playwright.desktop.config.ts` (with `xvfb-run -a` on Linux) runs the Electron smoke tests.
 
 ## Release
 
-CI (`.github/workflows/kaatchat.yml`) runs lint, typecheck, unit, build, web E2E and the desktop smoke tests. Pushing a tag `kaatchat-vX.Y.Z` builds the Windows installer and publishes it to a **GitHub Release** with `SHA256SUMS.txt`, but only if every test passed. Installers are never committed to git. The build is signed automatically when `WIN_CSC_LINK` / `WIN_CSC_KEY_PASSWORD` secrets exist. Until then it is published as **unsigned** and says so.
+CI (`.github/workflows/kaatchat.yml`) runs lint, typecheck, unit, build, web E2E and the desktop smoke tests. Pushing a tag `kaatchat-vX.Y.Z` builds the Windows installer and the macOS apps and publishes them to a **GitHub Release** with `SHA256SUMS.txt` and `SHA256SUMS-mac.txt`, but only if every test passed. Installers are never committed to git. The build is signed automatically when `WIN_CSC_LINK` / `WIN_CSC_KEY_PASSWORD` secrets exist. Until then it is published as **unsigned** and says so.
 
 To turn on the download buttons, set `windowsUrl` and `sha256` in `public/release.json` (the app) and in `site/release.json` (the website) to the release asset. Set `appUrl` in `site/config.js` once the web editor is deployed. See [site/README.md](site/README.md).
 

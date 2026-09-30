@@ -11,6 +11,7 @@
     "copy-web": "node -e \"const fs=require('fs');fs.rmSync('dist',{recursive:true,force:true});fs.cpSync('../dist','dist',{recursive:true})\"",
     "start": "npm run copy-web && electron .",
     "dist:win": "npm run copy-web && electron-builder --win nsis --publish never",
+    "dist:mac": "npm run copy-web && electron-builder --mac dmg --arm64 --x64 --publish never",
     "test": "node --test test/*.test.cjs"
   },
   "devDependencies": {
@@ -28,6 +29,16 @@
       "icon": "build/kaatchat.ico",
       "artifactName": "Kaatchat-Setup-${version}.${ext}"
     },
+    "mac": {
+      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }],
+      "icon": "build/icon.png",
+      "category": "public.app-category.video",
+      "artifactName": "Kaatchat-${version}-mac-${arch}.${ext}",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "minimumSystemVersion": "12.0"
+    },
+    "dmg": { "title": "Kaatchat ${version}", "artifactName": "Kaatchat-${version}-mac-${arch}.${ext}" },
     "nsis": {
       "oneClick": true,
       "perMachine": false,

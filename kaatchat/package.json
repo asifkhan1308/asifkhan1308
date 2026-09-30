@@ -20,6 +20,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
     "@huggingface/transformers": "^4.3.0",
+    "@jitsi/rnnoise-wasm": "^0.2.1",
     "@mediabunny/aac-encoder": "^1.60.0",
     "mediabunny": "^1.60.0",
     "react": "^19.3.0",

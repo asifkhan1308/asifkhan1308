@@ -20,14 +20,29 @@ const defaults: Prefs = {
   uiScale: 1,
   highContrast: false,
   reducedMotion: 'system',
-  whisperModel: 'onnx-community/whisper-base',
+  whisperModel: 'onnx-community/whisper-base_timestamped',
   speechLanguage: '',
   checkUpdates: true,
 };
 
+/** Earlier Whisper choices that now have a version with exact word timings. */
+const WHISPER_UPGRADES: Record<string, string> = {
+  'onnx-community/whisper-base': 'onnx-community/whisper-base_timestamped',
+  'onnx-community/whisper-tiny': 'onnx-community/whisper-tiny_timestamped',
+};
+
+export function loadPrefs(raw: string | null): Prefs {
+  try {
+    const p: Prefs = { ...defaults, ...JSON.parse(raw ?? '{}') };
+    return { ...p, whisperModel: WHISPER_UPGRADES[p.whisperModel] ?? p.whisperModel };
+  } catch {
+    return defaults;
+  }
+}
+
 let prefs: Prefs = (() => {
   try {
-    return { ...defaults, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') };
+    return loadPrefs(localStorage.getItem(KEY));
   } catch {
     return defaults;
   }

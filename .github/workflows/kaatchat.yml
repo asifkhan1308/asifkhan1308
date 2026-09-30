@@ -218,3 +218,111 @@ jobs:
           } else {
             gh release create $tag $exe SHA256SUMS.txt --target "${{ github.sha }}" --title "Kaatchat $tag" --notes $notes --prerelease
           }
+
+  macos-app:
+    name: macOS app
+    needs: [web, desktop, live-ai]
+    if: ${{ !cancelled() && needs.web.result == 'success' && needs.desktop.result == 'success' && (needs.live-ai.result == 'success' || needs.live-ai.result == 'skipped') }}
+    # Apple Silicon and Intel .dmg files, built and install-tested on every run
+    # (the Apple Silicon one is launched and exercised; this runner is arm64).
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            kaatchat/package-lock.json
+            kaatchat/desktop/package-lock.json
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: kaatchat/dist
+      - run: npm ci
+        working-directory: kaatchat/desktop
+      - name: Build .dmg (Apple Silicon and Intel)
+        working-directory: kaatchat/desktop
+        env:
+          # With a Developer ID certificate and Apple ID secrets the app is signed and
+          # notarized; without them it is ad-hoc signed (runs after "Open Anyway").
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$CSC_LINK" ]; then
+            npm run dist:mac -- -c.mac.notarize=true
+          else
+            unset CSC_LINK CSC_KEY_PASSWORD
+            # Ad-hoc signing uses no credentials, so it is safe on pull requests too
+            # (electron-builder otherwise skips all signing there).
+            CSC_FOR_PULL_REQUEST=true CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist:mac -- -c.mac.identity=-
+          fi
+      - name: Check both apps' architecture and signature
+        working-directory: kaatchat/desktop/release
+        run: |
+          set -e
+          ls -la
+          for arch in arm64 x64; do
+            dmg=$(ls Kaatchat-*-mac-$arch.dmg)
+            mnt=$(mktemp -d)
+            hdiutil attach "$dmg" -nobrowse -readonly -mountpoint "$mnt" >/dev/null
+            bin="$mnt/Kaatchat.app/Contents/MacOS/Kaatchat"
+            want=$([ $arch = arm64 ] && echo arm64 || echo x86_64)
+            got=$(lipo -archs "$bin")
+            echo "$dmg: $got"
+            [ "$got" = "$want" ] || { echo "expected $want"; exit 1; }
+            codesign --verify --deep --strict --verbose=2 "$mnt/Kaatchat.app"
+            hdiutil detach "$mnt" >/dev/null
+          done
+          shasum -a 256 *.dmg | tee SHA256SUMS-mac.txt
+      - name: Install it (copy the app out of the .dmg into Applications)
+        working-directory: kaatchat/desktop/release
+        run: |
+          mnt=$(mktemp -d)
+          hdiutil attach "$(ls Kaatchat-*-mac-arm64.dmg)" -nobrowse -readonly -mountpoint "$mnt" >/dev/null
+          mkdir -p "$HOME/Applications"
+          cp -R "$mnt/Kaatchat.app" "$HOME/Applications/"
+          hdiutil detach "$mnt" >/dev/null
+          echo "KAATCHAT_EXE=$HOME/Applications/Kaatchat.app/Contents/MacOS/Kaatchat" >> "$GITHUB_ENV"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: ffmpeg for test media
+        run: |
+          python -m pip install --quiet imageio-ffmpeg
+          echo "FFMPEG=$(python -c 'import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())')" >> "$GITHUB_ENV"
+      - name: Test the installed app
+        working-directory: kaatchat
+        run: |
+          npm ci --ignore-scripts
+          npx playwright test -c playwright.installed.config.ts
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: installed-mac-test-results
+          path: kaatchat/test-results
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-app
+          retention-days: 14
+          path: |
+            kaatchat/desktop/release/*.dmg
+            kaatchat/desktop/release/SHA256SUMS-mac.txt
+      - name: Add to the GitHub Release
+        if: startsWith(github.ref, 'refs/tags/kaatchat-v') || (github.event_name == 'workflow_dispatch' && inputs.publish)
+        working-directory: kaatchat/desktop/release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The Windows job creates the release; wait for it (up to 40 minutes).
+          if [ "${{ github.ref_type }}" = "tag" ]; then tag="${{ github.ref_name }}"; else tag="kaatchat-v$(node -p "require('../package.json').version")"; fi
+          for i in $(seq 1 80); do gh release view "$tag" >/dev/null 2>&1 && break; sleep 30; done
+          gh release view "$tag" >/dev/null
+          tagSha=$(gh api "repos/${{ github.repository }}/commits/$tag" --jq .sha)
+          [ "$tagSha" = "${{ github.sha }}" ] || { echo "Release $tag is at $tagSha, not ${{ github.sha }}"; exit 1; }
+          gh release upload "$tag" *.dmg SHA256SUMS-mac.txt --clobber

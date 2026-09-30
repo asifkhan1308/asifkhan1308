@@ -379,14 +379,16 @@ function createWindow() {
 
 function buildMenu() {
   const go = (hash) => mainWindow?.webContents.executeJavaScript(`location.hash = ${JSON.stringify(hash)}`);
+  const mac = process.platform === 'darwin';
   const template = [
+    // macOS: the first menu is the app's own (About, Hide, Quit).
+    ...(mac ? [{ role: 'appMenu' }] : []),
     {
       label: 'File',
       submenu: [
         { label: 'Projects', accelerator: 'CmdOrCtrl+O', click: () => go('#/') },
         { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => go('#/settings') },
-        { type: 'separator' },
-        { role: 'quit', label: 'Exit' },
+        ...(mac ? [{ type: 'separator' }, { role: 'close' }] : [{ type: 'separator' }, { role: 'quit', label: 'Exit' }]),
       ],
     },
     { label: 'Edit', submenu: [{ role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
