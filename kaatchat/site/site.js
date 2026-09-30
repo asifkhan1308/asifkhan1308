@@ -16,6 +16,7 @@
       return r.ok ? r.json() : null;
     })
     .then(function (rel) {
+      showMac(rel && rel.mac);
       if (!rel || typeof rel.windowsUrl !== 'string' || !/^https:\/\//.test(rel.windowsUrl) || !/^[a-f0-9]{64}$/i.test(rel.sha256 || '')) return;
       document.getElementById('win-link').href = rel.windowsUrl;
       document.getElementById('win-meta').textContent = 'Version ' + rel.version + (rel.size ? ' · ' + (rel.size / 1048576).toFixed(0) + ' MB' : '');
@@ -30,6 +31,22 @@
       });
     })
     .catch(function () {});
+
+  function showMac(mac) {
+    var ok = function (b) {
+      return b && typeof b.url === 'string' && /^https:\/\//.test(b.url) && /^[a-f0-9]{64}$/i.test(b.sha256 || '');
+    };
+    if (!mac || !ok(mac.arm64) || !ok(mac.x64)) return;
+    document.getElementById('mac-arm64-link').href = mac.arm64.url;
+    document.getElementById('mac-x64-link').href = mac.x64.url;
+    document.getElementById('mac-meta').textContent = 'Version ' + mac.version + (mac.arm64.size ? ' · ' + (mac.arm64.size / 1048576).toFixed(0) + ' MB' : '');
+    document.getElementById('mac-sha').textContent = 'SHA-256 Apple Silicon ' + mac.arm64.sha256 + ' · Intel ' + mac.x64.sha256;
+    document.getElementById('mac-signed').textContent = mac.signed
+      ? 'Signed and notarized by Apple.'
+      : 'Not notarized yet: the first time, macOS will refuse to open it. Open System Settings → Privacy & Security and choose "Open Anyway". Compare the SHA-256 with the GitHub release first.';
+    document.getElementById('mac-ready').hidden = false;
+    document.getElementById('mac-pending').hidden = true;
+  }
 })();
 
 // Support the artist: a QR dialog that can be opened, copied from, or shared as a link.
