@@ -34,7 +34,7 @@ jobs:
           cache-dependency-path: kaatchat/package-lock.json
       - name: Install ffmpeg and espeak-ng (test media, export checks, real speech for Whisper)
         run: sudo apt-get update && sudo apt-get install -y ffmpeg espeak-ng
-      - run: npm ci
+      - run: npm ci --ignore-scripts  # skips onnxruntime-node's unused native download (the app uses onnxruntime-web)
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
@@ -69,7 +69,7 @@ jobs:
             kaatchat/package-lock.json
             kaatchat/desktop/package-lock.json
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg xvfb
-      - run: npm ci
+      - run: npm ci --ignore-scripts  # skips onnxruntime-node's unused native download (the app uses onnxruntime-web)
       - run: npm ci
         working-directory: kaatchat/desktop
       - run: npm test
