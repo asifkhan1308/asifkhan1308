@@ -42,8 +42,11 @@ test('Whisper: transcribes real speech end to end, and the transcript drives Fin
   await page.locator('input[type=file]').setInputFiles(speech!);
   await expect(page.locator('.asset').first().getByText('Loudness')).toBeVisible();
   await page.locator('.asset').first().getByRole('button', { name: 'Transcribe' }).click();
-  await expect(page.locator('.toast').filter({ hasText: /Transcript ready/ })).toBeVisible({ timeout: 360_000 });
-  await expect(page.locator('.toast.err')).toHaveCount(0);
+  // Stop at the first outcome, success or error, and show the error's own words.
+  const done = page.locator('.toast').filter({ hasText: /Transcript ready/ }).or(page.locator('.toast.err'));
+  await expect(done.first()).toBeVisible({ timeout: 360_000 });
+  const errors = await page.locator('.toast.err').allInnerTexts();
+  expect(errors, 'transcription reported an error').toEqual([]);
 
   await page.getByRole('tab', { name: 'Transcript' }).click();
   const text = (await page.locator('.transcript').innerText()).toLowerCase();
