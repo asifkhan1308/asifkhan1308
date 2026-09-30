@@ -24,7 +24,7 @@ The v2 scope is deliberately realistic: the editor does the editing, and AI choo
 | 10 | Auto captions: styles, word highlight, safe zones | Built (captions from any transcript; Whisper as above) |
 | 11 | Auto reframe 16:9 → 9:16 / 4:5 / 1:1 | Built |
 | 12 | AI editing commands (command bar → validated plan → preview → apply → undo) | Built — 26 typed commands |
-| 13 | Gemini, OpenAI, Claude and Local (Ollama) providers, plus built-in rules | Built. Providers tested with mocked endpoints; the desktop proxy with the real Electron app |
+| 13 | Gemini, OpenAI, Claude and Local AI (Ollama and OpenAI-compatible servers, auto-detected) providers, plus built-in rules | Built. Providers tested with mocked endpoints; the desktop proxy with the real Electron app |
 | 14 | Basic motion: text/shape/logo layers, keyframes, easing, masks, presets (fade, slide, scale, pop, typewriter, blur, tracking, kinetic) | Built |
 | 15 | Basic effects: brightness, contrast, saturation, exposure, blur, sharpen, vignette, grain, opacity, tint; one-click looks | Built |
 | 16 | Transitions: dissolve, fade, slide, zoom, blur, whip | Built. Export uses media handles; preview uses held frames |

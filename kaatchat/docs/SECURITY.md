@@ -32,3 +32,11 @@ These findings come from the shipped v0.1 installer's `main.js` and `preload.js`
 
 - A Content-Security-Policy meta tag limits scripts to `'self'` (plus `wasm-unsafe-eval` for WebCodecs/ONNX) and connections to the provider hosts, localhost:11434 and the model CDN.
 - Project files are revived through a validator (`reviveProject`).
+
+## Desktop updates
+
+- The app asks for updates only when it starts (this can be turned off in Settings → Updates) or when the person chooses Check for updates. The request sends no data except the app's version, which is in the User-Agent.
+- The update source is the release manifest on the main branch (`site/release.json`, the same file the website's Download button reads). If that manifest can't be read, the app falls back to the GitHub releases API. Only tags named `kaatchat-v<semver>` in this repository count. People on a stable version are offered only stable versions.
+- Installers are downloaded only from `https://github.com/asifkhan1308/asifkhan1308/releases/download/kaatchat-v…` (`isAllowedDownload` in `desktop/policy.cjs`, unit-tested). Each installer is hashed while it downloads and must match the SHA-256 in the manifest, or in the release's `SHA256SUMS.txt`. If it doesn't match, the file is deleted and never run.
+- Nothing is downloaded or run until the person chooses Install. Only a packaged Windows build runs the installer itself; every other build opens the release page instead.
+- Until the installer is code-signed, the checksum proves the file is the one CI published, not who published it. Signing (the `WIN_CSC_LINK` secret) adds that.

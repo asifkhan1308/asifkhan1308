@@ -2,7 +2,7 @@
 // planning, validation and execution happen in Kaatchat, not here.
 
 import Anthropic from '@anthropic-ai/sdk';
-import { AIError, type AIProvider, type ChatRequest, type ProviderId, type ProviderInfo, type ProviderSettings } from './types';
+import { AIError, type AIProvider, type ChatRequest, type LocalApi, type ProviderId, type ProviderInfo, type ProviderSettings } from './types';
 import { httpError, providerFetch } from './transport';
 import { desktop } from '../platform/desktop';
 
@@ -19,13 +19,13 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
   },
   local: {
     id: 'local',
-    name: 'Local AI (Ollama-compatible)',
+    name: 'Local AI (Ollama, LM Studio, llama.cpp…)',
     network: 'localhost',
     needsKey: false,
     defaultModel: 'llama3.2',
     capabilities: ['text', 'edit-plan', 'footage-search', 'metadata'],
     privacy:
-      'Talks to a model server on this computer (default http://localhost:11434). Transcript text and clip timings go to that server; nothing goes to the internet.',
+      'Uses a model running on this computer: Ollama, LM Studio, llama.cpp, Jan, vLLM or any OpenAI-compatible server. Transcript text and clip timings go only to that server; nothing goes to the internet, and no key or account is needed.',
   },
   openai: {
     id: 'openai',
@@ -208,14 +208,58 @@ class ClaudeProvider implements AIProvider {
   }
 }
 
+/** Local servers Kaatchat looks for, by their usual default ports. */
+export const LOCAL_SERVERS: { name: string; baseUrl: string; api: LocalApi }[] = [
+  { name: 'Ollama', baseUrl: 'http://localhost:11434', api: 'ollama' },
+  { name: 'LM Studio', baseUrl: 'http://localhost:1234', api: 'openai' },
+  { name: 'llama.cpp / LocalAI', baseUrl: 'http://localhost:8080', api: 'openai' },
+  { name: 'Jan', baseUrl: 'http://localhost:1337', api: 'openai' },
+  { name: 'vLLM', baseUrl: 'http://localhost:8000', api: 'openai' },
+  { name: 'KoboldCpp', baseUrl: 'http://localhost:5001', api: 'openai' },
+];
+
+export interface FoundServer {
+  name: string;
+  baseUrl: string;
+  api: LocalApi;
+  models: string[];
+}
+
+/** Reasoning models (DeepSeek-R1, Qwen3, …) think out loud first; only the answer matters here. */
+export function stripThinking(text: string): string {
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/^[\s\S]*?<\/think>/i, '').trim();
+}
+
+/** Accepts "localhost:1234", "http://localhost:1234/v1/" and the like. */
+export function normalizeLocalUrl(raw: string | undefined, api: LocalApi): string {
+  let b = (raw || 'http://localhost:11434').trim().replace(/\/+$/, '');
+  if (!/^https?:\/\//i.test(b)) b = `http://${b}`;
+  if (api === 'openai') b = b.replace(/\/v1$/i, '');
+  return b;
+}
+
 class LocalProvider implements AIProvider {
   readonly info = PROVIDERS.local;
-  private f = providerFetch('local');
-  constructor(private s: ProviderSettings) {}
+  private f: ReturnType<typeof providerFetch>;
+  constructor(
+    private s: ProviderSettings,
+    timeoutMs?: number,
+  ) {
+    this.f = providerFetch('local', timeoutMs);
+  }
+
+  private get api(): LocalApi {
+    return this.s.api ?? 'ollama';
+  }
 
   private base() {
-    const b = (this.s.baseUrl || 'http://localhost:11434').replace(/\/+$/, '');
-    const u = new URL(b);
+    const b = normalizeLocalUrl(this.s.baseUrl, this.api);
+    let u: URL;
+    try {
+      u = new URL(b);
+    } catch {
+      throw new AIError(`“${this.s.baseUrl}” is not a valid server address.`, 'network');
+    }
     if (!['localhost', '127.0.0.1', '[::1]'].includes(u.hostname))
       throw new AIError('The local provider only talks to this computer (localhost).', 'network');
     // Browsers' Content-Security-Policy cannot allow IPv6 literals, so the web app would be
@@ -226,34 +270,83 @@ class LocalProvider implements AIProvider {
   }
 
   async generateText(req: ChatRequest) {
-    const res = await this.f(`${this.base()}/api/chat`, {
-      method: 'POST',
-      signal: req.signal,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: this.s.model,
-        stream: false,
-        ...(req.json ? { format: 'json' } : {}),
-        messages: [
-          { role: 'system', content: req.system },
-          { role: 'user', content: req.user },
-        ],
-      }),
-    });
-    const j = await json<{ message?: { content?: string } }>(res, 'Local model');
-    if (!j.message?.content) throw new AIError('The local model returned an empty reply.', 'bad-output');
-    return j.message.content;
+    const messages = [
+      { role: 'system', content: req.system },
+      { role: 'user', content: req.user },
+    ];
+    let content: string | undefined;
+    if (this.api === 'openai') {
+      const res = await this.f(`${this.base()}/v1/chat/completions`, {
+        method: 'POST',
+        signal: req.signal,
+        headers: { 'content-type': 'application/json' },
+        // No response_format: servers disagree on it (LM Studio rejects json_object);
+        // Kaatchat extracts and validates the JSON itself.
+        body: JSON.stringify({ model: this.s.model, stream: false, temperature: 0.2, ...(req.maxTokens ? { max_tokens: req.maxTokens } : {}), messages }),
+      });
+      const j = await json<{ choices?: { message?: { content?: string } }[] }>(res, 'Local model');
+      content = j.choices?.[0]?.message?.content;
+    } else {
+      const res = await this.f(`${this.base()}/api/chat`, {
+        method: 'POST',
+        signal: req.signal,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: this.s.model,
+          stream: false,
+          ...(req.json ? { format: 'json' } : {}),
+          // Ollama's default context is small and silently cuts long transcripts.
+          options: { temperature: 0.2, num_ctx: 16384 },
+          messages,
+        }),
+      });
+      const j = await json<{ message?: { content?: string } }>(res, 'Local model');
+      content = j.message?.content;
+    }
+    const text = stripThinking(content ?? '');
+    if (!text) throw new AIError('The local model returned an empty reply.', 'bad-output');
+    return text;
+  }
+
+  /** Models the server has available. */
+  async listModels(signal?: AbortSignal): Promise<string[]> {
+    if (this.api === 'openai') {
+      const res = await this.f(`${this.base()}/v1/models`, { signal });
+      const j = await json<{ data?: { id: string }[] }>(res, 'Local model');
+      return (j.data ?? []).map((m) => m.id).filter(Boolean);
+    }
+    const res = await this.f(`${this.base()}/api/tags`, { signal });
+    const j = await json<{ models?: { name: string }[] }>(res, 'Local model');
+    return (j.models ?? []).map((m) => m.name).filter(Boolean);
   }
 
   async testConnection(signal?: AbortSignal) {
-    const res = await this.f(`${this.base()}/api/tags`, { signal });
-    const j = await json<{ models?: { name: string }[] }>(res, 'Local model');
-    const names = (j.models ?? []).map((m) => m.name);
+    const names = await this.listModels(signal);
+    if (!this.s.model) return `Connected. Choose a model: ${names.join(', ') || 'none installed yet'}.`;
     const has = names.some((n) => n === this.s.model || n.startsWith(this.s.model + ':'));
     return has
-      ? `Connected. “${this.s.model}” is installed.`
-      : `Connected, but “${this.s.model}” is not installed. Installed: ${names.join(', ') || 'none'}.`;
+      ? `Connected. “${this.s.model}” is available.`
+      : `Connected, but “${this.s.model}” is not available. Available: ${names.join(', ') || 'none'}.`;
   }
+}
+
+/**
+ * Looks for model servers on this computer's usual ports, in parallel. Each
+ * probe is a single short request to that server's model list; servers that
+ * are not running (or, in a browser, do not allow this page) are skipped.
+ */
+export async function detectLocalServers(signal?: AbortSignal, probeMs = 2500): Promise<FoundServer[]> {
+  const found = await Promise.all(
+    LOCAL_SERVERS.map(async (srv) => {
+      try {
+        const models = await new LocalProvider({ enabled: true, model: '', baseUrl: srv.baseUrl, api: srv.api }, probeMs).listModels(signal);
+        return { ...srv, models };
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return found.filter((x): x is FoundServer => x !== null);
 }
 
 class BuiltinProvider implements AIProvider {

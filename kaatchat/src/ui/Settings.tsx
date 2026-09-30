@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Brand, Icon, toast } from './bits';
 import { useAISettings, setAISettings } from '../app/aiState';
-import { PROVIDERS, createProvider } from '../ai/providers';
+import { PROVIDERS, createProvider, detectLocalServers, type FoundServer } from '../ai/providers';
 import { keyStore } from '../ai/keys';
-import type { ProviderId } from '../ai/types';
+import type { LocalApi, ProviderId, ProviderSettings } from '../ai/types';
 import { AIError } from '../ai/types';
 import { usePrefs, setPrefs } from '../app/prefs';
 import { WHISPER_MODELS } from '../engine/media';
 import { setLang, useLang, type Lang } from '../i18n';
 import { isDesktop } from '../platform/desktop';
 import { storageEstimate } from '../engine/persist';
+import { checkForUpdates, installUpdate, updatesSupported, useUpdates } from '../app/updates';
+import { desktop } from '../platform/desktop';
 
 const ORDER: ProviderId[] = ['builtin', 'local', 'gemini', 'openai', 'claude'];
 
@@ -54,6 +56,8 @@ export function Settings() {
             ))}
           </div>
         </section>
+
+        <UpdatesSection />
 
         <section className="section" aria-labelledby="stt-h">
           <h2 id="stt-h">Transcription</h2>
@@ -255,20 +259,15 @@ function ProviderCard({ id, active }: { id: ProviderId; active: boolean }) {
               {info.keyHelp && <span className="faint tiny">{info.keyHelp}</span>}
             </div>
           )}
-          <div className="row">
-            <label className="field grow">
-              Model
-              <input className="input mono" value={s.model} onChange={(e) => update({ model: e.target.value.trim() })} spellCheck={false} />
-            </label>
-            {id === 'local' && (
+          {id === 'local' ? (
+            <LocalSetup s={s} update={update} />
+          ) : (
+            <div className="row">
               <label className="field grow">
-                Server
-                <input className="input mono" value={s.baseUrl ?? ''} onChange={(e) => update({ baseUrl: e.target.value.trim() })} spellCheck={false} />
+                Model
+                <input className="input mono" value={s.model} onChange={(e) => update({ model: e.target.value.trim() })} spellCheck={false} />
               </label>
-            )}
-          </div>
-          {id === 'local' && !isDesktop && (
-            <span className="faint tiny">In the browser, the local server must allow this site: start Ollama with OLLAMA_ORIGINS set to this page’s address.</span>
+            </div>
           )}
           <div className="row">
             <button className="btn sm" onClick={runTest} disabled={testing || (info.needsKey && !hasKey)}>
@@ -285,5 +284,153 @@ function ProviderCard({ id, active }: { id: ProviderId; active: boolean }) {
         </button>
       </div>
     </div>
+  );
+}
+
+/** Local AI: find running servers, pick the API and a model the server actually has. */
+function LocalSetup({ s, update }: { s: ProviderSettings; update: (patch: Partial<ProviderSettings>) => void }) {
+  const [scanning, setScanning] = useState(false);
+  const [found, setFound] = useState<FoundServer[] | null>(null);
+  const [models, setModels] = useState<string[]>([]);
+  const api: LocalApi = s.api ?? 'ollama';
+
+  const choose = (srv: FoundServer) => {
+    const model = srv.models.includes(s.model) || srv.models.some((m) => m.startsWith(s.model + ':')) ? s.model : (srv.models[0] ?? '');
+    update({ baseUrl: srv.baseUrl, api: srv.api, model });
+    setModels(srv.models);
+  };
+
+  const scan = async () => {
+    setScanning(true);
+    setFound(null);
+    try {
+      const list = await detectLocalServers(AbortSignal.timeout(10_000));
+      setFound(list);
+      if (list.length === 1) choose(list[0]);
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  return (
+    <div className="col" style={{ gap: 8 }}>
+      <div className="row" style={{ flexWrap: 'wrap' }}>
+        <button className="btn sm" onClick={scan} disabled={scanning}>
+          {scanning ? <span className="spin" /> : <Icon name="search" size={13} />} Find local AI
+        </button>
+        <span className="faint tiny grow">Looks for Ollama, LM Studio, llama.cpp, Jan, vLLM and KoboldCpp on this computer.</span>
+      </div>
+      {found && found.length === 0 && (
+        <p className="note warn small" role="status">
+          No local AI server found. Start one (for example <b>Ollama</b>, or <b>LM Studio</b> → Developer → Start server) and try again
+          {isDesktop ? '.' : ', and allow this page to reach it (see below).'}
+        </p>
+      )}
+      {found && found.length > 0 && (
+        <ul className="found-servers" aria-label="Local AI servers found">
+          {found.map((srv) => (
+            <li key={srv.baseUrl}>
+              <button className={`btn sm${s.baseUrl === srv.baseUrl ? ' primary' : ''}`} onClick={() => choose(srv)} aria-pressed={s.baseUrl === srv.baseUrl}>
+                {srv.name}
+              </button>
+              <span className="faint tiny mono">{srv.baseUrl}</span>
+              <span className="faint tiny">
+                {srv.models.length ? `${srv.models.length} model${srv.models.length === 1 ? '' : 's'}` : 'no models loaded yet'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="row" style={{ flexWrap: 'wrap' }}>
+        <label className="field">
+          Server type
+          <select className="select" value={api} onChange={(e) => update({ api: e.target.value as LocalApi })}>
+            <option value="ollama">Ollama</option>
+            <option value="openai">OpenAI-compatible (LM Studio, llama.cpp, Jan, vLLM…)</option>
+          </select>
+        </label>
+        <label className="field grow">
+          Server
+          <input className="input mono" value={s.baseUrl ?? ''} onChange={(e) => update({ baseUrl: e.target.value.trim() })} spellCheck={false} placeholder="http://localhost:11434" />
+        </label>
+      </div>
+      <label className="field">
+        Model
+        <input className="input mono" list="local-models" value={s.model} onChange={(e) => update({ model: e.target.value.trim() })} spellCheck={false} placeholder="e.g. qwen2.5:7b" />
+        <datalist id="local-models">
+          {models.map((m) => (
+            <option key={m} value={m} />
+          ))}
+        </datalist>
+      </label>
+      <span className="faint tiny">
+        Good all-rounders for planning edits: Qwen 2.5 7B/14B, Llama 3.1 8B, Gemma 3 12B. Bigger models plan better; 7B+ with 8 GB of memory is a sensible minimum.
+      </span>
+      {!isDesktop && (
+        <span className="faint tiny">
+          In the browser, the server must allow this site: for Ollama set OLLAMA_ORIGINS to this page’s address; in LM Studio turn on “Enable CORS”. The desktop app needs neither.
+        </span>
+      )}
+    </div>
+  );
+}
+
+function UpdatesSection() {
+  const prefs = usePrefs();
+  const u = useUpdates();
+  const busy = u.phase === 'checking' || u.phase === 'downloading' || u.phase === 'installing';
+  return (
+    <section className="section" aria-labelledby="upd-h">
+      <h2 id="upd-h">Updates</h2>
+      {!isDesktop ? (
+        <p className="muted small">The web app updates itself: reload the page to get the newest version.</p>
+      ) : !updatesSupported ? (
+        <p className="muted small">This build cannot check for updates. Download the newest installer from the Kaatchat website.</p>
+      ) : (
+        <div className="col" style={{ gap: 10 }}>
+          <div className="row" style={{ flexWrap: 'wrap' }}>
+            <span className="small grow">
+              You have Kaatchat <b>{desktop?.version}</b>.
+            </span>
+            <button className="btn sm" onClick={() => void checkForUpdates()} disabled={busy}>
+              {u.phase === 'checking' ? <span className="spin" /> : null} Check for updates
+            </button>
+          </div>
+          <div role="status" aria-live="polite" className="small">
+            {u.phase === 'result' && u.result.status === 'current' && <span>Kaatchat is up to date.</span>}
+            {u.phase === 'result' && u.result.status === 'available' && (
+              <div className="note">
+                <div className="row" style={{ flexWrap: 'wrap' }}>
+                  <span className="grow">
+                    <b>Kaatchat {u.result.version}</b> is available{u.result.size ? ` (${(u.result.size / 1024 / 1024).toFixed(0)} MB)` : ''}.{' '}
+                    {u.result.canInstall ? 'Kaatchat downloads it, checks it against its published checksum, then closes and installs it. Save your work first.' : ''}
+                  </span>
+                  <button className="btn sm primary" onClick={() => void installUpdate()}>
+                    {u.result.canInstall ? 'Install update' : 'Open download page'}
+                  </button>
+                </div>
+                <button className="btn ghost sm" style={{ paddingLeft: 0 }} onClick={() => void desktop?.openExternal(u.result.status === 'available' ? u.result.page : '')}>
+                  Release notes
+                </button>
+              </div>
+            )}
+            {u.phase === 'downloading' && (
+              <div className="col" style={{ gap: 4 }}>
+                <span>
+                  Downloading Kaatchat {u.version}… {Math.round(u.progress * 100)}%
+                </span>
+                <progress max={1} value={u.progress} aria-label="Update download" />
+              </div>
+            )}
+            {u.phase === 'installing' && <span>Installing Kaatchat {u.version}. Kaatchat will close and reopen.</span>}
+            {u.phase === 'error' && <span style={{ color: 'var(--danger)' }}>{u.message}</span>}
+          </div>
+          <label className="row small">
+            <input type="checkbox" className="check" checked={prefs.checkUpdates} onChange={(e) => setPrefs({ checkUpdates: e.target.checked })} />
+            Check for updates when Kaatchat starts (asks GitHub for the list of Kaatchat releases; nothing else is sent)
+          </label>
+        </div>
+      )}
+    </section>
   );
 }

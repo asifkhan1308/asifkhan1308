@@ -33,7 +33,19 @@ export interface DesktopBridge {
    */
   aiFetch(requestId: string, provider: string, req: DesktopHttpRequest): Promise<DesktopHttpResponse>;
   aiCancel(requestId: string): Promise<void>;
+  /** Present from 2.0.0-alpha.3; older desktop builds lack it. */
+  updates?: {
+    check(): Promise<UpdateCheck>;
+    /** Downloads, verifies and runs the installer (Windows), or opens the release page. */
+    install(): Promise<{ status: 'installing' | 'opened-page' }>;
+    /** Download progress 0–1. Returns an unsubscribe function. */
+    onProgress(cb: (p: number) => void): () => void;
+  };
 }
+
+export type UpdateCheck =
+  | { status: 'current'; current: string }
+  | { status: 'available'; current: string; version: string; page: string; notes: string; size: number | null; canInstall: boolean };
 
 declare global {
   interface Window {

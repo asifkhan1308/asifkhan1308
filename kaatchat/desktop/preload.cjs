@@ -24,4 +24,13 @@ contextBridge.exposeInMainWorld('kaatchat', {
       body: req.body == null ? undefined : String(req.body),
     }),
   aiCancel: (id) => ipcRenderer.invoke('kaatchat:ai-cancel', String(id)),
+  updates: {
+    check: () => ipcRenderer.invoke('kaatchat:update-check'),
+    install: () => ipcRenderer.invoke('kaatchat:update-install'),
+    onProgress: (cb) => {
+      const listener = (_e, p) => cb(typeof p === 'number' ? p : 0);
+      ipcRenderer.on('kaatchat:update-progress', listener);
+      return () => ipcRenderer.removeListener('kaatchat:update-progress', listener);
+    },
+  },
 });

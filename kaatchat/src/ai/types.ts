@@ -21,7 +21,15 @@ export interface ProviderSettings {
   model: string;
   /** Only used by the local provider (e.g. an Ollama server). */
   baseUrl?: string;
+  /**
+   * Local provider only: which API the server speaks. 'ollama' is Ollama's own
+   * API; 'openai' is the OpenAI-compatible API shared by LM Studio, llama.cpp,
+   * Jan, vLLM, LocalAI, KoboldCpp and Ollama's /v1. Unset means 'ollama'.
+   */
+  api?: LocalApi;
 }
+
+export type LocalApi = 'ollama' | 'openai';
 
 export interface ProviderInfo {
   id: ProviderId;

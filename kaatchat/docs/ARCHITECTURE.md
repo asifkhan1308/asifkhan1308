@@ -33,7 +33,7 @@ IMPORT ─▶ MEASURE ─▶ ASK ─▶ PLAN (JSON) ─▶ VALIDATE ─▶ PREVI
 ## AI (`src/ai/`)
 
 - `types.ts` defines the `AIProvider` interface and capabilities, including generation capabilities that no adapter claims yet.
-- `providers.ts` contains the adapters: OpenAI (fetch), Gemini (fetch), Claude (official Anthropic SDK, with a custom `fetch`), Local (Ollama), and Built-in rules.
+- `providers.ts` contains the adapters: OpenAI (fetch), Gemini (fetch), Claude (official Anthropic SDK, with a custom `fetch`), Local (Ollama's own API, or the OpenAI-compatible API used by LM Studio, llama.cpp, Jan, vLLM and KoboldCpp; `detectLocalServers` probes their default ports), and Built-in rules.
 - `transport.ts` provides one fetch per provider that adds the key at the last moment: in the page for the web build, or in the Electron main process for desktop.
 - `planner.ts` handles context building (metadata only), the planning prompt, JSON extraction, validation and one repair round, the rules planner, and footage search.
 

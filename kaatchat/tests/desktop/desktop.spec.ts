@@ -4,7 +4,7 @@
 
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -14,6 +14,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const desktopDir = join(here, '..', '..', 'desktop');
 // Electron is a dependency of desktop/, not of the web app.
 const electronPath = createRequire(join(desktopDir, 'package.json'))('electron') as unknown as string;
+const VERSION = (JSON.parse(readFileSync(join(desktopDir, 'package.json'), 'utf8')) as { version: string }).version;
 let app: ElectronApplication;
 let page: Page;
 // Electron's stderr, renderer crashes and console errors, printed when a test fails
@@ -70,7 +71,7 @@ test('loads from the kaatchat:// origin with a sandboxed, isolated renderer', as
     process: typeof (window as unknown as { process?: unknown }).process,
     keyGetter: 'get' in (window.kaatchat?.keys ?? {}),
   }));
-  expect(probe).toEqual({ bridge: 'object', desktop: true, version: '2.0.0-alpha.2', require: 'undefined', process: 'undefined', keyGetter: false });
+  expect(probe).toEqual({ bridge: 'object', desktop: true, version: VERSION, require: 'undefined', process: 'undefined', keyGetter: false });
 });
 
 test('cannot read files outside dist/ or navigate away', async () => {
@@ -128,4 +129,44 @@ test('exports MP4 as H.264 + AAC with the real duration reported', async () => {
   expect(info.audio).toMatch(/^aac \(LC\)/);
   expect(info.duration).toBeGreaterThan(9.5);
   expect(info.duration).toBeLessThan(10.5);
+});
+
+test('local AI is found through the main process, with no CORS setup', async () => {
+  // A stand-in for LM Studio's server: a real HTTP server on its default port, no CORS headers.
+  const { createServer } = await import('node:http');
+  const server = createServer((req, res) => {
+    res.setHeader('content-type', 'application/json');
+    if (req.url === '/v1/models') res.end(JSON.stringify({ data: [{ id: 'qwen2.5-7b-instruct' }] }));
+    else res.writeHead(404).end('{}');
+  });
+  await new Promise<void>((r) => server.listen(1234, '127.0.0.1', r));
+  try {
+    await page.evaluate(() => (location.hash = '#/settings'));
+    const card = page.locator('.provider', { has: page.getByRole('heading', { name: /Local AI/ }) });
+    await card.getByLabel('Enabled').check();
+    await card.getByRole('button', { name: 'Find local AI' }).click();
+    await expect(card.getByRole('list', { name: 'Local AI servers found' }).getByRole('button', { name: 'LM Studio' })).toBeVisible();
+    await expect(card.getByLabel('Model')).toHaveValue('qwen2.5-7b-instruct');
+    // The browser-only CORS advice is not shown on desktop.
+    await expect(card.getByText(/Enable CORS/)).toHaveCount(0);
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
+test('updates: Settings shows the version, and the check reads the published release manifest', async () => {
+  await page.evaluate(() => (location.hash = '#/settings'));
+  const updates = page.getByRole('region', { name: 'Updates' });
+  await expect(updates.getByText(`You have Kaatchat ${VERSION}.`)).toBeVisible();
+  await expect(updates.getByRole('checkbox', { name: /Check for updates when Kaatchat starts/ })).toBeChecked();
+  await updates.getByRole('button', { name: 'Check for updates' }).click();
+  // Whatever main currently publishes, the answer is a clear state, never a hang or a crash.
+  await expect(updates.getByText(/Kaatchat is up to date\.|is available|rate-limiting|answered|fetch failed/)).toBeVisible({ timeout: 30_000 });
+  const r = await page.evaluate(() => window.kaatchat!.updates!.check().then((x) => x, (e: Error) => ({ error: e.message })));
+  if ('status' in r) {
+    expect(['current', 'available']).toContain(r.status);
+    expect(r.current).toBe(VERSION);
+    // Only a packaged Windows build installs by itself; elsewhere "install" opens the release page.
+    if (r.status === 'available') expect(r.canInstall).toBe(false);
+  }
 });

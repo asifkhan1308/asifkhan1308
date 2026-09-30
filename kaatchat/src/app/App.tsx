@@ -1,6 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Home } from '../ui/Home';
-import { Toasts } from '../ui/bits';
+import { Toasts, toast } from '../ui/bits';
+import { checkForUpdates, updatesSupported } from './updates';
+import { getPrefs } from './prefs';
 import { useLang } from '../i18n';
 
 const Editor = lazy(() => import('../ui/Editor').then((m) => ({ default: m.Editor })));
@@ -25,6 +27,16 @@ export function App() {
     const on = () => setRoute(parse(location.hash));
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
+  }, []);
+  // Desktop: one quiet look for a new version shortly after start. Nothing is
+  // downloaded unless the person chooses to install it in Settings.
+  useEffect(() => {
+    if (!updatesSupported || !getPrefs().checkUpdates) return;
+    const t = setTimeout(async () => {
+      const r = await checkForUpdates();
+      if (r?.status === 'available') toast(`Kaatchat ${r.version} is available.`, 'info', { label: 'Details', run: () => (location.hash = '#/settings') }, { sticky: true });
+    }, 8000);
+    return () => clearTimeout(t);
   }, []);
   return (
     <>
