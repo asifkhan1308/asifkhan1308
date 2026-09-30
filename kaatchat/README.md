@@ -5,7 +5,7 @@
 | | |
 | --- | --- |
 | **Owner** | Asif Khan |
-| **Version** | 2.0.0-alpha.3 |
+| **Version** | 2.0.0-alpha.4 |
 | **Licence** | MPL-2.0 (see `LICENSE`). Built on Mediabunny (MPL-2.0), with thanks to WolfCut (MPL-2.0). |
 | **Platforms** | Web app and Windows desktop (Electron), one codebase |
 | **Status** | The agreed v2 scope is built and tested. See [docs/ROADMAP.md](docs/ROADMAP.md) for exactly what is and is not built. |
@@ -36,6 +36,8 @@
 - **Podcast / talking head:** a one-command clean-up (pauses, fillers, levels, punch-ins, captions). A clip can switch to another camera, lined up by cross-correlating the audio.
 - **Brand Kit:** logo, colours, an uploaded font, caption style, lower third, watermark, intro/outro. Apply it to one sequence or all of them.
 - **AI providers:** Built-in rules (offline); Local AI on your own computer (Ollama, LM Studio, llama.cpp, Jan, vLLM, KoboldCpp or any OpenAI-compatible server, found automatically, with no key or account); OpenAI, Google Gemini and Anthropic Claude with your own key.
+- **Noise reduction:** Off / Light / Medium / Strong per clip (Inspector) or "remove the background noise" in Ask. Removes steady hiss, hum, fans and room tone; you hear it in the preview and export uses the same processing.
+- **Languages:** English, Hindi and Hinglish on the main screens (Settings → Interface).
 - **Updates (desktop):** Settings → Updates and Help → Check for updates. The new installer is checked against its published SHA-256 before it runs.
 - **Export:** MP4 or WebM with presets. One sequence, or **all sequences** in a batch. Encoded locally, with a streaming mixer for the audio.
 - **Projects:** IndexedDB storage, autosave, and crash recovery.

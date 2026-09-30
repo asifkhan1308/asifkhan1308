@@ -112,7 +112,7 @@ test('Claude: SDK request carries the key and a structured plan comes back', asy
       id: 'msg_test',
       type: 'message',
       role: 'assistant',
-      model: 'claude-opus-5',
+      model: 'claude-opus-5-5',
       stop_reason: 'end_turn',
       stop_sequence: null,
       usage: { input_tokens: 10, output_tokens: 10 },

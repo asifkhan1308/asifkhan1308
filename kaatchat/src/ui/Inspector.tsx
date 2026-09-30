@@ -6,6 +6,7 @@ import { Icon, fmtTime, toast } from './bits';
 import type { AudioClip, Clip, Easing, Effects, Overlay, OverlayAnimation, TransitionKind } from '../engine/types';
 import type { Command } from '../engine/commands/schema';
 import { LOOKS, TRANSITIONS, effectsOf, isNeutral, keyedState, OVERLAY_FONTS, type Animatable } from '../engine/motion';
+import { t, type StringKey } from '../i18n';
 
 export function Inspector({ session, clipId, time }: { session: EditorSession; clipId: string | null; time: number }) {
   const { store } = session;
@@ -72,7 +73,7 @@ export function Inspector({ session, clipId, time }: { session: EditorSession; c
       {asset?.hasAudio && (
         <label className="field">
           <span className="row">
-            <span className="grow">Clip gain</span>
+            <span className="grow">{t('inspector.gain')}</span>
             <span className="mono">{(gain ?? clip.gainDb).toFixed(1)} dB</span>
           </span>
           <input
@@ -102,10 +103,12 @@ export function Inspector({ session, clipId, time }: { session: EditorSession; c
           <Num label="Fade out (s)" value={clip.fadeOut ?? 0} max={5} onCommit={(v) => patchClip(store, clip.id, { fadeOut: v }, 'Fade out')} />
           <label className="row small" style={{ alignSelf: 'flex-end', height: 32 }}>
             <input type="checkbox" className="check" checked={!!clip.muted} onChange={(e) => patchClip(store, clip.id, { muted: e.target.checked }, e.target.checked ? 'Mute clip' : 'Unmute clip')} />
-            Mute
+            {t('inspector.mute')}
           </label>
         </div>
       )}
+
+      {asset?.hasAudio && <NoiseControl session={session} clip={clip} />}
 
       <div className="field">
         <span className="row">
@@ -555,6 +558,55 @@ function OverlayInspector({ session, id, time }: { session: EditorSession; id: s
       <button className="btn sm danger" style={{ alignSelf: 'flex-start' }} onClick={() => store.mutate('Delete layer', (d) => ({ ...d, overlays: d.overlays.filter((x) => x.id !== id) }))}>
         <Icon name="trash" size={13} /> Delete layer
       </button>
+    </div>
+  );
+}
+
+const NOISE_LEVELS: { label: StringKey; value: number }[] = [
+  { label: 'noise.off', value: 0 },
+  { label: 'noise.light', value: 0.3 },
+  { label: 'noise.medium', value: 0.6 },
+  { label: 'noise.strong', value: 0.9 },
+];
+
+/** Background-noise reduction for one clip (or every clip), from the measured noise profile. */
+function NoiseControl({ session, clip }: { session: EditorSession; clip: Clip }) {
+  const { store } = session;
+  const noise = store.index[clip.assetId]?.noise;
+  const current = clip.denoise ?? 0;
+  const nearest = NOISE_LEVELS.reduce((a, b) => (Math.abs(b.value - current) < Math.abs(a.value - current) ? b : a));
+  const run = (strength: number, all: boolean) =>
+    store.run([{ type: 'reduce_noise', strength, ...(all ? {} : { clipIds: [clip.id] }) }], strength > 0 ? 'Reduce noise' : 'Noise reduction off');
+  return (
+    <div className="field">
+      <span>{t('noise.title')}</span>
+      <div className="row" style={{ flexWrap: 'wrap' }}>
+        <div className="row" style={{ gap: 4 }} role="radiogroup" aria-label="Background noise reduction">
+          {NOISE_LEVELS.map((l) => (
+            <button
+              key={l.label}
+              role="radio"
+              aria-checked={nearest.label === l.label}
+              className={`btn sm${nearest.label === l.label ? ' primary' : ''}`}
+              onClick={() => run(l.value, false)}
+            >
+              {t(l.label)}
+            </button>
+          ))}
+        </div>
+        {current > 0 && store.doc.clips.length > 1 && (
+          <button className="btn ghost sm" onClick={() => run(current, true)}>
+            {t('noise.all')}
+          </button>
+        )}
+      </div>
+      <span className="faint tiny" role="status">
+        {noise === undefined
+          ? t('noise.measuring')
+          : noise === null
+            ? t('noise.none')
+            : t('noise.help')}
+      </span>
     </div>
   );
 }

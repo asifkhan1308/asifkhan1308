@@ -7,7 +7,7 @@ import type { LocalApi, ProviderId, ProviderSettings } from '../ai/types';
 import { AIError } from '../ai/types';
 import { usePrefs, setPrefs } from '../app/prefs';
 import { WHISPER_MODELS } from '../engine/media';
-import { setLang, useLang, type Lang } from '../i18n';
+import { setLang, useLang, type Lang, t } from '../i18n';
 import { isDesktop } from '../platform/desktop';
 import { storageEstimate } from '../engine/persist';
 import { checkForUpdates, installUpdate, updatesSupported, useUpdates } from '../app/updates';
@@ -36,10 +36,10 @@ export function Settings() {
             <Icon name="left" /> Back
           </button>
         </nav>
-        <h1 style={{ fontSize: 32 }}>Settings</h1>
+        <h1 style={{ fontSize: 32 }}>{t('settings.title')}</h1>
 
         <section className="section" aria-labelledby="ai-h">
-          <h2 id="ai-h">AI providers</h2>
+          <h2 id="ai-h">{t('settings.ai')}</h2>
           <p className="muted small" style={{ maxWidth: 720 }}>
             AI in Kaatchat only proposes edits as structured commands; Kaatchat validates them and you decide whether to apply. Your video and audio files are never sent to any provider. Bring your own API key — consumer subscriptions (ChatGPT, Gemini, Claude.ai) do not include API access.
           </p>
@@ -60,7 +60,7 @@ export function Settings() {
         <UpdatesSection />
 
         <section className="section" aria-labelledby="stt-h">
-          <h2 id="stt-h">Transcription</h2>
+          <h2 id="stt-h">{t('settings.transcription')}</h2>
           <p className="muted small">Speech-to-text runs locally with Whisper. The model is downloaded once from Hugging Face (needs internet the first time), cached by the browser, and then works offline. Audio never leaves this device.</p>
           <div className="row" style={{ flexWrap: 'wrap', gap: 12 }}>
             <label className="field">
@@ -90,10 +90,10 @@ export function Settings() {
         </section>
 
         <section className="section" aria-labelledby="ui-h">
-          <h2 id="ui-h">Interface</h2>
+          <h2 id="ui-h">{t('settings.interface')}</h2>
           <div className="row" style={{ flexWrap: 'wrap', gap: 16 }}>
             <label className="field">
-              Language
+              {t('settings.language')}
               <select className="select" value={lang} onChange={(e) => setLang(e.target.value as Lang)}>
                 <option value="en">English</option>
                 <option value="hi">हिन्दी (Hindi)</option>
@@ -101,7 +101,7 @@ export function Settings() {
               </select>
             </label>
             <label className="field">
-              Appearance
+              {t('settings.appearance')}
               <select className="select" value={prefs.theme} onChange={(e) => setPrefs({ theme: e.target.value as 'system' | 'light' | 'dark' })}>
                 <option value="system">Follow system</option>
                 <option value="light">Light</option>
@@ -129,7 +129,7 @@ export function Settings() {
         </section>
 
         <section className="section" aria-labelledby="kb-h">
-          <h2 id="kb-h">Keyboard</h2>
+          <h2 id="kb-h">{t('settings.keyboard')}</h2>
           <table className="table small">
             <tbody>
               {[
@@ -155,7 +155,7 @@ export function Settings() {
 
         {usage && (
           <section className="section">
-            <h2>Storage</h2>
+            <h2>{t('settings.storage')}</h2>
             <p className="muted small">
               Projects and media copies use {(usage.usage / 1024 / 1024).toFixed(0)} MB of about {(usage.quota / 1024 / 1024 / 1024).toFixed(1)} GB available to Kaatchat in this browser.
             </p>
@@ -381,7 +381,7 @@ function UpdatesSection() {
   const busy = u.phase === 'checking' || u.phase === 'downloading' || u.phase === 'installing';
   return (
     <section className="section" aria-labelledby="upd-h">
-      <h2 id="upd-h">Updates</h2>
+      <h2 id="upd-h">{t('settings.updates')}</h2>
       {!isDesktop ? (
         <p className="muted small">The web app updates itself: reload the page to get the newest version.</p>
       ) : !updatesSupported ? (

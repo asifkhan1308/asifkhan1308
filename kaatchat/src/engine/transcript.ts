@@ -118,3 +118,27 @@ export function cueAt(cues: CaptionCue[], t: number): CaptionCue | null {
   }
   return null;
 }
+
+/**
+ * Word timings from sentence-level Whisper chunks, for models that cannot
+ * give word-level timestamps: each chunk's time is shared among its words in
+ * proportion to their length. Good enough for captions, Find and cutting
+ * whole sentences; word-exact cuts need a model with word timestamps.
+ */
+export function splitChunksIntoWords(chunks: readonly { text: string; start: number; end: number }[]): { text: string; start: number; end: number }[] {
+  const out: { text: string; start: number; end: number }[] = [];
+  for (const c of chunks) {
+    const words = c.text.trim().split(/\s+/).filter(Boolean);
+    if (!words.length || !Number.isFinite(c.start)) continue;
+    const end = Number.isFinite(c.end) && c.end > c.start ? c.end : c.start + 0.3 * words.length;
+    const weights = words.map((w) => w.length + 1);
+    const total = weights.reduce((a, b) => a + b, 0);
+    let t = c.start;
+    words.forEach((w, i) => {
+      const dur = ((end - c.start) * weights[i]) / total;
+      out.push({ text: ` ${w}`, start: t, end: t + dur });
+      t += dur;
+    });
+  }
+  return out;
+}

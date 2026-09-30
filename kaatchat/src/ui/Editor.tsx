@@ -8,7 +8,7 @@ import { ASPECT_IDS, ASPECTS, type AspectId } from '../engine/types';
 import { sequenceDuration } from '../engine/timeline';
 import { Brand, Dialog, Icon, dismissToast, fmtTime, toast } from './bits';
 import { activeJobCount } from '../engine/jobs';
-import { t } from '../i18n';
+import { t, tFiles } from '../i18n';
 import { pendingImport } from './pending';
 import { Timeline } from './Timeline';
 import { MediaPanel } from './MediaPanel';
@@ -164,18 +164,18 @@ function EditorView({ session }: { session: EditorSession }) {
       const { imported, errors, jobIds } = await session.importFiles(files);
       for (const e of errors) toast(e, 'err');
       if (!imported.length) return;
-      const files_ = `${imported.length} file${imported.length === 1 ? '' : 's'}`;
+      const files_ = tFiles(imported.length);
       if (!jobIds.length) {
-        toast(`Imported ${files_}.`);
+        toast(t('import.done', { files: files_ }));
         return;
       }
       // The message lives exactly as long as the measurements it describes.
-      const pending = toast(`Imported ${files_}. Measuring on this device…`, 'info', undefined, { sticky: true });
+      const pending = toast(t('import.measuring', { files: files_ }), 'info', undefined, { sticky: true });
       const settled = await session.jobs.whenSettled(jobIds);
       dismissToast(pending);
       const failed = settled.filter((j) => j.state === 'failed');
-      for (const j of failed) toast(`${j.label} failed: ${j.error ?? 'unknown error'}`, 'err');
-      if (!failed.length && settled.some((j) => j.state === 'done')) toast(`Measured ${files_}.`);
+      for (const j of failed) toast(t('import.failed', { label: j.label, error: j.error ?? 'unknown error' }), 'err');
+      if (!failed.length && settled.some((j) => j.state === 'done')) toast(t('import.measured', { files: files_ }));
     },
     [session],
   );

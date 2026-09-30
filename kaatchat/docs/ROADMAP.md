@@ -28,7 +28,7 @@ The v2 scope is deliberately realistic: the editor does the editing, and AI choo
 | 14 | Basic motion: text/shape/logo layers, keyframes, easing, masks, presets (fade, slide, scale, pop, typewriter, blur, tracking, kinetic) | Built |
 | 15 | Basic effects: brightness, contrast, saturation, exposure, blur, sharpen, vignette, grain, opacity, tint; one-click looks | Built |
 | 16 | Transitions: dissolve, fade, slide, zoom, blur, whip | Built. Export uses media handles; preview uses held frames |
-| 17 | Audio: normalization, silence detection, fades, music ducking, gain, mute/solo | Built. Noise reduction: **not in v2** (no suitable local implementation yet) |
+| 17 | Audio: normalization, silence detection, fades, music ducking, gain, mute/solo, background-noise reduction | Built. Noise reduction is spectral gating from a measured noise profile, the same code in preview (AudioWorklet) and export; tested on real exports |
 | 18 | Podcast / talking-head: transcript, silence and filler removal, punch-ins, captions, clip extraction, manual camera switching (lined up by sound) | Built. Speaker labels: **not in v2**, because nothing here makes them reliable |
 | 19 | Batch repurposing → export queue | Built (Export → All sequences) |
 | 20 | Brand Kit: logo, colours, font (including upload), caption style, lower third, watermark, intro/outro, "use my brand" | Built |

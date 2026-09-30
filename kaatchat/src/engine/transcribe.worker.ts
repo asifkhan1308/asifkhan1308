@@ -5,6 +5,7 @@
 // by the browser.
 
 import { pipeline, env, type AutomaticSpeechRecognitionPipeline } from '@huggingface/transformers';
+import { splitChunksIntoWords } from './transcript';
 
 export type WorkerIn = { type: 'transcribe'; id: string; model: string; audio: Float32Array; language?: string };
 export type WorkerOut =
@@ -15,7 +16,13 @@ export type WorkerOut =
 env.allowLocalModels = false;
 env.useBrowserCache = true;
 
-let current: { model: string; pipe: Promise<AutomaticSpeechRecognitionPipeline> } | null = null;
+let current: { model: string; pipe: Promise<AutomaticSpeechRecognitionPipeline>; wordLevel: boolean } | null = null;
+
+type AsrOutput = { text: string; chunks?: { text: string; timestamp: [number, number | null] }[] };
+const toChunks = (out: AsrOutput) =>
+  (out.chunks ?? []).map((c) => ({ text: c.text, start: c.timestamp[0], end: c.timestamp[1] ?? c.timestamp[0] + 0.3 }));
+/** Models exported without cross-attention outputs cannot give word timestamps. */
+const NO_WORD_TIMESTAMPS = /cross attentions|alignment_heads|token-level timestamps/i;
 
 const post = (m: WorkerOut) => (self as unknown as DedicatedWorkerGlobalScope).postMessage(m);
 
@@ -44,22 +51,31 @@ self.onmessage = async (e: MessageEvent<WorkerIn>) => {
             }
           },
         }) as Promise<AutomaticSpeechRecognitionPipeline>,
+        wordLevel: true,
       };
     }
     const pipe = await current.pipe;
     post({ type: 'status', id, phase: 'transcribe', progress: null, detail: 'Transcribing on this device…' });
-    const out = (await pipe(msg.audio, {
-      return_timestamps: 'word',
+    // English-only models (".en") reject a language or task; they only speak English.
+    const englishOnly = /\.en(_|$)/.test(msg.model);
+    const opts = {
       chunk_length_s: 30,
       stride_length_s: 5,
-      ...(msg.language ? { language: msg.language, task: 'transcribe' } : {}),
-    })) as { text: string; chunks?: { text: string; timestamp: [number, number | null] }[] };
-    const chunks = (out.chunks ?? []).map((c) => ({
-      text: c.text,
-      start: c.timestamp[0],
-      end: c.timestamp[1] ?? c.timestamp[0] + 0.3,
-    }));
-    post({ type: 'result', id, chunks, language: msg.language ?? 'auto' });
+      ...(msg.language && !englishOnly ? { language: msg.language, task: 'transcribe' } : {}),
+    };
+    let chunks: { text: string; start: number; end: number }[];
+    const cur = current;
+    if (cur.wordLevel) {
+      try {
+        chunks = toChunks((await pipe(msg.audio, { ...opts, return_timestamps: 'word' })) as AsrOutput);
+      } catch (err) {
+        if (!NO_WORD_TIMESTAMPS.test(err instanceof Error ? err.message : String(err))) throw err;
+        // This model has no word timings: use sentence timings, and remember that for next time.
+        cur.wordLevel = false;
+        chunks = splitChunksIntoWords(toChunks((await pipe(msg.audio, { ...opts, return_timestamps: true })) as AsrOutput));
+      }
+    } else chunks = splitChunksIntoWords(toChunks((await pipe(msg.audio, { ...opts, return_timestamps: true })) as AsrOutput));
+    post({ type: 'result', id, chunks, language: englishOnly ? 'english' : (msg.language ?? 'auto') });
   } catch (err) {
     current = null;
     post({ type: 'error', id, message: err instanceof Error ? err.message : String(err) });

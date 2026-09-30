@@ -3,6 +3,7 @@
 // Times on a Clip (`in`/`out`) are SOURCE seconds inside its asset.
 // Times on the timeline are derived by laying clips end to end.
 
+import type { NoiseProfile } from './denoise';
 export type AspectId = '16:9' | '9:16' | '1:1' | '4:5';
 
 export interface AspectSpec {
@@ -104,6 +105,8 @@ export interface Clip {
   fadeIn?: number;
   fadeOut?: number;
   muted?: boolean;
+  /** Background-noise reduction, 0 (off) … 1 (strongest). Uses the asset's measured noise profile. */
+  denoise?: number;
   /** Added by the Brand Kit, so re-applying replaces it. */
   brandRole?: 'intro' | 'outro';
 }
@@ -304,6 +307,8 @@ export interface Transcript {
 
 export interface AssetIndex {
   audio?: AudioAnalysis;
+  /** Steady background noise, measured with the loudness (for noise reduction). null = measured, too little sound. */
+  noise?: NoiseProfile | null;
   /** Tempo and beat grid (music files). */
   beats?: { bpm: number; beats: number[]; confidence: number };
   framing?: FramingAnalysis;

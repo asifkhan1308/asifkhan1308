@@ -10,6 +10,7 @@ import { duckDbAt, fadeGain, speechRanges } from './beats';
 import { fromDb } from './dsp';
 import { media } from './media';
 import { throwIfAborted } from './jobs';
+import { Denoiser, type NoiseProfile } from './denoise';
 
 export const SAMPLE_RATE = 48000;
 
@@ -105,6 +106,34 @@ class SourceReader {
   }
 }
 
+interface Reader {
+  read(n: number): Promise<Float32Array[]>;
+  dispose(): void;
+}
+
+/** A source run through noise reduction, with its fixed delay compensated so it stays in sync. */
+class DenoisedReader implements Reader {
+  private d: Denoiser;
+  private primed = false;
+  constructor(
+    private inner: SourceReader,
+    profile: NoiseProfile,
+    strength: number,
+  ) {
+    this.d = new Denoiser(SAMPLE_RATE, profile, strength, 2);
+  }
+  async read(n: number) {
+    if (!this.primed) {
+      this.d.process(await this.inner.read(Denoiser.latency));
+      this.primed = true;
+    }
+    return this.d.process(await this.inner.read(n));
+  }
+  dispose() {
+    this.inner.dispose();
+  }
+}
+
 interface Segment {
   start: number; // timeline seconds
   end: number;
@@ -117,8 +146,9 @@ interface Segment {
   blob: Blob;
   srcIn: number;
   srcOut: number;
-  reader: SourceReader | null;
+  reader: Reader | null;
   consumed: number; // samples read from reader
+  denoise?: { profile: NoiseProfile; strength: number };
 }
 
 export class TimelineMixer {
@@ -141,7 +171,9 @@ export class TimelineMixer {
         if (!a || !blob || a.kind !== 'video' || !a.hasAudio || c.muted) return;
         const start = starts[i];
         const end = start + clipLength(c);
-        this.segs.push({ start, end, s0: toS(start), s1: toS(end), gainDb: c.gainDb, fadeIn: c.fadeIn ?? 0, fadeOut: c.fadeOut ?? 0, duck: false, blob, srcIn: c.in, srcOut: c.out, reader: null, consumed: 0 });
+        const profile = index[c.assetId]?.noise;
+        const denoise = c.denoise && c.denoise > 0 && profile ? { profile, strength: c.denoise } : undefined;
+        this.segs.push({ start, end, s0: toS(start), s1: toS(end), gainDb: c.gainDb, fadeIn: c.fadeIn ?? 0, fadeOut: c.fadeOut ?? 0, duck: false, blob, srcIn: c.in, srcOut: c.out, reader: null, consumed: 0, denoise });
       });
     if (musicOn)
       for (const m of view.audio) {
@@ -173,7 +205,10 @@ export class TimelineMixer {
         continue;
       }
       throwIfAborted(signal);
-      seg.reader ??= new SourceReader(seg.blob, seg.srcIn, seg.srcOut);
+      if (!seg.reader) {
+        const src = new SourceReader(seg.blob, seg.srcIn, seg.srcOut);
+        seg.reader = seg.denoise ? new DenoisedReader(src, seg.denoise.profile, seg.denoise.strength) : src;
+      }
       const local = a - seg.s0;
       if (local > seg.consumed) {
         await seg.reader.read(local - seg.consumed);

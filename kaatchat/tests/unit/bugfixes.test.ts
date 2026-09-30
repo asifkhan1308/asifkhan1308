@@ -231,3 +231,20 @@ describe('AI provider transport', () => {
     expect(err.message).not.toMatch(/sk-proj/);
   });
 });
+
+describe('Whisper without word timestamps', () => {
+  it('shares each sentence’s time among its words, in order and inside the sentence', async () => {
+    const { splitChunksIntoWords } = await import('../../src/engine/transcript');
+    const words = splitChunksIntoWords([
+      { text: ' Hello world.', start: 0, end: 1.2 },
+      { text: ' Money matters.', start: 2, end: 3 },
+      { text: '   ', start: 3, end: 4 },
+    ]);
+    expect(words.map((w) => w.text.trim())).toEqual(['Hello', 'world.', 'Money', 'matters.']);
+    expect(words[0].start).toBe(0);
+    expect(words[1].end).toBeCloseTo(1.2);
+    expect(words[2].start).toBe(2);
+    expect(words[3].end).toBeCloseTo(3);
+    for (const w of words) expect(w.end).toBeGreaterThan(w.start);
+  });
+});

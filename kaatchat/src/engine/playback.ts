@@ -11,11 +11,17 @@ import { captionCues, cueAt, type CaptionCue } from './transcript';
 import { fromDb } from './dsp';
 import { duckDbAt, fadeGain, speechRanges } from './beats';
 import { media } from './media';
+import denoiseWorkletUrl from './denoise.worklet.ts?worker&url';
+import type { DenoiseMessage } from './denoise.worklet';
 
 interface Source {
   el: HTMLVideoElement | null;
   img: HTMLImageElement | null;
   gain: GainNode | null;
+  node?: MediaElementAudioSourceNode;
+  /** Noise reduction, between the element and its gain. */
+  nr?: AudioWorkletNode;
+  nrKey?: string;
 }
 
 export class Player {
@@ -27,6 +33,9 @@ export class Player {
   private music = new Map<string, { el: HTMLAudioElement; gain: GainNode | null; url: string }>();
   private speech: { start: number; end: number }[] = [];
   private audio: AudioContext | null = null;
+  private index: ProjectIndex;
+  /** True once the noise-reduction worklet has loaded in this AudioContext. */
+  private nrReady = false;
   private raf = 0;
   private lastWall = 0;
   private activeClipId: string | null = null;
@@ -36,6 +45,7 @@ export class Player {
 
   constructor(doc: EditView, index: ProjectIndex) {
     this.doc = doc;
+    this.index = index;
     this.cues = captionCues(doc, index);
     this.speech = this.computeSpeech(index);
   }
@@ -87,6 +97,7 @@ export class Player {
   update(doc: EditView, index: ProjectIndex) {
     const aspectChanged = doc.aspect !== this.doc.aspect;
     this.doc = doc;
+    this.index = index;
     this.cues = captionCues(doc, index);
     this.speech = this.computeSpeech(index);
     for (const [id, m] of this.music)
@@ -137,9 +148,36 @@ export class Player {
 
   private connect(s: Source) {
     if (!s.el || s.gain || !this.audio) return;
-    const node = this.audio.createMediaElementSource(s.el);
+    s.node = this.audio.createMediaElementSource(s.el);
     s.gain = this.audio.createGain();
-    node.connect(s.gain).connect(this.audio.destination);
+    s.gain.connect(this.audio.destination);
+    s.node.connect(s.gain);
+    this.insertNoiseReduction(s);
+  }
+
+  /** Puts the noise-reduction worklet between the element and its gain, once the worklet has loaded. */
+  private insertNoiseReduction(s: Source) {
+    if (!this.nrReady || !this.audio || !s.node || !s.gain || s.nr) return;
+    try {
+      s.nr = new AudioWorkletNode(this.audio, 'kaatchat-denoise', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
+      s.node.disconnect();
+      s.node.connect(s.nr).connect(s.gain);
+      s.nrKey = undefined;
+    } catch {
+      s.nr = undefined;
+    }
+  }
+
+  /** Tell the worklet which noise profile and strength the clip under the playhead wants. */
+  private syncNoiseReduction(s: Source, clip: { id: string; assetId: string; denoise?: number }) {
+    if (!s.nr) return;
+    const profile = this.index[clip.assetId]?.noise;
+    const on = !!(clip.denoise && clip.denoise > 0 && profile);
+    const key = on ? `${clip.assetId}:${clip.denoise}` : 'off';
+    if (key === s.nrKey) return;
+    s.nrKey = key;
+    const msg: DenoiseMessage = on ? { profile: profile!, strength: clip.denoise! } : null;
+    s.nr.port.postMessage(msg);
   }
 
   private disposeSource(s: Source) {
@@ -156,6 +194,16 @@ export class Player {
     if (!this.audio) {
       try {
         this.audio = new AudioContext();
+        const ctx = this.audio;
+        // The preview uses the exporter's own noise reduction; without AudioWorklet it plays unprocessed.
+        void ctx.audioWorklet
+          ?.addModule(denoiseWorkletUrl)
+          .then(() => {
+            if (this.audio !== ctx) return;
+            this.nrReady = true;
+            for (const s of this.sources.values()) this.insertNoiseReduction(s);
+          })
+          .catch(() => undefined);
         for (const s of this.sources.values()) this.connect(s);
         for (const m of this.music.values()) this.connectMusic(m);
       } catch {
@@ -258,6 +306,7 @@ export class Player {
       const s = asset ? this.sources.get(asset.id) : undefined;
       if (s?.el) {
         const c = hit.clip;
+        this.syncNoiseReduction(s, c);
         const g = this.audible('main') && !c.muted ? fromDb(c.gainDb) * fadeGain(hit.offset, clipLength(c), c.fadeIn ?? 0, c.fadeOut ?? 0) : 0;
         if (s.gain) s.gain.gain.value = g;
         else s.el.volume = Math.min(1, g);

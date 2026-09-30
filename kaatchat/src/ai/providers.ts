@@ -54,7 +54,7 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
     name: 'Anthropic Claude',
     network: 'internet',
     needsKey: true,
-    defaultModel: 'claude-opus-5',
+    defaultModel: 'claude-opus-5-5',
     capabilities: ['text', 'edit-plan', 'footage-search', 'metadata'],
     privacy:
       'Your request, clip timings, loudness readings and transcript text are sent to Anthropic. Video and audio files are never sent.',
@@ -162,7 +162,8 @@ class ClaudeProvider implements AIProvider {
   }
 
   async generateText(req: ChatRequest) {
-    const supportsFallbacks = /^claude-(opus-5$|fable-5-1$)/.test(this.s.model);
+    // Server-side refusal fallback (Claude API): route a declined request to another model.
+    const supportsFallbacks = /^claude-(opus-5|opus-5-5|sonnet-5-5|fable-5-1)$/.test(this.s.model);
     try {
       const msg = await this.client.beta.messages.create(
         {

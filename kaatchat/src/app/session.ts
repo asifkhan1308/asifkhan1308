@@ -134,11 +134,12 @@ export class EditorSession {
       );
       return ids;
     }
-    if (asset.kind === 'video' && asset.hasAudio && (force || !idx.audio)) {
+    // Projects from before noise reduction have loudness but no noise profile yet.
+    if (asset.kind === 'video' && asset.hasAudio && (force || !idx.audio || idx.noise === undefined)) {
       ids.push(
         this.jobs.add(`Loudness · ${asset.name}`, group, async (ctl) => {
           const r = await analyzeAudio(blob, ctl);
-          if (r) await this.setIndex(asset.id, { audio: r.audio });
+          if (r) await this.setIndex(asset.id, { audio: r.audio, noise: r.noise });
         }).id,
       );
     }

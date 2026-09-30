@@ -1,7 +1,9 @@
 // Browser regression tests for the reported bugs: processing state, the
 // "Measuring" toast, vertical footage, toast placement, export facts and AAC.
 import { test, expect, type Locator, type Page } from '@playwright/test';
-import { ensureFixtures, probe } from './fixtures';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { ensureFixtures, meanVolume, probe } from './fixtures';
 
 const fx = ensureFixtures();
 
@@ -131,4 +133,98 @@ test('a video with no audio track still exports, and says so (bug 7)', async ({ 
   const info = probe(path);
   expect(info.video).toMatch(/640x360|1920x1080/);
   expect(info.duration).toBeCloseTo(2, 0);
+});
+
+test('noise reduction: steady hiss is removed from the export, the voice is kept, and the preview runs it too', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+  await page.goto('/');
+  await page.locator('input[type=file]').setInputFiles(fx.noisy);
+  await expect(page).toHaveURL(/#\/p\//);
+  await expect(page.locator('.asset').first().getByText('Loudness')).toBeVisible();
+
+  await page.locator('.clip').first().click({ position: { x: 20, y: 30 } });
+  const studio = page.locator('.panel.right');
+  await studio.getByRole('tab', { name: 'Clip' }).click();
+  const control = studio.getByRole('radiogroup', { name: 'Background noise reduction' });
+  await expect(studio.getByText(/Removes steady hiss/)).toBeVisible(); // the profile was measured on import
+  await control.getByRole('radio', { name: 'Strong' }).click();
+  await expect(control.getByRole('radio', { name: 'Strong' })).toHaveAttribute('aria-checked', 'true');
+
+  // Preview: playback runs through the noise-reduction worklet without errors…
+  await page.getByRole('button', { name: 'Play' }).click();
+  await page.waitForTimeout(1500);
+  await page.getByRole('button', { name: 'Pause' }).click();
+  // …and the shipped worklet really removes noise in the browser's audio engine.
+  // (Worklet fetches happen off the page thread, so they are checked by running it.)
+  const workletFile = readdirSync(join(process.cwd(), 'dist', 'assets')).find((f) => /^denoise\.worklet-.*\.js$/.test(f));
+  expect(workletFile).toBeTruthy();
+  const r = await page.evaluate(async (url) => {
+    const off = new OfflineAudioContext(2, 48000, 48000);
+    await off.audioWorklet.addModule(url);
+    const node = new AudioWorkletNode(off, 'kaatchat-denoise', { outputChannelCount: [2] });
+    const buf = off.createBuffer(2, 48000, 48000);
+    let s = 1;
+    for (let c = 0; c < 2; c++) {
+      const d = buf.getChannelData(c);
+      for (let i = 0; i < d.length; i++) {
+        s = (s * 1664525 + 1013904223) >>> 0;
+        d[i] = ((s / 2 ** 32) * 2 - 1) * 0.05;
+      }
+    }
+    const power = (0.05 * 0.05) / 3; // uniform noise variance
+    node.port.postMessage({ profile: { sampleRate: 48000, db: new Array(513).fill(10 * Math.log10(power * 512)) }, strength: 1 });
+    const src = off.createBufferSource();
+    src.buffer = buf;
+    src.connect(node).connect(off.destination);
+    src.start();
+    const out = await off.startRendering();
+    const rms = (a: Float32Array) => {
+      let e = 0;
+      for (let i = 24000; i < a.length; i++) e += a[i] * a[i];
+      return 10 * Math.log10(e / 24000);
+    };
+    return { before: rms(buf.getChannelData(0)), after: rms(out.getChannelData(0)) };
+  }, `./assets/${workletFile}`);
+  expect(r.before - r.after).toBeGreaterThan(12);
+
+  await page.getByRole('button', { name: 'Export' }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Export' });
+  await dialog.getByRole('button', { name: /^Export \d/ }).click();
+  const save = dialog.getByRole('link', { name: 'Save file' });
+  await expect(save).toBeVisible({ timeout: 120_000 });
+  const dl = page.waitForEvent('download');
+  await save.click();
+  const path = test.info().outputPath('denoised.mp4');
+  await (await dl).saveAs(path);
+
+  const hissBefore = meanVolume(fx.noisy, 0.5, 1.2);
+  const hissAfter = meanVolume(path, 0.5, 1.2);
+  const voiceBefore = meanVolume(fx.noisy, 2.3, 1.4);
+  const voiceAfter = meanVolume(path, 2.3, 1.4);
+  expect(hissBefore - hissAfter).toBeGreaterThan(12);
+  expect(Math.abs(voiceBefore - voiceAfter)).toBeLessThan(2);
+  // Undo removes it again, as one step.
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await page.locator('body').press('Control+z');
+  await expect(control.getByRole('radio', { name: 'Off' })).toHaveAttribute('aria-checked', 'true');
+  expect(errors).toEqual([]);
+});
+
+test('Hindi: the main screens are translated and a translated suggestion still edits', async ({ page }) => {
+  await page.goto('/#/settings');
+  await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption('hi');
+  await expect(page.getByRole('heading', { name: 'सेटिंग्स', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'अपडेट' })).toBeVisible();
+  await page.goto('/');
+  await page.locator('input[type=file]').setInputFiles(fx.talk);
+  await expect(page.locator('.toast').filter({ hasText: '1 फ़ाइल माप ली गईं।' })).toBeVisible();
+  const studio = page.locator('.panel.right');
+  await expect(studio.getByRole('button', { name: 'योजना बनाएँ' })).toBeVisible();
+  await studio.getByRole('button', { name: 'इसे वर्टिकल बनाएँ' }).click();
+  await expect(page.getByRole('combobox', { name: 'Aspect' })).toHaveValue('9:16');
+  await page.getByRole('button', { name: 'एक्सपोर्ट' }).first().click();
+  await expect(page.getByText('इसी डिवाइस पर WebCodecs से बनता है। कुछ भी अपलोड नहीं होता।')).toBeVisible();
 });
