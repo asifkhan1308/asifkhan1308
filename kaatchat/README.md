@@ -5,7 +5,7 @@
 | | |
 | --- | --- |
 | **Owner** | Asif Khan |
-| **Version** | 2.0.0-alpha.2 |
+| **Version** | 2.0.0-alpha.3 |
 | **Licence** | MPL-2.0 (see `LICENSE`). Built on Mediabunny (MPL-2.0), with thanks to WolfCut (MPL-2.0). |
 | **Platforms** | Web app and Windows desktop (Electron), one codebase |
 | **Status** | The agreed v2 scope is built and tested. See [docs/ROADMAP.md](docs/ROADMAP.md) for exactly what is and is not built. |
@@ -35,7 +35,8 @@
 - **Motion:** text, shape and logo layers with keyframes, easing, masks and animation presets. Transitions: dissolve, fade, slide, zoom, blur and whip. Effects and one-click looks.
 - **Podcast / talking head:** a one-command clean-up (pauses, fillers, levels, punch-ins, captions). A clip can switch to another camera, lined up by cross-correlating the audio.
 - **Brand Kit:** logo, colours, an uploaded font, caption style, lower third, watermark, intro/outro. Apply it to one sequence or all of them.
-- **AI providers:** Built-in rules (offline), Local (Ollama-compatible), OpenAI, Google Gemini and Anthropic Claude, each with your own key.
+- **AI providers:** Built-in rules (offline); Local AI on your own computer (Ollama, LM Studio, llama.cpp, Jan, vLLM, KoboldCpp or any OpenAI-compatible server, found automatically, with no key or account); OpenAI, Google Gemini and Anthropic Claude with your own key.
+- **Updates (desktop):** Settings → Updates and Help → Check for updates. The new installer is checked against its published SHA-256 before it runs.
 - **Export:** MP4 or WebM with presets. One sequence, or **all sequences** in a batch. Encoded locally, with a streaming mixer for the audio.
 - **Projects:** IndexedDB storage, autosave, and crash recovery.
 - **Also:** a Privacy Center; light and dark monochrome themes; English, Hindi and Hinglish; accessibility settings.

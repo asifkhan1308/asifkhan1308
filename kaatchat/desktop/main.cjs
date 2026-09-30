@@ -17,7 +17,11 @@ const { app, BrowserWindow, protocol, net, shell, dialog, Menu, ipcMain, safeSto
 const path = require('node:path');
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
-const { resolveInsideRoot, PROVIDERS, isProvider, checkProviderUrl, sanitizeHeaders } = require('./policy.cjs');
+const { resolveInsideRoot, PROVIDERS, isProvider, checkProviderUrl, sanitizeHeaders, RELEASES_API, RELEASE_MANIFEST, updateFromManifest, pickUpdate, isAllowedDownload, sumFor } = require('./policy.cjs');
+const { createHash } = require('node:crypto');
+const { spawn } = require('node:child_process');
+const { Readable, Transform } = require('node:stream');
+const { pipeline } = require('node:stream/promises');
 
 const APP_SCHEME = 'kaatchat';
 const APP_ORIGIN = `${APP_SCHEME}://app`;
@@ -67,6 +71,144 @@ function getKey(provider) {
     return safeStorage.decryptString(Buffer.from(enc, 'base64'));
   } catch {
     return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Updates
+// ---------------------------------------------------------------------------
+// Checks this app's own GitHub releases. Installing downloads the new installer,
+// verifies it against the release's SHA256SUMS.txt, then runs it and quits; the
+// one-click installer replaces this version and starts the new one. Nothing is
+// downloaded or run without the person choosing "Install".
+
+let pendingUpdate = null;
+let installing = false;
+
+async function getJson(url) {
+  const res = await fetch(url, { headers: { accept: 'application/json', 'user-agent': `Kaatchat/${VERSION}` }, signal: AbortSignal.timeout(15_000) });
+  if (res.status === 403 || res.status === 429) throw new Error('GitHub is rate-limiting update checks. Try again in a while.');
+  if (!res.ok) throw new Error(`GitHub answered ${res.status} to the update check.`);
+  return res.json();
+}
+
+async function checkForUpdate() {
+  // Primary: the published release manifest. It says "no update" by returning null too,
+  // so the releases API is only asked when the manifest cannot be read at all.
+  let update;
+  try {
+    const m = await getJson(RELEASE_MANIFEST);
+    update = updateFromManifest(m, VERSION);
+  } catch (manifestError) {
+    try {
+      update = pickUpdate(await getJson(RELEASES_API), VERSION);
+    } catch {
+      throw manifestError;
+    }
+  }
+  pendingUpdate = update;
+  return update
+    ? { status: 'available', current: VERSION, version: update.version, page: update.page, notes: update.notes, size: update.installer.size, canInstall: canSelfInstall() }
+    : { status: 'current', current: VERSION };
+}
+
+/** Only a packaged Windows build can replace itself with the NSIS installer. */
+function canSelfInstall() {
+  return process.platform === 'win32' && app.isPackaged;
+}
+
+function sendProgress(p) {
+  mainWindow?.webContents.send('kaatchat:update-progress', p);
+}
+
+async function downloadTo(url, file, expectedSize) {
+  if (!isAllowedDownload(url)) throw new Error('Refusing to download from outside Kaatchat’s releases.');
+  const res = await fetch(url, { headers: { 'user-agent': `Kaatchat/${VERSION}` }, signal: AbortSignal.timeout(30 * 60_000) });
+  if (!res.ok || !res.body) throw new Error(`Download failed (${res.status}).`);
+  const total = Number(res.headers.get('content-length')) || expectedSize || 0;
+  const hash = createHash('sha256');
+  let got = 0;
+  let last = 0;
+  // pipeline() propagates errors from every stage (network, a full or unwritable
+  // disk) and closes the file, so a failure always surfaces as an install error.
+  await pipeline(
+    Readable.fromWeb(res.body),
+    new Transform({
+      transform(chunk, _enc, cb) {
+        hash.update(chunk);
+        got += chunk.length;
+        const now = Date.now();
+        if (total && now - last > 200) {
+          last = now;
+          sendProgress(got / total);
+        }
+        cb(null, chunk);
+      },
+    }),
+    fs.createWriteStream(file),
+  );
+  return hash.digest('hex');
+}
+
+async function installUpdate() {
+  const u = pendingUpdate;
+  if (!u) throw new Error('Check for updates first.');
+  if (!canSelfInstall()) {
+    await shell.openExternal(u.page);
+    return { status: 'opened-page' };
+  }
+  if (installing) throw new Error('An update is already downloading.');
+  installing = true;
+  try {
+    let expected = u.sha256 ?? null;
+    if (!expected) {
+      const sumsRes = await fetch(u.sumsUrl, { headers: { 'user-agent': `Kaatchat/${VERSION}` }, signal: AbortSignal.timeout(30_000) });
+      if (!sumsRes.ok) throw new Error(`Could not read the release checksums (${sumsRes.status}).`);
+      expected = sumFor(await sumsRes.text(), u.installer.name);
+    }
+    if (!expected) throw new Error('The release does not list a checksum for its installer, so it was not installed.');
+    const dir = fs.mkdtempSync(path.join(app.getPath('temp'), 'kaatchat-update-'));
+    const file = path.join(dir, u.installer.name);
+    sendProgress(0);
+    let actual;
+    try {
+      actual = await downloadTo(u.installer.url, file, u.installer.size);
+    } catch (e) {
+      fs.rmSync(dir, { recursive: true, force: true });
+      throw new Error(`Downloading the update failed: ${e.message}`, { cause: e });
+    }
+    if (actual !== expected) {
+      fs.rmSync(dir, { recursive: true, force: true });
+      throw new Error('The downloaded installer did not match its published checksum, so it was deleted and not run.');
+    }
+    sendProgress(1);
+    spawn(file, [], { detached: true, stdio: 'ignore' }).unref();
+    setTimeout(() => app.quit(), 500);
+    return { status: 'installing' };
+  } finally {
+    installing = false;
+  }
+}
+
+async function checkFromMenu() {
+  try {
+    const r = await checkForUpdate();
+    if (r.status === 'current') {
+      await dialog.showMessageBox(mainWindow, { type: 'info', title: 'Kaatchat', message: 'Kaatchat is up to date.', detail: `You have version ${VERSION}.`, buttons: ['OK'] });
+      return;
+    }
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'Update available',
+      message: `Kaatchat ${r.version} is available.`,
+      detail: `You have ${VERSION}.${r.canInstall ? ' Kaatchat will download it, check it against its published checksum, then close and install it. Save your work first.' : ''}`,
+      buttons: [r.canInstall ? 'Install now' : 'Open download page', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (response === 0) await installUpdate();
+  } catch (e) {
+    await dialog.showMessageBox(mainWindow, { type: 'warning', title: 'Kaatchat', message: 'Could not check for updates.', detail: String(e?.message || e), buttons: ['OK'] });
   }
 }
 
@@ -157,6 +299,9 @@ function registerIpc() {
   handle('kaatchat:ai-cancel', (requestId) => {
     inflight.get(requestId)?.abort();
   });
+
+  handle('kaatchat:update-check', () => checkForUpdate());
+  handle('kaatchat:update-install', () => installUpdate());
 }
 
 // ---------------------------------------------------------------------------
@@ -261,6 +406,8 @@ function buildMenu() {
     {
       label: 'Help',
       submenu: [
+        { label: 'Check for updates…', click: () => void checkFromMenu() },
+        { type: 'separator' },
         { label: 'Privacy', click: () => go('#/privacy') },
         {
           label: `About Kaatchat ${VERSION}`,

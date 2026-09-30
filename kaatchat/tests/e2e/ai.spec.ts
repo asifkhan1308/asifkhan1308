@@ -131,3 +131,71 @@ test('Claude: SDK request carries the key and a structured plan comes back', asy
   expect(headers[0]['x-api-key']).toBe('sk-ant-test');
   expect(headers[0]['anthropic-dangerous-direct-browser-access']).toBe('true');
 });
+
+test('Local AI: finds LM Studio on this computer, plans with it, sends nothing to the internet', async ({ page }) => {
+  const editor = await setupProject(page);
+  const internet: string[] = [];
+  page.on('request', (r) => {
+    const u = new URL(r.url());
+    if (!['localhost', '127.0.0.1'].includes(u.hostname) && u.protocol.startsWith('http')) internet.push(r.url());
+  });
+  const chats: string[] = [];
+  // Only LM Studio (port 1234) is running; every other local port refuses.
+  await page.route(/^http:\/\/localhost:(?!4173\b)\d+\//, async (route) => {
+    const req = route.request();
+    if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+    const url = new URL(req.url());
+    if (url.port !== '1234') return route.abort('connectionrefused');
+    if (url.pathname === '/v1/models') return json(route, 200, { data: [{ id: 'qwen2.5-7b-instruct' }, { id: 'text-embedding-nomic' }] });
+    if (url.pathname === '/v1/chat/completions') {
+      chats.push(req.postData() ?? '');
+      return json(route, 200, {
+        choices: [
+          {
+            message: {
+              // A reasoning model thinks first; only the answer is used.
+              content: `<think>The user wants vertical.</think>${JSON.stringify({
+                summary: 'Keep the part about money, vertical.',
+                commands: [
+                  { type: 'keep_ranges', ranges: [{ start: 6, end: 9 }] },
+                  { type: 'set_aspect', aspect: '9:16' },
+                  { type: 'reframe', mode: 'content' },
+                ],
+              })}`,
+            },
+          },
+        ],
+      });
+    }
+    return route.abort('connectionrefused');
+  });
+
+  await page.goto('/#/settings');
+  const card = page.locator('.provider', { has: page.getByRole('heading', { name: /Local AI/ }) });
+  await card.getByLabel('Enabled').check();
+  await card.getByRole('button', { name: 'Find local AI' }).click();
+  const found = card.getByRole('list', { name: 'Local AI servers found' });
+  await expect(found.getByRole('button', { name: 'LM Studio' })).toBeVisible();
+  await expect(found.getByRole('button', { name: 'Ollama' })).toHaveCount(0);
+  // The only server found is chosen, with its first model.
+  await expect(card.getByLabel('Server type')).toHaveValue('openai');
+  await expect(card.getByLabel('Server', { exact: true })).toHaveValue('http://localhost:1234');
+  await expect(card.getByLabel('Model')).toHaveValue('qwen2.5-7b-instruct');
+  await card.getByRole('button', { name: 'Test connection' }).click();
+  await expect(card.getByText('Connected. “qwen2.5-7b-instruct” is available.')).toBeVisible();
+  await card.getByRole('button', { name: 'Use this' }).click();
+
+  await page.goto(editor);
+  const studio = page.locator('.panel.right');
+  await studio.getByRole('textbox', { name: 'Request' }).fill('Only keep the bit about money, vertical');
+  await studio.getByRole('button', { name: 'Plan it' }).click();
+  await expect(studio.getByText('Kaatchat wants to:')).toBeVisible();
+  await expect(studio.getByText(/Planned by Local AI.* · qwen2\.5-7b-instruct\./)).toBeVisible();
+  await studio.getByRole('button', { name: 'Apply' }).click();
+  await expect(page.getByRole('combobox', { name: 'Aspect' })).toHaveValue('9:16');
+
+  expect(chats).toHaveLength(1);
+  expect(JSON.parse(chats[0])).toMatchObject({ model: 'qwen2.5-7b-instruct', stream: false });
+  expect(chats[0]).toContain('Money matters when you start a company.');
+  expect(internet).toEqual([]);
+});

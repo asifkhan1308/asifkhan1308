@@ -10,6 +10,8 @@ export interface Prefs {
   whisperModel: string;
   /** Spoken language hint for transcription; '' = detect. */
   speechLanguage: string;
+  /** Desktop: look for a new version when the app starts. */
+  checkUpdates: boolean;
 }
 
 const KEY = 'kaatchat.prefs';
@@ -20,6 +22,7 @@ const defaults: Prefs = {
   reducedMotion: 'system',
   whisperModel: 'onnx-community/whisper-base',
   speechLanguage: '',
+  checkUpdates: true,
 };
 
 let prefs: Prefs = (() => {
