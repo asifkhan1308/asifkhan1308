@@ -86,8 +86,18 @@ export function captionCues(doc: EditView, index: ProjectIndex): CaptionCue[] {
       if (group.length) cues.push({ start: group[0].start, end: group[group.length - 1].end, words: group });
       group = [];
     };
-    for (const seg of tr.segments) {
-      if (seg.t1 <= c.in || seg.t0 >= c.out) continue;
+    // Segments are in time order: jump to the first that reaches this clip, stop after its end.
+    const segs = tr.segments;
+    let lo = 0;
+    let hi = segs.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (segs[mid].t1 <= c.in) lo = mid + 1;
+      else hi = mid;
+    }
+    for (let k = lo; k < segs.length && segs[k].t0 < c.out; k++) {
+      const seg = segs[k];
+      if (seg.t1 <= c.in) continue;
       for (const w of seg.words) {
         const mid = (w.t0 + w.t1) / 2;
         if (mid < c.in || mid > c.out) continue;

@@ -253,3 +253,63 @@ export function sourceToTimeline(clips: readonly Clip[], assetId: string, t: num
   }
   return hits;
 }
+
+/**
+ * Where an asset's source times sit on the timeline, answered in O(log n):
+ * the asset's clips sorted by source start, with a running maximum of their
+ * ends so overlapping (duplicated) ranges are still found. Build it once per
+ * edit, then look up thousands of transcript words per frame.
+ */
+export class SourceIndex {
+  private byAsset = new Map<string, { ins: Float64Array; outs: Float64Array; starts: Float64Array; maxOut: Float64Array }>();
+
+  constructor(clips: readonly Clip[]) {
+    const groups = new Map<string, { in: number; out: number; start: number }[]>();
+    let start = 0;
+    for (const c of clips) {
+      let g = groups.get(c.assetId);
+      if (!g) groups.set(c.assetId, (g = []));
+      g.push({ in: c.in, out: c.out, start });
+      start += clipLength(c);
+    }
+    for (const [id, g] of groups) {
+      g.sort((a, b) => a.in - b.in || a.start - b.start);
+      const n = g.length;
+      const e = { ins: new Float64Array(n), outs: new Float64Array(n), starts: new Float64Array(n), maxOut: new Float64Array(n) };
+      let m = -Infinity;
+      g.forEach((r, i) => {
+        e.ins[i] = r.in;
+        e.outs[i] = r.out;
+        e.starts[i] = r.start;
+        m = Math.max(m, r.out);
+        e.maxOut[i] = m;
+      });
+      this.byAsset.set(id, e);
+    }
+  }
+
+  /** The earliest timeline time showing source time `t` of the asset, or null when it was cut. Same answer as `sourceToTimeline(...)[0]`. */
+  first(assetId: string, t: number): number | null {
+    const e = this.byAsset.get(assetId);
+    if (!e) return null;
+    // Last range starting at or before t.
+    let lo = 0;
+    let hi = e.ins.length - 1;
+    let k = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (e.ins[mid] <= t + EPS) {
+        k = mid;
+        lo = mid + 1;
+      } else hi = mid - 1;
+    }
+    let best: number | null = null;
+    for (let i = k; i >= 0 && e.maxOut[i] >= t - EPS; i--) {
+      if (t <= e.outs[i] + EPS) {
+        const at = e.starts[i] + (t - e.ins[i]);
+        if (best === null || at < best) best = at;
+      }
+    }
+    return best;
+  }
+}

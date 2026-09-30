@@ -185,3 +185,36 @@ export function ensureStreetFixture(): { file: string; speechStart: number; spee
     ]);
   return { file: out, speechStart: 1.5, speechEnd: 1.5 + speechLen };
 }
+
+/**
+ * hour.webm — a one-hour recording (small picture, 2 fps) whose audio talks in
+ * 2.2 s bursts with 0.8 s pauses, so removing pauses leaves ~1,200 clips; and
+ * hour.srt, a matching transcript of 1,200 lines (~9,600 words).
+ */
+export function ensureHourFixture(): { video: string; srt: string; pauses: number } {
+  mkdirSync(FIXTURES, { recursive: true });
+  const video = join(FIXTURES, 'hour.webm');
+  const srt = join(FIXTURES, 'hour.srt');
+  const D = 3600;
+  if (!existsSync(video))
+    execFileSync(ffmpeg, [
+      '-v', 'error', '-y',
+      '-f', 'lavfi', '-i', `testsrc2=s=160x90:r=2:d=${D}`,
+      '-f', 'lavfi', '-i', `aevalsrc='lt(mod(t,3),2.2)*0.4*sin(2*PI*(180+40*sin(2*PI*0.5*t))*t)':s=48000:d=${D}`,
+      '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuv420p', '-b:v', '40k', '-g', '60', '-deadline', 'realtime', '-cpu-used', '8',
+      '-c:a', 'libopus', '-b:a', '24k', '-ac', '1', video,
+    ]);
+  if (!existsSync(srt)) {
+    const ts = (s: number) => {
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = Math.floor(s % 60);
+      const ms = Math.round((s % 1) * 1000);
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+    };
+    const lines: string[] = [];
+    for (let i = 0; i < D / 3; i++) lines.push(`${i + 1}\n${ts(i * 3)} --> ${ts(i * 3 + 2.2)}\nLine ${i + 1} is about topic ${i % 37} and money now.\n`);
+    writeFileSync(srt, lines.join('\n'));
+  }
+  return { video, srt, pauses: D / 3 };
+}

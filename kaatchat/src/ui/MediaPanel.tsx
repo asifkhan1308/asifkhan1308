@@ -1,9 +1,9 @@
-import { useMemo, useRef, useState } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import type { EditorSession } from '../app/session';
 import { useStoreVersion } from '../app/hooks';
 import { useJobs } from './Jobs';
-import type { MediaAsset, Transcript } from '../engine/types';
-import { sourceToTimeline, locate } from '../engine/timeline';
+import type { MediaAsset, Transcript, TranscriptSegment } from '../engine/types';
+import { SourceIndex, locate } from '../engine/timeline';
 import { WHISPER_MODELS } from '../engine/media';
 import { usePrefs } from '../app/prefs';
 import { Icon, fmtBytes, fmtTime, toast } from './bits';
@@ -171,7 +171,25 @@ function TranscriptView({ session, time, onSeek }: { session: EditorSession; tim
     return out;
   }, [doc, store.index]);
 
+  // Where each word sits on the timeline (NaN: cut). Recomputed only when the edit changes, not every frame.
+  const placed = useMemo(() => {
+    const idx = new SourceIndex(doc.clips);
+    return withTranscripts.map(({ asset, tr }) => tr.segments.map((s) => Float64Array.from(s.words, (w) => idx.first(asset.id, (w.t0 + w.t1) / 2) ?? NaN)));
+  }, [doc.clips, withTranscripts]);
+
+  // The word under the playhead: a binary search, once per frame.
   const here = locate(doc.clips, time);
+  const nowAt = here ? wordAt(withTranscripts.find((x) => x.asset.id === here.clip.assetId)?.tr, here.sourceTime) : null;
+  const latest = useRef({ sel, onSeek });
+  latest.current = { sel, onSeek };
+  const onWord = useRef((assetId: string, si: number, wi: number, shift: boolean, at: number) => {
+    const { sel: cur, onSeek: seek } = latest.current;
+    if (shift && cur && cur.assetId === assetId) setSel({ ...cur, b: [si, wi] });
+    else {
+      setSel({ assetId, a: [si, wi], b: [si, wi] });
+      if (!Number.isNaN(at)) seek(at);
+    }
+  }).current;
 
   if (withTranscripts.length === 0)
     return (
@@ -227,36 +245,25 @@ function TranscriptView({ session, time, onSeek }: { session: EditorSession; tim
         </button>
       </div>
       <p className="faint tiny">Click a word to jump; shift-click to select a range. Struck-through words are already cut.</p>
-      {withTranscripts.map(({ asset, tr }) => (
+      {withTranscripts.map(({ asset, tr }, ai) => (
         <div key={asset.id} className="transcript">
           {withTranscripts.length > 1 && <h3 style={{ marginBottom: 6 }}>{asset.name}</h3>}
-          {tr.segments.map((s, si) => (
-            <p className="seg" key={si}>
-              <span className="ts">{fmtTime(s.t0)}</span>
-              {s.words.map((w, wi) => {
-                const hits = sourceToTimeline(doc.clips, asset.id, (w.t0 + w.t1) / 2);
-                const cut = hits.length === 0;
-                const now = !!here && here.clip.assetId === asset.id && here.sourceTime >= w.t0 && here.sourceTime < w.t1;
-                return (
-                  <span
-                    key={wi}
-                    data-t0={w.t0.toFixed(2)}
-                    data-t1={w.t1.toFixed(2)}
-                    className={`w${cut ? ' cut' : ''}${inSel(asset.id, si, wi) ? ' sel' : ''}${now ? ' now' : ''}`}
-                    onClick={(e) => {
-                      if (e.shiftKey && sel && sel.assetId === asset.id) setSel({ ...sel, b: [si, wi] });
-                      else {
-                        setSel({ assetId: asset.id, a: [si, wi], b: [si, wi] });
-                        if (!cut) onSeek(hits[0]);
-                      }
-                    }}
-                  >
-                    {w.text}{' '}
-                  </span>
-                );
-              })}
-            </p>
-          ))}
+          {tr.segments.map((s, si) => {
+            const range = selRange(sel, asset.id, si, s.words.length);
+            return (
+              <Segment
+                key={si}
+                seg={s}
+                si={si}
+                assetId={asset.id}
+                at={placed[ai][si]}
+                selFrom={range[0]}
+                selTo={range[1]}
+                now={nowAt && here!.clip.assetId === asset.id && nowAt[0] === si ? nowAt[1] : -1}
+                onWord={onWord}
+              />
+            );
+          })}
           <p className="faint tiny">
             {tr.model}
             {tr.wordTimings === 'exact' && ' · exact word timings'}
@@ -267,3 +274,74 @@ function TranscriptView({ session, time, onSeek }: { session: EditorSession; tim
     </div>
   );
 }
+
+/** The selected word range inside segment `si` as [from, to] word indexes, or [-1, -1]. */
+function selRange(sel: { assetId: string; a: [number, number]; b: [number, number] } | null, assetId: string, si: number, n: number): [number, number] {
+  if (!sel || sel.assetId !== assetId) return [-1, -1];
+  const [x, y] = (sel.a[0] * 1e5 + sel.a[1] <= sel.b[0] * 1e5 + sel.b[1] ? [sel.a, sel.b] : [sel.b, sel.a]) as [[number, number], [number, number]];
+  if (si < x[0] || si > y[0]) return [-1, -1];
+  return [si === x[0] ? x[1] : 0, si === y[0] ? y[1] : n - 1];
+}
+
+/** [segment, word] containing source time `t`, by binary search; null between words. */
+function wordAt(tr: Transcript | undefined, t: number): [number, number] | null {
+  if (!tr) return null;
+  const segs = tr.segments;
+  let lo = 0;
+  let hi = segs.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const s = segs[mid];
+    const end = s.words.length ? s.words[s.words.length - 1].t1 : s.t1;
+    const start = s.words.length ? s.words[0].t0 : s.t0;
+    if (t < start) hi = mid - 1;
+    else if (t >= end) lo = mid + 1;
+    else {
+      const wi = s.words.findIndex((w) => t >= w.t0 && t < w.t1);
+      return wi < 0 ? null : [mid, wi];
+    }
+  }
+  return null;
+}
+
+/** One transcript line. Re-renders only when its own words, selection or playhead word change. */
+const Segment = memo(function Segment({
+  seg,
+  si,
+  assetId,
+  at,
+  selFrom,
+  selTo,
+  now,
+  onWord,
+}: {
+  seg: TranscriptSegment;
+  si: number;
+  assetId: string;
+  at: Float64Array;
+  selFrom: number;
+  selTo: number;
+  now: number;
+  onWord(assetId: string, si: number, wi: number, shift: boolean, at: number): void;
+}) {
+  return (
+    <p className="seg">
+      <span className="ts">{fmtTime(seg.t0)}</span>
+      {seg.words.map((w, wi) => {
+        const cut = Number.isNaN(at[wi]);
+        const sel = wi >= selFrom && wi <= selTo;
+        return (
+          <span
+            key={wi}
+            data-t0={w.t0.toFixed(2)}
+            data-t1={w.t1.toFixed(2)}
+            className={`w${cut ? ' cut' : ''}${sel ? ' sel' : ''}${wi === now ? ' now' : ''}`}
+            onClick={(e) => onWord(assetId, si, wi, e.shiftKey, at[wi])}
+          >
+            {w.text}{' '}
+          </span>
+        );
+      })}
+    </p>
+  );
+});
