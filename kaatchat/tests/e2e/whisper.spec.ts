@@ -52,7 +52,8 @@ test('Whisper: transcribes real speech end to end, and the transcript drives Fin
 
   await page.getByRole('tab', { name: 'Transcript' }).click();
   const text = (await page.locator('.transcript').innerText()).toLowerCase();
-  expect(text).toMatch(/hello/);
+  // (espeak's robotic "hello" is sometimes heard as "the low"; the rest is clear.)
+  expect(text).toMatch(/world/);
   expect(text).toMatch(/test/);
   expect(text).toMatch(/money/);
 
