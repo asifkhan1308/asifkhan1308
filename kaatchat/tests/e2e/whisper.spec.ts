@@ -51,11 +51,12 @@ test('Whisper: transcribes real speech end to end, and the transcript drives Fin
   expect(errors, 'transcription reported an error').toEqual([]);
 
   await page.getByRole('tab', { name: 'Transcript' }).click();
-  const text = (await page.locator('.transcript').innerText()).toLowerCase();
+  // Lines are drawn once the browser sees them on screen (content-visibility), so wait for the words.
   // (espeak's robotic "hello" is sometimes heard as "the low"; the rest is clear.)
-  expect(text).toMatch(/world/);
-  expect(text).toMatch(/test/);
-  expect(text).toMatch(/money/);
+  const transcript = page.locator('.transcript');
+  await expect(transcript).toContainText(/world/i);
+  await expect(transcript).toContainText(/test/i);
+  await expect(transcript).toContainText(/money/i);
 
   // Each word is timed by the model, and the timings match the audio: the first
   // word of each sentence starts where ffmpeg hears the pause before it end.
