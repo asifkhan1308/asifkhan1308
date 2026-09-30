@@ -108,8 +108,10 @@ jobs:
 
   windows-installer:
     name: Windows installer
-    # Never publish if any test failed.
-    needs: [web, desktop]
+    # Never publish if any test failed — including the live AI checks when their
+    # secrets exist (the job is skipped on fork PRs, which is fine).
+    needs: [web, desktop, live-ai]
+    if: ${{ !cancelled() && needs.web.result == 'success' && needs.desktop.result == 'success' && (needs.live-ai.result == 'success' || needs.live-ai.result == 'skipped') }}
     # Built and install-tested on every run, so a broken installer is caught before a
     # release; only a tag or a manual "publish" run publishes it.
     runs-on: windows-latest
