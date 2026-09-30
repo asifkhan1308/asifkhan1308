@@ -70,7 +70,7 @@ test('loads from the kaatchat:// origin with a sandboxed, isolated renderer', as
     process: typeof (window as unknown as { process?: unknown }).process,
     keyGetter: 'get' in (window.kaatchat?.keys ?? {}),
   }));
-  expect(probe).toEqual({ bridge: 'object', desktop: true, version: '2.0.0-alpha.1', require: 'undefined', process: 'undefined', keyGetter: false });
+  expect(probe).toEqual({ bridge: 'object', desktop: true, version: '2.0.0-alpha.2', require: 'undefined', process: 'undefined', keyGetter: false });
 });
 
 test('cannot read files outside dist/ or navigate away', async () => {
