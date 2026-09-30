@@ -8,6 +8,7 @@ import {
   BufferTarget,
   CanvasSink,
   CanvasSource,
+  canEncodeAudio,
   getFirstEncodableAudioCodec,
   getFirstEncodableVideoCodec,
   Input,
@@ -77,8 +78,33 @@ export interface ExportResult {
   fileName: string;
   videoCodec: VideoCodec;
   audioCodec: AudioCodec | null;
+  width: number;
+  height: number;
+  /** Timeline length that was rendered. */
   seconds: number;
+  /** Duration of the finished file, read back from it. */
+  durationSec: number;
+  /** Wall-clock time the export took — not a property of the video. */
   elapsedMs: number;
+}
+
+let aacReady: Promise<void> | null = null;
+/**
+ * MP4 audio is AAC. WebCodecs only offers an AAC encoder on some platforms
+ * (not Linux Chromium, not Firefox), so when it is missing we register
+ * Mediabunny's AAC-LC encoder (FFmpeg's, compiled to WebAssembly). It is loaded
+ * on first MP4 export only; a native encoder is always preferred.
+ */
+export function ensureAacEncoder(): Promise<void> {
+  aacReady ??= (async () => {
+    if (await canEncodeAudio('aac', { numberOfChannels: 2, sampleRate: SAMPLE_RATE })) return;
+    const { registerAacEncoder } = await import('@mediabunny/aac-encoder');
+    registerAacEncoder();
+  })().catch((e) => {
+    aacReady = null; // let a later export retry
+    console.warn('AAC encoder unavailable, MP4 audio will use another codec:', e);
+  });
+  return aacReady;
 }
 
 const even = (n: number) => Math.max(2, Math.round(n / 2) * 2);
@@ -101,6 +127,7 @@ export async function exportProject(doc: EditView, index: ProjectIndex, opts: Ex
     throw new Error(`This device cannot encode ${width}×${height} ${opts.format.toUpperCase()} video. Try a smaller size or the other format.`);
   const mixer = new TimelineMixer(doc, index);
   const hasAudio = doc.clips.some((c) => doc.assets[c.assetId]?.hasAudio) || doc.audio.length > 0;
+  if (hasAudio && opts.format === 'mp4') await ensureAacEncoder();
   const audioCodec = hasAudio ? await getFirstEncodableAudioCodec(aCandidates, { numberOfChannels: 2, sampleRate: SAMPLE_RATE }) : null;
 
   const output = new Output({
@@ -111,7 +138,9 @@ export async function exportProject(doc: EditView, index: ProjectIndex, opts: Ex
   const ctx = canvas.getContext('2d', { alpha: false })!;
   const videoSource = new CanvasSource(canvas, { codec: videoCodec, bitrate: quality, keyFrameInterval: 2 });
   output.addVideoTrack(videoSource, { frameRate: fps });
-  const audioSource = audioCodec ? new AudioBufferSource({ codec: audioCodec, bitrate: quality }) : null;
+  // Explicit stereo bitrates: the generic quality presets give AAC as little as ~80 kb/s.
+  const audioBitrate = opts.quality === 'max' ? 256_000 : opts.quality === 'high' ? 192_000 : 128_000;
+  const audioSource = audioCodec ? new AudioBufferSource({ codec: audioCodec, bitrate: audioBitrate }) : null;
   if (audioSource) output.addAudioTrack(audioSource);
 
   const cues = opts.captions && doc.captions.enabled ? captionCues(doc, index) : [];
@@ -196,13 +225,20 @@ export async function exportProject(doc: EditView, index: ProjectIndex, opts: Ex
 
   const buf = (output.target as BufferTarget).buffer;
   if (!buf) throw new Error('The encoder produced no data.');
+  const blob = new Blob([buf], { type: opts.format === 'mp4' ? 'video/mp4' : 'video/webm' });
+  // Report what the file actually holds, not what we intended to write.
+  const check = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
+  const durationSec = await check.computeDuration().finally(() => check.dispose());
   const safe = (doc.name === 'Main edit' ? doc.projectName : `${doc.projectName} ${doc.name}`).replace(/[^\p{L}\p{N} _-]+/gu, '').trim() || 'kaatchat';
   return {
-    blob: new Blob([buf], { type: opts.format === 'mp4' ? 'video/mp4' : 'video/webm' }),
+    blob,
     fileName: `${safe} ${width}x${height}.${opts.format}`,
     videoCodec,
     audioCodec,
+    width,
+    height,
     seconds: total,
+    durationSec,
     elapsedMs: performance.now() - started,
   };
 }

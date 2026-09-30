@@ -4,11 +4,11 @@
 
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { ensureFixtures, ffmpeg, FIXTURES } from '../e2e/fixtures';
+import { ensureFixtures, ffmpeg, FIXTURES, probe } from '../e2e/fixtures';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const desktopDir = join(here, '..', '..', 'desktop');
@@ -100,4 +100,32 @@ test('imports an H.264/AAC MP4 (proprietary codecs work in Electron)', async () 
   await page.locator('input[type=file]').first().setInputFiles(join(FIXTURES, 'talk.mp4'));
   await expect(page.locator('.asset').first().getByText('Loudness')).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('.asset').first().getByText('Framing')).toBeVisible({ timeout: 60_000 });
+});
+
+test('exports MP4 as H.264 + AAC with the real duration reported', async () => {
+  await expect(page.locator('.asset').first().getByText('Framing')).toBeVisible({ timeout: 60_000 });
+  await page.getByRole('button', { name: 'Export' }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Export' });
+  await dialog.getByRole('button', { name: /^Export \d/ }).click();
+  const save = dialog.getByRole('link', { name: 'Save file' });
+  await expect(save).toBeVisible({ timeout: 180_000 });
+  const facts = dialog.locator('.export-facts');
+  await expect(facts.locator('[data-fact="codecs"]')).toHaveText('H.264 + AAC');
+  await expect(facts.locator('[data-fact="duration"]')).toHaveText(/^0:(09\.[5-9]|10\.[0-4])$/);
+
+  // Read the exported file back out of the page and check it with ffmpeg.
+  const href = (await save.getAttribute('href'))!;
+  const b64 = await page.evaluate(async (u) => {
+    const bytes = new Uint8Array(await (await fetch(u)).arrayBuffer());
+    let s = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return btoa(s);
+  }, href);
+  const out = test.info().outputPath('desktop.mp4');
+  writeFileSync(out, Buffer.from(b64, 'base64'));
+  const info = probe(out);
+  expect(info.video).toMatch(/^h264/);
+  expect(info.audio).toMatch(/^aac \(LC\)/);
+  expect(info.duration).toBeGreaterThan(9.5);
+  expect(info.duration).toBeLessThan(10.5);
 });

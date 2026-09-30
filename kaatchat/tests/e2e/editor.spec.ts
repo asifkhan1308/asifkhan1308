@@ -93,11 +93,11 @@ test('import → measure → ask → reel → captions → export', async ({ pag
   const info = probe(path);
   expect(info.duration).toBeGreaterThan(3.8);
   expect(info.duration).toBeLessThan(4.3);
-  // Open-source Chromium encodes H.264 via OpenH264 but has no AAC encoder, so
-  // Kaatchat falls back to Opus-in-MP4 there; Chrome/Electron produce AAC.
+  // MP4 audio is always AAC: native where the browser has an encoder, otherwise
+  // the bundled WASM AAC encoder (open-source Chromium has none).
   expect(info.video).toMatch(/h264|vp9|av1/);
   expect(info.video).toMatch(/1080x1920/);
-  expect(info.audio).toMatch(/aac|opus/);
+  expect(info.audio).toMatch(/^aac/);
 });
 
 test('transcript editing cuts the video; crash recovery restores unsaved work', async ({ page }) => {
@@ -229,7 +229,7 @@ test('music: beat detection, sync to beat, ducking, mixed export', async ({ page
   const path = test.info().outputPath('music.mp4');
   await (await dl).saveAs(path);
   const info = probe(path);
-  expect(info.audio).toMatch(/aac|opus/);
+  expect(info.audio).toMatch(/^aac \(LC\)/); // ducked mix, still AAC
   expect(info.duration).toBeGreaterThan(4);
 });
 

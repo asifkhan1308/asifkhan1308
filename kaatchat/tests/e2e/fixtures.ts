@@ -45,6 +45,21 @@ export function ensureFixtures() {
       '-c:a', 'libopus', '-b:a', '96k', '-ac', '2', music,
     ]);
   }
+  // vertical.webm — 4 s, 720×1280 phone footage (VP9 + Opus).
+  const vertical = join(FIXTURES, 'vertical.webm');
+  if (!existsSync(vertical)) {
+    execFileSync(ffmpeg, [
+      '-v', 'error', '-y',
+      '-f', 'lavfi', '-i', 'testsrc2=s=720x1280:r=30:d=4',
+      '-f', 'lavfi', '-i', 'sine=f=440:sample_rate=48000:d=4',
+      '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuv420p', '-b:v', '600k', '-deadline', 'realtime', '-cpu-used', '8',
+      '-c:a', 'libopus', '-b:a', '64k', '-ac', '2', vertical,
+    ]);
+  }
+  // silent.webm — 2 s of video with no audio track at all.
+  const silent = join(FIXTURES, 'silent.webm');
+  if (!existsSync(silent))
+    execFileSync(ffmpeg, ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=640x360:r=30:d=2', '-an', '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuv420p', '-deadline', 'realtime', '-cpu-used', '8', silent]);
   const logo = join(FIXTURES, 'logo.png');
   if (!existsSync(logo)) execFileSync(ffmpeg, ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=white:s=256x256,drawbox=x=48:y=48:w=160:h=160:color=black:t=fill', '-frames:v', '1', logo]);
   const srt = join(FIXTURES, 'talk.srt');
@@ -54,7 +69,7 @@ export function ensureFixtures() {
       `1\n00:00:01,000 --> 00:00:04,000\nUm today we talk about AI and design.\n\n2\n00:00:06,000 --> 00:00:09,000\nMoney matters when you start a company.\n`,
     );
   }
-  return { talk, srt, music, logo };
+  return { talk, srt, music, logo, vertical, silent };
 }
 
 /** Decode a file fully with ffmpeg and return its duration and stream summary. */

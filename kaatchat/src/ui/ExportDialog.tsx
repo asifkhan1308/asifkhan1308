@@ -203,8 +203,24 @@ export function ExportDialog({ session, onClose }: { session: EditorSession; onC
           <div className="row" style={{ flexWrap: 'wrap' }}>
             <Icon name="check" />
             <span className="grow">
-              <b>{name}</b> · {result.fileName} · {fmtBytes(result.blob.size)} · {result.videoCodec.toUpperCase()}
-              {result.audioCodec ? ` + ${result.audioCodec.toUpperCase()}` : ''} · {(result.elapsedMs / 1000).toFixed(1)}s
+              <b>{name}</b> · {result.fileName}
+              <dl className="export-facts">
+                <dt>Duration</dt>
+                <dd data-fact="duration">{fmtDuration(result.durationSec)}</dd>
+                <dt>Resolution</dt>
+                <dd data-fact="resolution">
+                  {result.width}×{result.height}
+                </dd>
+                <dt>Size</dt>
+                <dd data-fact="size">{fmtBytes(result.blob.size)}</dd>
+                <dt>Codecs</dt>
+                <dd data-fact="codecs">
+                  {codecName(result.videoCodec)}
+                  {result.audioCodec ? ` + ${codecName(result.audioCodec)}` : ' (no audio)'}
+                </dd>
+                <dt>Encoded in</dt>
+                <dd data-fact="encoded">{(result.elapsedMs / 1000).toFixed(1)} s</dd>
+              </dl>
             </span>
             <a className="btn primary" href={url} download={result.fileName}>
               <Icon name="download" /> Save file
@@ -214,4 +230,13 @@ export function ExportDialog({ session, onClose }: { session: EditorSession; onC
       ))}
     </Dialog>
   );
+}
+
+const CODEC_NAMES: Record<string, string> = { avc: 'H.264', hevc: 'H.265', vp8: 'VP8', vp9: 'VP9', av1: 'AV1', aac: 'AAC', opus: 'Opus', vorbis: 'Vorbis' };
+const codecName = (c: string) => CODEC_NAMES[c] ?? c.toUpperCase();
+/** Media length as m:ss.s (e.g. 0:07.1). */
+function fmtDuration(s: number): string {
+  const m = Math.floor(s / 60);
+  const sec = s - m * 60;
+  return `${m}:${sec < 10 ? '0' : ''}${sec.toFixed(1)}`;
 }

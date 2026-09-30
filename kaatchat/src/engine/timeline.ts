@@ -1,7 +1,7 @@
 // Pure timeline operations. Every function returns a new array; inputs are
 // never mutated, which is what makes whole-document undo cheap and safe.
 
-import type { Clip, TimeRange } from './types';
+import type { Clip, Overlay, ProjectDoc, TimeRange } from './types';
 
 export const MIN_CLIP = 1 / 30; // shortest clip we keep, seconds
 const EPS = 1e-6;
@@ -12,6 +12,48 @@ export function sequenceDuration(clips: readonly Clip[]): number {
   let d = 0;
   for (const c of clips) d += clipLength(c);
   return d;
+}
+
+/** Shortest title / graphic layer we keep, seconds. */
+export const MIN_OVERLAY = 0.1;
+
+/**
+ * Keeps every layer inside a timeline of `duration` seconds: it keeps its
+ * start and its end is trimmed to the end of the edit. A layer that would be
+ * left shorter than MIN_OVERLAY (or starts past the end) is kept at its own
+ * length, up to the whole edit, and pulled back so it ends there. An empty
+ * timeline (duration 0) has no length to clamp to, so layers are left as they
+ * are. Returns the same array when nothing changes.
+ */
+export function clampOverlays(overlays: readonly Overlay[], duration: number): Overlay[] {
+  if (!(duration > EPS)) return overlays as Overlay[];
+  const min = Math.min(MIN_OVERLAY, duration);
+  let changed = false;
+  const out = overlays.map((o) => {
+    const own = Math.min(Math.max(Number.isFinite(o.duration) ? o.duration : min, min), duration);
+    let start = Math.max(Number.isFinite(o.start) ? o.start : 0, 0);
+    let len = Math.min(own, duration - start);
+    if (len < min - EPS) {
+      len = own;
+      start = duration - own;
+    }
+    if (Math.abs(start - o.start) < EPS && Math.abs(len - o.duration) < EPS) return o;
+    changed = true;
+    return { ...o, start, duration: len };
+  });
+  return changed ? out : (overlays as Overlay[]);
+}
+
+/** `clampOverlays` for every sequence of a project; returns `p` itself when nothing changes. */
+export function clampProjectOverlays(p: ProjectDoc): ProjectDoc {
+  let changed = false;
+  const sequences = p.sequences.map((s) => {
+    const overlays = clampOverlays(s.overlays, sequenceDuration(s.clips));
+    if (overlays === s.overlays) return s;
+    changed = true;
+    return { ...s, overlays };
+  });
+  return changed ? { ...p, sequences } : p;
 }
 
 /** Timeline start time of every clip. */

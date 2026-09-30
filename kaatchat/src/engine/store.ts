@@ -6,10 +6,12 @@
 // Editing code works on an `EditView` — the active sequence plus the
 // project's assets — so commands never need to know about sequences.
 
-import type { ProjectDoc, ProjectIndex, AssetIndex, MediaAsset, Clip, EditView, Sequence } from './types';
+import type { ProjectDoc, ProjectIndex, AssetIndex, MediaAsset, Clip, EditView, Sequence, FitMode } from './types';
+import { nearestAspect, shapeDiffers } from './types';
 import type { Command, EditPlan } from './commands/schema';
 import { applyCommand, previewPlan, CommandError } from './commands/execute';
 import { activeSequence, fromView, newSequence, toView } from './project';
+import { clampProjectOverlays } from './timeline';
 import { uid } from './id';
 import { buildShort, type RepurposeOptions } from './repurpose';
 
@@ -97,6 +99,8 @@ export class EditorStore {
   }
 
   private commit(next: ProjectDoc, label: string, source: HistoryEntry['source'], notes: string[]) {
+    // Every edit path ends here, so this is where layers are kept inside the edit.
+    next = clampProjectOverlays(next);
     if (next === this._project) return;
     const entry: HistoryEntry = { id: uid(), label, source, at: Date.now(), notes };
     this.past.push({ project: this._project, entry });
@@ -160,8 +164,13 @@ export class EditorStore {
           audio: [...d.audio, { id: uid(), assetId: asset.id, start, in: 0, out: asset.duration, gainDb: -6, fadeIn: 0.5, fadeOut: 1, duck: true }],
         };
       }
-      const clip: Clip = { id: uid(), assetId: asset.id, in: 0, out: asset.duration, gainDb: 0, focusX: 0.5, focusY: 0.5, fit: 'fill' };
-      return { ...d, assets, clips: [...d.clips, clip] };
+      // The first picture on an empty timeline sets the canvas shape (a vertical
+      // phone clip makes a 9:16 edit). Later clips of another shape are letterboxed
+      // rather than cropped; reframe or switch them to fill when that is wanted.
+      const aspect = d.clips.length === 0 ? (nearestAspect(asset.width, asset.height) ?? d.aspect) : d.aspect;
+      const fit: FitMode = shapeDiffers(asset.width, asset.height, aspect) ? 'fit' : 'fill';
+      const clip: Clip = { id: uid(), assetId: asset.id, in: 0, out: asset.duration, gainDb: 0, focusX: 0.5, focusY: 0.5, fit };
+      return { ...d, assets, aspect, clips: [...d.clips, clip] };
     });
   }
 

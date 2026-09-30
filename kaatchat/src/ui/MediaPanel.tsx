@@ -101,7 +101,13 @@ function MediaBin({ session, onImport }: { session: EditorSession; onImport(): v
                     className="btn sm"
                     disabled={transcribing}
                     title={`Local ${model.label}. Downloaded once from Hugging Face (${t('common.requiresInternet').toLowerCase()} the first time), then cached. Audio never leaves this device.`}
-                    onClick={() => session.transcribe(a)}
+                    onClick={async () => {
+                      const id = session.transcribe(a);
+                      if (!id) return toast(`“${a.name}” needs relinking before it can be transcribed.`, 'err');
+                      const [j] = await session.jobs.whenSettled([id]);
+                      if (j?.state === 'failed') toast(j.error ?? 'Transcription failed.', 'err');
+                      else if (j?.state === 'done') toast(`Transcript ready for “${a.name}”. Captions, the Transcript tab and Find now use it.`);
+                    }}
                   >
                     <Icon name="text" size={13} /> {idx.transcript ? 'Re-transcribe' : 'Transcribe'}
                   </button>

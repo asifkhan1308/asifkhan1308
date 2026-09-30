@@ -200,6 +200,8 @@ class ClaudeProvider implements AIProvider {
     if (e instanceof Anthropic.RateLimitError) return new AIError('Anthropic is rate-limiting requests. Try again shortly.', 'rate-limit');
     if (e instanceof Anthropic.NotFoundError) return new AIError(`Anthropic: model “${this.s.model}” not found.`, 'server');
     if (e instanceof Anthropic.APIUserAbortError) return new DOMException('Aborted', 'AbortError');
+    // Our transport's own errors (timeout, offline, no key) arrive wrapped by the SDK.
+    if (e instanceof Anthropic.APIConnectionError && e.cause instanceof AIError) return e.cause;
     if (e instanceof Anthropic.APIConnectionError) return new AIError('Could not reach Anthropic. Check your connection.', 'network');
     if (e instanceof Anthropic.APIError) return new AIError(`Anthropic returned ${e.status}: ${e.message}`.slice(0, 280), 'server');
     return e;

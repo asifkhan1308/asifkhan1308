@@ -196,7 +196,9 @@ label.field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; 
 .dialog header { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--surface-1); z-index: 1; }
 .dialog .body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
 .dialog footer { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 18px; border-top: 1px solid var(--line); position: sticky; bottom: 0; background: var(--surface-1); }
-.toasts { position: fixed; bottom: calc(var(--timeline-h) + 64px); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 60; width: min(480px, calc(100% - 32px)); }
+/* Bottom-right, over the (usually empty) end of the timeline — never on the preview. Stacked, newest last. */
+.toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 60; width: min(380px, calc(100% - 32px)); pointer-events: none; }
+.toasts .toast { pointer-events: auto; }
 .toast { padding: 10px 14px; border-radius: var(--r-md); background: var(--surface-3); border: 1px solid var(--line-strong); box-shadow: var(--shadow-2); display: flex; gap: 10px; align-items: flex-start; animation: fade var(--base) var(--ease); }
 .toast.err { border-color: var(--danger); }
 
@@ -384,3 +386,8 @@ label.field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; 
   .topbar .name { display: none; }
   .page-inner { padding: 16px 16px 48px; }
 }
+
+/* Export result facts: duration, resolution, size, codecs and encode time, each labelled. */
+.export-facts { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 6px 0 0; font-size: 12.5px; }
+.export-facts dt { color: var(--text-2); }
+.export-facts dd { margin: 0; font-family: var(--mono); }

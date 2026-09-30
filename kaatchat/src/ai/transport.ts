@@ -5,7 +5,10 @@
 import { desktop } from '../platform/desktop';
 import { uid } from '../engine/id';
 import { keyStore } from './keys';
-import { AIError, type ProviderId } from './types';
+import { AIError, rememberSecret, type ProviderId } from './types';
+
+/** How long one provider request may take. Local models are slower. */
+export const PROVIDER_TIMEOUT_MS: Record<ProviderId, number> = { builtin: 0, local: 300_000, openai: 150_000, gemini: 150_000, claude: 150_000 };
 
 /** How each provider expects its key. Mirrored in desktop/main.cjs. */
 export const AUTH: Record<ProviderId, { header: string; prefix: string } | null> = {
@@ -24,7 +27,33 @@ function headersToObject(h: HeadersInit | undefined): Record<string, string> {
   return out;
 }
 
-export function providerFetch(provider: ProviderId): FetchLike {
+export function providerFetch(provider: ProviderId, timeoutMs = PROVIDER_TIMEOUT_MS[provider]): FetchLike {
+  const timedFetch = inner(provider);
+  if (!timeoutMs) return timedFetch;
+  return async (input, init = {}) => {
+    // A provider that accepts the connection and never answers must not leave the UI waiting forever.
+    const ac = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      ac.abort();
+    }, timeoutMs);
+    const onOuter = () => ac.abort();
+    if (init.signal?.aborted) ac.abort();
+    init.signal?.addEventListener('abort', onOuter, { once: true });
+    try {
+      return await timedFetch(input, { ...init, signal: ac.signal });
+    } catch (e) {
+      if (timedOut) throw new AIError(`The provider didn't respond within ${Math.round(timeoutMs / 1000)} s. Try again, or choose a faster model in Settings.`, 'timeout');
+      throw e;
+    } finally {
+      clearTimeout(timer);
+      init.signal?.removeEventListener('abort', onOuter);
+    }
+  };
+}
+
+function inner(provider: ProviderId): FetchLike {
   return async (input, init = {}) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     const headers = headersToObject(init.headers);
@@ -55,6 +84,7 @@ export function providerFetch(provider: ProviderId): FetchLike {
     if (auth) {
       const key = keyStore.webKey(provider);
       if (!key) throw new AIError('No API key is set for this provider. Add one in Settings → AI providers.', 'no-key');
+      rememberSecret(key);
       headers[auth.header] = auth.prefix + key;
     }
     try {

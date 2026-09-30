@@ -152,13 +152,19 @@ let tid = 0;
 const tl = new Set<() => void>();
 const temit = () => tl.forEach((f) => f());
 
-export function toast(text: string, kind: Toast['kind'] = 'info', action?: Toast['action']) {
+/**
+ * Shows a notification and returns its id. Timed toasts close themselves;
+ * a `sticky` one stays until `dismissToast(id)` — use it only for a state
+ * that has a known end (e.g. a job being awaited), never as a fire-and-forget.
+ */
+export function toast(text: string, kind: Toast['kind'] = 'info', action?: Toast['action'], opts: { sticky?: boolean } = {}): number {
   const id = ++tid;
   toasts = [...toasts, { id, text, kind, action }].slice(-4);
   temit();
-  setTimeout(() => dismissToast(id), kind === 'err' ? 9000 : 4500);
+  if (!opts.sticky) setTimeout(() => dismissToast(id), kind === 'err' ? 9000 : 4500);
+  return id;
 }
-function dismissToast(id: number) {
+export function dismissToast(id: number) {
   toasts = toasts.filter((x) => x.id !== id);
   temit();
 }
