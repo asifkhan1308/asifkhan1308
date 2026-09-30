@@ -155,3 +155,33 @@ export function silences(file: string, min = 0.15, noiseDb = -40): { start: numb
   }
   return out;
 }
+
+/**
+ * street.webm — 1.5 s of traffic-like noise that swells and fades (brown noise,
+ * gated every 0.35 s), then real speech (espeak-ng) over the same noise, then
+ * 1 s more noise. Null where espeak-ng is not installed.
+ */
+export function ensureStreetFixture(): { file: string; speechStart: number; speechEnd: number } | null {
+  mkdirSync(FIXTURES, { recursive: true });
+  const out = join(FIXTURES, 'street.webm');
+  const wav = join(FIXTURES, 'street-voice.wav');
+  if (!existsSync(wav)) {
+    const r = spawnSync('espeak-ng', ['-v', 'en-us', '-s', '140', '-w', wav, 'This is a test of the video editor.']);
+    if (r.error || r.status !== 0) return null;
+  }
+  const speechLen = +(/Duration: \d+:\d+:([\d.]+)/.exec(spawnSync(ffmpeg, ['-hide_banner', '-i', wav], { encoding: 'utf8' }).stderr ?? '')?.[1] ?? 0);
+  const total = 1.5 + speechLen + 1;
+  if (!existsSync(out))
+    execFileSync(ffmpeg, [
+      '-v', 'error', '-y',
+      '-f', 'lavfi', '-i', `testsrc2=s=640x360:r=30:d=${total}`,
+      '-i', wav,
+      '-f', 'lavfi', '-i', `anoisesrc=color=brown:amplitude=0.5:sample_rate=48000:d=${total}:seed=5`,
+      '-filter_complex',
+      `[1]aresample=48000,adelay=1500:all=1,apad[v];[2]volume='if(mod(floor(t/0.35),2),1,0.15)':eval=frame[n];[v][n]amix=inputs=2:normalize=0:duration=shortest,aformat=channel_layouts=stereo[a]`,
+      '-map', '0:v', '-map', '[a]', '-t', String(total),
+      '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuv420p', '-deadline', 'realtime', '-cpu-used', '8',
+      '-c:a', 'libopus', '-b:a', '128k', out,
+    ]);
+  return { file: out, speechStart: 1.5, speechEnd: 1.5 + speechLen };
+}

@@ -112,6 +112,10 @@ const en = {
   'noise.help': 'Removes steady hiss, hum, fans and room tone. You hear it in the preview; export uses the same processing.',
   'noise.measuring': 'Measuring the background noise of this file…',
   'noise.none': 'Too little sound in this file to measure its background noise.',
+  'noise.kind': 'Type of noise',
+  'noise.steady': 'Steady',
+  'noise.changing': 'Changing (AI)',
+  'noise.voiceHelp': 'AI voice isolation: removes noise that comes and goes (traffic, keyboard, wind, crowd, background music) and keeps the voice. Runs on this device; you hear it in the preview.',
 };
 
 export type StringKey = keyof typeof en;
@@ -222,6 +226,10 @@ const hi: Record<StringKey, string> = {
   'noise.help': 'लगातार आने वाली सरसराहट, भनभनाहट, पंखे और कमरे की आवाज़ हटाता है। प्रीव्यू में सुनाई देता है; एक्सपोर्ट में भी यही होता है।',
   'noise.measuring': 'इस फ़ाइल का बैकग्राउंड शोर माप रहे हैं…',
   'noise.none': 'इस फ़ाइल में शोर मापने लायक़ आवाज़ नहीं है।',
+  'noise.kind': 'शोर का प्रकार',
+  'noise.steady': 'लगातार',
+  'noise.changing': 'बदलता (AI)',
+  'noise.voiceHelp': 'AI आवाज़ अलगाव: आने-जाने वाला शोर (ट्रैफ़िक, कीबोर्ड, हवा, भीड़, पीछे का संगीत) हटाता है और आवाज़ रखता है। इसी डिवाइस पर चलता है; प्रीव्यू में सुनाई देता है।',
 };
 
 const hinglish: Record<StringKey, string> = {
@@ -330,6 +338,10 @@ const hinglish: Record<StringKey, string> = {
   'noise.help': 'Hiss, hum, pankhe aur room tone hatata hai. Preview mein sunai deta hai; export mein bhi yahi hota hai.',
   'noise.measuring': 'Is file ka background noise measure ho raha hai…',
   'noise.none': 'Is file mein noise measure karne layak awaaz nahi hai.',
+  'noise.kind': 'Noise ka type',
+  'noise.steady': 'Steady',
+  'noise.changing': 'Badalta (AI)',
+  'noise.voiceHelp': 'AI voice isolation: aane-jaane wala noise (traffic, keyboard, hawa, bheed, background music) hatata hai aur awaaz rakhta hai. Isi device pe chalta hai; preview mein sunai deta hai.',
 };
 
 const dicts: Record<Lang, Partial<Record<StringKey, string>>> = { en, hi, hinglish };

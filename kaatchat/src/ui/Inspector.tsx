@@ -574,12 +574,23 @@ function NoiseControl({ session, clip }: { session: EditorSession; clip: Clip })
   const { store } = session;
   const noise = store.index[clip.assetId]?.noise;
   const current = clip.denoise ?? 0;
+  const mode = clip.denoiseMode === 'voice' ? 'voice' : 'steady';
   const nearest = NOISE_LEVELS.reduce((a, b) => (Math.abs(b.value - current) < Math.abs(a.value - current) ? b : a));
-  const run = (strength: number, all: boolean) =>
-    store.run([{ type: 'reduce_noise', strength, ...(all ? {} : { clipIds: [clip.id] }) }], strength > 0 ? 'Reduce noise' : 'Noise reduction off');
+  const run = (strength: number, all: boolean, m: 'steady' | 'voice' = mode) =>
+    store.run(
+      [{ type: 'reduce_noise', strength, ...(m === 'voice' ? { mode: 'voice' as const } : {}), ...(all ? {} : { clipIds: [clip.id] }) }],
+      strength > 0 ? (m === 'voice' ? 'Isolate voice' : 'Reduce noise') : 'Noise reduction off',
+    );
   return (
     <div className="field">
       <span>{t('noise.title')}</span>
+      <div className="row" style={{ gap: 4 }} role="radiogroup" aria-label={t('noise.kind')}>
+        {(['steady', 'voice'] as const).map((m) => (
+          <button key={m} role="radio" aria-checked={mode === m} className={`btn sm${mode === m ? ' primary' : ''}`} onClick={() => run(current > 0 ? current : 0.6, false, m)}>
+            {t(m === 'voice' ? 'noise.changing' : 'noise.steady')}
+          </button>
+        ))}
+      </div>
       <div className="row" style={{ flexWrap: 'wrap' }}>
         <div className="row" style={{ gap: 4 }} role="radiogroup" aria-label="Background noise reduction">
           {NOISE_LEVELS.map((l) => (
@@ -601,7 +612,9 @@ function NoiseControl({ session, clip }: { session: EditorSession; clip: Clip })
         )}
       </div>
       <span className="faint tiny" role="status">
-        {noise === undefined
+        {mode === 'voice'
+          ? t('noise.voiceHelp')
+          : noise === undefined
           ? t('noise.measuring')
           : noise === null
             ? t('noise.none')

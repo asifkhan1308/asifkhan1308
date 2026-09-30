@@ -1,8 +1,10 @@
-// Preview noise reduction: the same Denoiser the exporter uses, running in the
-// audio thread. The page sends { profile, strength } for the clip under the
-// playhead; null switches it off (audio passes straight through).
+// Preview noise reduction: the same processing the exporter uses, running in
+// the audio thread. The page sends what the clip under the playhead wants;
+// null switches it off (audio passes straight through).
 
+import createRnnoise from '@jitsi/rnnoise-wasm/dist/rnnoise-sync.js';
 import { Denoiser, type NoiseProfile } from './denoise';
+import { VOICE_SAMPLE_RATE, VoiceDenoiser, type RnnoiseModule } from './voiceDenoise';
 
 declare const sampleRate: number;
 declare function registerProcessor(name: string, ctor: unknown): void;
@@ -10,23 +12,29 @@ declare class AudioWorkletProcessor {
   readonly port: MessagePort;
 }
 
-export type DenoiseMessage = { profile: NoiseProfile; strength: number } | null;
+export type DenoiseMessage = { mode: 'steady'; profile: NoiseProfile; strength: number } | { mode: 'voice'; strength: number } | null;
+
+let rnnoise: RnnoiseModule | null = null;
 
 class DenoiseProcessor extends AudioWorkletProcessor {
-  private d: Denoiser | null = null;
-  private profile: NoiseProfile | null = null;
+  private d: Denoiser | VoiceDenoiser | null = null;
+  private key: NoiseProfile | 'voice' | null = null;
 
   constructor() {
     super();
     this.port.onmessage = (e: MessageEvent<DenoiseMessage>) => {
       const m = e.data;
-      if (!m) {
-        this.d = null;
-        this.profile = null;
-      } else if (this.d && this.profile === m.profile) this.d.setStrength(m.strength);
-      else {
-        this.profile = m.profile;
-        this.d = new Denoiser(sampleRate, m.profile, m.strength, 2);
+      const key = !m ? null : m.mode === 'voice' ? 'voice' : m.profile;
+      if (this.d && key === this.key && m) return this.d.setStrength(m.strength);
+      if (this.d instanceof VoiceDenoiser) this.d.dispose();
+      this.d = null;
+      this.key = key;
+      if (!m) return;
+      if (m.mode === 'steady') this.d = new Denoiser(sampleRate, m.profile, m.strength, 2);
+      // RNNoise runs at 48 kHz; the preview's audio context is opened at that rate.
+      else if (sampleRate === VOICE_SAMPLE_RATE) {
+        rnnoise ??= createRnnoise() as RnnoiseModule;
+        this.d = new VoiceDenoiser(rnnoise, m.strength, 2);
       }
     };
   }

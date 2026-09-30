@@ -169,14 +169,15 @@ export class Player {
   }
 
   /** Tell the worklet which noise profile and strength the clip under the playhead wants. */
-  private syncNoiseReduction(s: Source, clip: { id: string; assetId: string; denoise?: number }) {
+  private syncNoiseReduction(s: Source, clip: { id: string; assetId: string; denoise?: number; denoiseMode?: 'voice' }) {
     if (!s.nr) return;
     const profile = this.index[clip.assetId]?.noise;
-    const on = !!(clip.denoise && clip.denoise > 0 && profile);
-    const key = on ? `${clip.assetId}:${clip.denoise}` : 'off';
+    const strength = clip.denoise ?? 0;
+    const msg: DenoiseMessage =
+      strength <= 0 ? null : clip.denoiseMode === 'voice' ? { mode: 'voice', strength } : profile ? { mode: 'steady', profile, strength } : null;
+    const key = msg ? `${clip.assetId}:${msg.mode}:${strength}` : 'off';
     if (key === s.nrKey) return;
     s.nrKey = key;
-    const msg: DenoiseMessage = on ? { profile: profile!, strength: clip.denoise! } : null;
     s.nr.port.postMessage(msg);
   }
 
@@ -193,7 +194,12 @@ export class Player {
     if (this._time >= this.duration - 0.02) this._time = 0;
     if (!this.audio) {
       try {
-        this.audio = new AudioContext();
+        // 48 kHz, the export rate: the preview's voice isolation (RNNoise) runs only at that rate.
+        try {
+          this.audio = new AudioContext({ sampleRate: 48000 });
+        } catch {
+          this.audio = new AudioContext();
+        }
         const ctx = this.audio;
         // The preview uses the exporter's own noise reduction; without AudioWorklet it plays unprocessed.
         void ctx.audioWorklet

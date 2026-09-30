@@ -3,7 +3,7 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { ensureFixtures, meanVolume, probe } from './fixtures';
+import { ensureFixtures, ensureStreetFixture, meanVolume, probe } from './fixtures';
 
 const fx = ensureFixtures();
 
@@ -174,7 +174,7 @@ test('noise reduction: steady hiss is removed from the export, the voice is kept
       }
     }
     const power = (0.05 * 0.05) / 3; // uniform noise variance
-    node.port.postMessage({ profile: { sampleRate: 48000, db: new Array(513).fill(10 * Math.log10(power * 512)) }, strength: 1 });
+    node.port.postMessage({ mode: 'steady', profile: { sampleRate: 48000, db: new Array(513).fill(10 * Math.log10(power * 512)) }, strength: 1 });
     const src = off.createBufferSource();
     src.buffer = buf;
     src.connect(node).connect(off.destination);
@@ -210,6 +210,84 @@ test('noise reduction: steady hiss is removed from the export, the voice is kept
   await expect(dialog).toBeHidden();
   await page.locator('body').press('Control+z');
   await expect(control.getByRole('radio', { name: 'Off' })).toHaveAttribute('aria-checked', 'true');
+  expect(errors).toEqual([]);
+});
+
+test('voice isolation: traffic-like noise that comes and goes is removed from the export, the speech is kept, the preview runs it', async ({ page }) => {
+  const street = ensureStreetFixture();
+  test.skip(!street, 'espeak-ng is needed to make the speech fixture');
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+  await page.goto('/');
+  await page.locator('input[type=file]').setInputFiles(street!.file);
+  await expect(page).toHaveURL(/#\/p\//);
+  await expect(page.locator('.asset').first().getByText('Loudness')).toBeVisible();
+
+  await page.locator('.clip').first().click({ position: { x: 20, y: 30 } });
+  const studio = page.locator('.panel.right');
+  await studio.getByRole('tab', { name: 'Clip' }).click();
+  await studio.getByRole('radiogroup', { name: 'Type of noise' }).getByRole('radio', { name: 'Changing (AI)' }).click();
+  await expect(studio.getByText(/AI voice isolation: removes noise that comes and goes/)).toBeVisible();
+  const level = studio.getByRole('radiogroup', { name: 'Background noise reduction' });
+  await level.getByRole('radio', { name: 'Strong' }).click();
+  await expect(level.getByRole('radio', { name: 'Strong' })).toHaveAttribute('aria-checked', 'true');
+
+  // Preview: plays through the worklet (RNNoise inside) without errors…
+  await page.getByRole('button', { name: 'Play' }).click();
+  await page.waitForTimeout(1500);
+  await page.getByRole('button', { name: 'Pause' }).click();
+  // …and the shipped worklet's voice isolation removes changing noise in the browser's audio engine.
+  const workletFile = readdirSync(join(process.cwd(), 'dist', 'assets')).find((f) => /^denoise\.worklet-.*\.js$/.test(f));
+  const r = await page.evaluate(async (url) => {
+    const off = new OfflineAudioContext(2, 96000, 48000);
+    await off.audioWorklet.addModule(url);
+    const node = new AudioWorkletNode(off, 'kaatchat-denoise', { outputChannelCount: [2] });
+    const buf = off.createBuffer(2, 96000, 48000);
+    let s = 3;
+    let lp = 0;
+    for (let i = 0; i < 96000; i++) {
+      s = (s * 1664525 + 1013904223) >>> 0;
+      const w = (s / 2 ** 32) * 2 - 1;
+      lp = 0.97 * lp + 0.03 * w;
+      const v = (0.25 * lp + 0.02 * w) * (Math.floor(i / 16800) % 2 ? 1 : 0.15);
+      buf.getChannelData(0)[i] = v;
+      buf.getChannelData(1)[i] = v;
+    }
+    node.port.postMessage({ mode: 'voice', strength: 1 });
+    const src = off.createBufferSource();
+    src.buffer = buf;
+    src.connect(node).connect(off.destination);
+    src.start();
+    const out = await off.startRendering();
+    const rms = (a: Float32Array) => {
+      let e = 0;
+      for (let i = 24000; i < a.length; i++) e += a[i] * a[i];
+      return 10 * Math.log10(e / (a.length - 24000));
+    };
+    return { before: rms(buf.getChannelData(0)), after: rms(out.getChannelData(0)) };
+  }, `./assets/${workletFile}`);
+  expect(r.before - r.after).toBeGreaterThan(20);
+
+  await page.getByRole('button', { name: 'Export' }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Export' });
+  await dialog.getByRole('button', { name: /^Export \d/ }).click();
+  const save = dialog.getByRole('link', { name: 'Save file' });
+  await expect(save).toBeVisible({ timeout: 120_000 });
+  const dl = page.waitForEvent('download');
+  await save.click();
+  const path = test.info().outputPath('isolated.mp4');
+  await (await dl).saveAs(path);
+
+  const { speechStart: a, speechEnd: b } = street!;
+  const noiseBefore = meanVolume(street!.file, 0.2, 1.1);
+  const noiseAfter = meanVolume(path, 0.2, 1.1);
+  const voiceBefore = meanVolume(street!.file, a + 0.2, b - a - 0.4);
+  const voiceAfter = meanVolume(path, a + 0.2, b - a - 0.4);
+  expect(noiseBefore - noiseAfter, `noise ${noiseBefore} → ${noiseAfter} dB`).toBeGreaterThan(20);
+  // The speech stretch loses its noise too, so allow for that, but the voice itself stays.
+  expect(voiceBefore - voiceAfter, `speech ${voiceBefore} → ${voiceAfter} dB`).toBeLessThan(4);
+  expect(voiceAfter - noiseAfter).toBeGreaterThan(20);
   expect(errors).toEqual([]);
 });
 
