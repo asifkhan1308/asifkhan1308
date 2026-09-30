@@ -1,8 +1,8 @@
 {
-  "version": "2.0.0-alpha.3",
-  "windowsUrl": "https://github.com/asifkhan1308/asifkhan1308/releases/download/kaatchat-v2.0.0-alpha.3/Kaatchat-Setup-2.0.0-alpha.3.exe",
-  "sha256": "2d766afa540dc037e5d893bd1609b06fed3688de79ba7c7d7a9f356a1cc8c882",
-  "size": 116264576,
+  "version": "2.0.0-alpha.4",
+  "windowsUrl": "https://github.com/asifkhan1308/asifkhan1308/releases/download/kaatchat-v2.0.0-alpha.4/Kaatchat-Setup-2.0.0-alpha.4.exe",
+  "sha256": "5c2edd0f7b37dbed050069df21c2ce2cec1ce82a065c6d22396c76aaa1315e78",
+  "size": 116265143,
   "signed": false,
-  "notes": "Kaatchat 2.0.0-alpha.3 for Windows 10/11 (64-bit). One-click installer, unsigned: SmartScreen may say the publisher is unknown. Release: https://github.com/asifkhan1308/asifkhan1308/releases/tag/kaatchat-v2.0.0-alpha.3"
+  "notes": "Kaatchat 2.0.0-alpha.4 for Windows 10/11 (64-bit). One-click installer, unsigned: SmartScreen may say the publisher is unknown. Release: https://github.com/asifkhan1308/asifkhan1308/releases/tag/kaatchat-v2.0.0-alpha.4"
 }
