@@ -6,6 +6,7 @@ import type { AudioAnalysis, FramingAnalysis, MediaAsset, Transcript } from './t
 import { EnvelopeBuilder, frameFocus } from './dsp';
 import { mapChannels, planesOf, StreamResampler } from './audio';
 import { estimateBeats, OnsetDetector } from './beats';
+import { NoiseProfiler, type NoiseProfile } from './denoise';
 import { wordsToSegments } from './transcript';
 import { MAX_STORED_BYTES, putMedia } from './persist';
 import { throwIfAborted, type JobControl } from './jobs';
@@ -163,7 +164,7 @@ export async function analyzeAudio(
   blob: Blob,
   ctl: JobControl,
   withBeats = false,
-): Promise<{ audio: AudioAnalysis; beats: ReturnType<typeof estimateBeats> } | null> {
+): Promise<{ audio: AudioAnalysis; beats: ReturnType<typeof estimateBeats>; noise: NoiseProfile | null } | null> {
   return withInput(blob, async (input) => {
     const track = await input.getPrimaryAudioTrack();
     if (!track || !(await track.canDecode())) return null;
@@ -171,6 +172,8 @@ export async function analyzeAudio(
     const sr = await track.getSampleRate();
     const env = new EnvelopeBuilder(sr);
     const onsets = withBeats ? new OnsetDetector(sr) : null;
+    // Music files are not voice; their "noise floor" is the music itself.
+    const noise = withBeats ? null : new NoiseProfiler(sr);
     const sink = new AudioBufferSink(track);
     let expected = 0; // samples pushed so far
     for await (const { buffer, timestamp } of sink.buffers()) {
@@ -183,10 +186,11 @@ export async function analyzeAudio(
       const mono = mapChannels(planesOf(buffer), 1)[0];
       env.push(mono);
       onsets?.push(mono);
+      noise?.push(mono);
       expected += mono.length;
       ctl.progress(duration ? timestamp / duration : null, withBeats ? 'Measuring loudness and beat' : 'Measuring loudness');
     }
-    return { audio: env.finish(), beats: onsets ? estimateBeats(onsets.flux, onsets.rate) : null };
+    return { audio: env.finish(), beats: onsets ? estimateBeats(onsets.flux, onsets.rate) : null, noise: noise?.finish() ?? null };
   });
 }
 

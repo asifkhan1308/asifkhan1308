@@ -107,6 +107,8 @@ export function Inspector({ session, clipId, time }: { session: EditorSession; c
         </div>
       )}
 
+      {asset?.hasAudio && <NoiseControl session={session} clip={clip} />}
+
       <div className="field">
         <span className="row">
           <span className="grow muted small">Framing in {doc.aspect}</span>
@@ -555,6 +557,55 @@ function OverlayInspector({ session, id, time }: { session: EditorSession; id: s
       <button className="btn sm danger" style={{ alignSelf: 'flex-start' }} onClick={() => store.mutate('Delete layer', (d) => ({ ...d, overlays: d.overlays.filter((x) => x.id !== id) }))}>
         <Icon name="trash" size={13} /> Delete layer
       </button>
+    </div>
+  );
+}
+
+const NOISE_LEVELS: { label: string; value: number }[] = [
+  { label: 'Off', value: 0 },
+  { label: 'Light', value: 0.3 },
+  { label: 'Medium', value: 0.6 },
+  { label: 'Strong', value: 0.9 },
+];
+
+/** Background-noise reduction for one clip (or every clip), from the measured noise profile. */
+function NoiseControl({ session, clip }: { session: EditorSession; clip: Clip }) {
+  const { store } = session;
+  const noise = store.index[clip.assetId]?.noise;
+  const current = clip.denoise ?? 0;
+  const nearest = NOISE_LEVELS.reduce((a, b) => (Math.abs(b.value - current) < Math.abs(a.value - current) ? b : a));
+  const run = (strength: number, all: boolean) =>
+    store.run([{ type: 'reduce_noise', strength, ...(all ? {} : { clipIds: [clip.id] }) }], strength > 0 ? 'Reduce noise' : 'Noise reduction off');
+  return (
+    <div className="field">
+      <span>Background noise</span>
+      <div className="row" style={{ flexWrap: 'wrap' }}>
+        <div className="row" style={{ gap: 4 }} role="radiogroup" aria-label="Background noise reduction">
+          {NOISE_LEVELS.map((l) => (
+            <button
+              key={l.label}
+              role="radio"
+              aria-checked={nearest.label === l.label}
+              className={`btn sm${nearest.label === l.label ? ' primary' : ''}`}
+              onClick={() => run(l.value, false)}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+        {current > 0 && store.doc.clips.length > 1 && (
+          <button className="btn ghost sm" onClick={() => run(current, true)}>
+            Apply to all clips
+          </button>
+        )}
+      </div>
+      <span className="faint tiny" role="status">
+        {noise === undefined
+          ? 'Measuring the background noise of this file…'
+          : noise === null
+            ? 'Too little sound in this file to measure its background noise.'
+            : 'Removes steady hiss, hum, fans and room tone. You hear it in the preview; export uses the same processing.'}
+      </span>
     </div>
   );
 }

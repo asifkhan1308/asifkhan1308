@@ -94,9 +94,9 @@ describe('talking-head clean-up', () => {
   it('chains measured steps, adding fillers and captions only with a transcript', () => {
     const v = doc([clip('c', 'A', 0, 10)], [asset('A', 30)]);
     const noText = rulePlan('clean up this talking head', v, {}, 0)!;
-    expect(noText.commands.map((c) => c.type)).toEqual(['remove_silence', 'match_levels', 'punch_in']);
+    expect(noText.commands.map((c) => c.type)).toEqual(['remove_silence', 'match_levels', 'reduce_noise', 'punch_in']);
     const withText = rulePlan('clean up this podcast', v, { A: { transcript: { model: 't', language: 'en', createdAt: 0, segments: [] } } }, 0)!;
-    expect(withText.commands.map((c) => c.type)).toEqual(['remove_silence', 'remove_fillers', 'match_levels', 'punch_in', 'set_captions']);
+    expect(withText.commands.map((c) => c.type)).toEqual(['remove_silence', 'remove_fillers', 'match_levels', 'reduce_noise', 'punch_in', 'set_captions']);
     expect(rulePlan('use my brand', v, {}, 0)!.commands).toEqual([{ type: 'apply_brand' }]);
   });
 });

@@ -71,6 +71,7 @@ export const CommandSchema = z.discriminatedUnion('type', [
     .object({ type: z.literal('set_fades'), fadeIn: z.number().min(0).max(5).default(0.15), fadeOut: z.number().min(0).max(5).default(0.15) })
     .strict(),
   z.object({ type: z.literal('duck_music'), enabled: z.boolean(), duckDb: z.number().min(-30).max(0).default(-12) }).strict(),
+  z.object({ type: z.literal('reduce_noise'), strength: z.number().min(0).max(1).default(0.6), clipIds: z.array(id).max(500).optional() }).strict(),
 ]);
 
 export type Command = z.infer<typeof CommandSchema>;
@@ -122,6 +123,8 @@ export const COMMAND_DOCS: Record<CommandType, string> = {
   sync_to_beat: '{"type":"sync_to_beat","window":0.25} — nudge cuts onto the beat of the music track (needs music with a detected beat)',
   set_fades: '{"type":"set_fades","fadeIn":0.15,"fadeOut":0.15} — audio fades on every clip, seconds',
   duck_music: '{"type":"duck_music","enabled":true,"duckDb":-12} — lower music while someone is speaking',
+  reduce_noise:
+    '{"type":"reduce_noise","strength":0.6,"clipIds"?:["…"]} — remove steady background noise (hiss, hum, fans, room tone) from voice clips; 0 turns it off, 1 is strongest (measured noise profile)',
 };
 
 export interface ValidationResult {

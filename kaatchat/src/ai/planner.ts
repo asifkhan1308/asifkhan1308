@@ -204,9 +204,15 @@ export function rulePlan(text: string, doc: EditView, index: ProjectIndex, playh
   if (/(clean|tidy|polish)( up)?.*(talking[- ]head|podcast|interview|vlog)|(talking[- ]head|podcast) (clean|edit)/.test(t)) {
     if (!cmds.some((c) => c.type === 'remove_silence')) cmds.push({ type: 'remove_silence', preset: 'balanced' });
     if (hasTranscript) cmds.push({ type: 'remove_fillers' });
-    cmds.push({ type: 'match_levels', targetDb: -18 }, { type: 'punch_in', amount: 1.12, pattern: 'alternate' });
+    cmds.push({ type: 'match_levels', targetDb: -18 }, { type: 'reduce_noise', strength: 0.5 }, { type: 'punch_in', amount: 1.12, pattern: 'alternate' });
     if (hasTranscript) cmds.push({ type: 'set_captions', enabled: true, style: /podcast/.test(t) ? 'podcast' : 'clean' });
-    said.push(`talking-head clean-up: pauses${hasTranscript ? ', fillers' : ''}, levels, punch-ins${hasTranscript ? ', captions' : ''}`);
+    said.push(`talking-head clean-up: pauses${hasTranscript ? ', fillers' : ''}, levels, background noise, punch-ins${hasTranscript ? ', captions' : ''}`);
+  }
+  if (/(reduce|remove|cut|clean|fix|kill|less)\b.*\b(noise|hiss|hum|buzz|background sound|room tone)|denoise|noise reduction/.test(t) && !cmds.some((c) => c.type === 'reduce_noise')) {
+    const off = /(turn off|no|stop|disable|remove the) (noise reduction|denoise)/.test(t);
+    const strength = off ? 0 : /(strong|heavy|a lot|all|max)/.test(t) ? 0.9 : /(light|gentle|a bit|slight)/.test(t) ? 0.3 : 0.6;
+    cmds.push({ type: 'reduce_noise', strength });
+    said.push(off ? 'noise reduction off' : `background noise reduction (${Math.round(strength * 100)}%)`);
   }
   if (/(sync|snap|cut|match).*(beat|music|rhythm|bpm)|on the beat|beat sync/.test(t)) {
     cmds.push({ type: 'sync_to_beat', window: 0.25 });

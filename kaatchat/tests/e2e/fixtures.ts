@@ -1,7 +1,7 @@
 // Real media for the end-to-end tests, generated with ffmpeg so the repo
 // carries no binaries. Set FFMPEG to override the binary.
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -60,6 +60,20 @@ export function ensureFixtures() {
   const silent = join(FIXTURES, 'silent.webm');
   if (!existsSync(silent))
     execFileSync(ffmpeg, ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=640x360:r=30:d=2', '-an', '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuv420p', '-deadline', 'realtime', '-cpu-used', '8', silent]);
+  // noisy.webm — 6 s of 640×360 video; steady hiss throughout (-35 dBFS) and a
+  // "voice" (220 Hz + 660 Hz) from 2 s to 4 s.
+  const noisy = join(FIXTURES, 'noisy.webm');
+  if (!existsSync(noisy))
+    execFileSync(ffmpeg, [
+      '-v', 'error', '-y',
+      '-f', 'lavfi', '-i', 'testsrc2=s=640x360:r=30:d=6',
+      '-f', 'lavfi', '-i', "aevalsrc='between(t,2,4)*(0.25*sin(2*PI*220*t)+0.12*sin(2*PI*660*t))':s=48000:d=6",
+      '-f', 'lavfi', '-i', 'anoisesrc=color=white:amplitude=0.03:sample_rate=48000:d=6:seed=7',
+      '-filter_complex', '[1][2]amix=inputs=2:normalize=0,aformat=channel_layouts=stereo[a]',
+      '-map', '0:v', '-map', '[a]',
+      '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuv420p', '-deadline', 'realtime', '-cpu-used', '8',
+      '-c:a', 'libopus', '-b:a', '128k', noisy,
+    ]);
   const logo = join(FIXTURES, 'logo.png');
   if (!existsSync(logo)) execFileSync(ffmpeg, ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=white:s=256x256,drawbox=x=48:y=48:w=160:h=160:color=black:t=fill', '-frames:v', '1', logo]);
   const srt = join(FIXTURES, 'talk.srt');
@@ -69,7 +83,7 @@ export function ensureFixtures() {
       `1\n00:00:01,000 --> 00:00:04,000\nUm today we talk about AI and design.\n\n2\n00:00:06,000 --> 00:00:09,000\nMoney matters when you start a company.\n`,
     );
   }
-  return { talk, srt, music, logo, vertical, silent };
+  return { talk, srt, music, logo, vertical, silent, noisy };
 }
 
 /** Decode a file fully with ffmpeg and return its duration and stream summary. */
@@ -92,4 +106,12 @@ export function probe(file: string): { duration: number; video: string; audio: s
     video: /Stream #\S+: Video: ([^\n]+)/.exec(out)?.[1] ?? '',
     audio: /Stream #\S+: Audio: ([^\n]+)/.exec(out)?.[1] ?? '',
   };
+}
+
+/** Mean level (dBFS) of [start, start + dur) seconds of a file's audio, measured by ffmpeg. */
+export function meanVolume(file: string, start: number, dur: number): number {
+  const r = spawnSync(ffmpeg, ['-hide_banner', '-ss', String(start), '-t', String(dur), '-i', file, '-vn', '-af', 'volumedetect', '-f', 'null', '-'], { encoding: 'utf8' });
+  const m = /mean_volume: (-?[\d.]+) dB/.exec(r.stderr ?? '');
+  if (!m) throw new Error(`ffmpeg could not measure ${file}: ${r.stderr}`);
+  return +m[1];
 }
