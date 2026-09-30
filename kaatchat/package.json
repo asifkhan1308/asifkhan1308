@@ -1,7 +1,7 @@
 {
   "name": "kaatchat",
   "productName": "Kaatchat",
-  "version": "2.0.0-alpha.3",
+  "version": "2.0.0-alpha.4",
   "private": true,
   "description": "Kaatchat — a local-first, AI-native video editor",
   "author": "Asif Khan",
@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests desktop/*.cjs desktop/test",
     "test": "vitest run",
+    "test:live": "vitest run -c vitest.live.config.ts",
     "e2e": "playwright test"
   },
   "dependencies": {

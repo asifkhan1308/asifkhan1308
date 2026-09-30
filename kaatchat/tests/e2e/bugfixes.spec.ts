@@ -212,3 +212,19 @@ test('noise reduction: steady hiss is removed from the export, the voice is kept
   await expect(control.getByRole('radio', { name: 'Off' })).toHaveAttribute('aria-checked', 'true');
   expect(errors).toEqual([]);
 });
+
+test('Hindi: the main screens are translated and a translated suggestion still edits', async ({ page }) => {
+  await page.goto('/#/settings');
+  await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption('hi');
+  await expect(page.getByRole('heading', { name: 'सेटिंग्स', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'अपडेट' })).toBeVisible();
+  await page.goto('/');
+  await page.locator('input[type=file]').setInputFiles(fx.talk);
+  await expect(page.locator('.toast').filter({ hasText: '1 फ़ाइल माप ली गईं।' })).toBeVisible();
+  const studio = page.locator('.panel.right');
+  await expect(studio.getByRole('button', { name: 'योजना बनाएँ' })).toBeVisible();
+  await studio.getByRole('button', { name: 'इसे वर्टिकल बनाएँ' }).click();
+  await expect(page.getByRole('combobox', { name: 'Aspect' })).toHaveValue('9:16');
+  await page.getByRole('button', { name: 'एक्सपोर्ट' }).first().click();
+  await expect(page.getByText('इसी डिवाइस पर WebCodecs से बनता है। कुछ भी अपलोड नहीं होता।')).toBeVisible();
+});

@@ -6,6 +6,7 @@ import { toView } from '../engine/project';
 import type { EditView } from '../engine/types';
 import { Dialog, Icon, Progress, fmtBytes, fmtTime } from './bits';
 import { useJobs } from './Jobs';
+import { t } from '../i18n';
 
 type PresetId = 'project' | 'custom' | string;
 
@@ -101,13 +102,13 @@ export function ExportDialog({ session, onClose }: { session: EditorSession; onC
         </div>
       )}
       <div className="col">
-        <span className="muted small">Size</span>
+        <span className="muted small">{t('export.size')}</span>
         <div className="suggest">
           <button className="chip" aria-pressed={preset === 'project'} onClick={() => setPreset('project')}>
             Project · {proj.width}×{proj.height}
           </button>
           <button className="chip" aria-pressed={preset === 'custom'} onClick={() => setPreset('custom')}>
-            Custom
+            {t('export.custom')}
           </button>
         </div>
         {groups.map((g) => (
@@ -125,11 +126,11 @@ export function ExportDialog({ session, onClose }: { session: EditorSession; onC
         {preset === 'custom' && (
           <div className="row">
             <label className="field">
-              Width
+              {t('export.width')}
               <input className="input mono" type="number" min={16} max={7680} value={custom.width} onChange={(e) => setCustom({ ...custom, width: Math.max(16, Math.min(7680, +e.target.value || 16)) })} />
             </label>
             <label className="field">
-              Height
+              {t('export.height')}
               <input className="input mono" type="number" min={16} max={7680} value={custom.height} onChange={(e) => setCustom({ ...custom, height: Math.max(16, Math.min(7680, +e.target.value || 16)) })} />
             </label>
           </div>
@@ -143,22 +144,22 @@ export function ExportDialog({ session, onClose }: { session: EditorSession; onC
 
       <div className="row" style={{ flexWrap: 'wrap', gap: 12 }}>
         <label className="field">
-          Format
+          {t('export.format')}
           <select className="select" value={format} onChange={(e) => setFormat(e.target.value as 'mp4' | 'webm')}>
             <option value="mp4">MP4 (H.264 / AAC where available)</option>
             <option value="webm">WebM (VP9 / Opus)</option>
           </select>
         </label>
         <label className="field">
-          Quality
+          {t('export.quality')}
           <select className="select" value={quality} onChange={(e) => setQuality(e.target.value as Quality)}>
-            <option value="standard">Standard</option>
-            <option value="high">High</option>
-            <option value="max">Maximum</option>
+            <option value="standard">{t('export.q.standard')}</option>
+            <option value="high">{t('export.q.high')}</option>
+            <option value="max">{t('export.q.max')}</option>
           </select>
         </label>
         <label className="field">
-          Frame rate
+          {t('export.fps')}
           <select className="select" value={fps} onChange={(e) => setFps(+e.target.value)}>
             {[24, 25, 30, 50, 60].map((f) => (
               <option key={f} value={f}>
@@ -168,11 +169,11 @@ export function ExportDialog({ session, onClose }: { session: EditorSession; onC
           </select>
         </label>
         <label className="field">
-          Framing
+          {t('export.framing')}
           <select className="select" value={framing} onChange={(e) => setFraming(e.target.value as ExportOptions['framing'])}>
-            <option value="project">Project (per clip)</option>
-            <option value="fill">Fill (crop)</option>
-            <option value="fit">Fit (letterbox)</option>
+            <option value="project">{t('export.fr.project')}</option>
+            <option value="fill">{t('export.fr.fill')}</option>
+            <option value="fit">{t('export.fr.fit')}</option>
           </select>
         </label>
       </div>
@@ -181,7 +182,7 @@ export function ExportDialog({ session, onClose }: { session: EditorSession; onC
         Burn in captions {!doc.captions.enabled ? '(captions are off)' : !hasTranscript ? '(no transcript yet)' : `(${doc.captions.style})`}
       </label>
 
-      <p className="faint small">Encoded on this device with WebCodecs. Nothing is uploaded.</p>
+      <p className="faint small">{t('export.local')}</p>
 
       {mine.length > 1 && (
         <span className="small muted">
@@ -197,7 +198,7 @@ export function ExportDialog({ session, onClose }: { session: EditorSession; onC
           {running && <Progress value={job.state === 'running' ? job.progress : null} label="Export progress" />}
         </div>
       )}
-      {error && <p className="note err">Export failed: {error}</p>}
+      {error && <p className="note err">{t('export.failed')} {error}</p>}
       {results.map(({ id, name, result, url }) => (
         <div className="note" key={id}>
           <div className="row" style={{ flexWrap: 'wrap' }}>
@@ -205,25 +206,25 @@ export function ExportDialog({ session, onClose }: { session: EditorSession; onC
             <span className="grow">
               <b>{name}</b> · {result.fileName}
               <dl className="export-facts">
-                <dt>Duration</dt>
+                <dt>{t('export.duration')}</dt>
                 <dd data-fact="duration">{fmtDuration(result.durationSec)}</dd>
-                <dt>Resolution</dt>
+                <dt>{t('export.resolution')}</dt>
                 <dd data-fact="resolution">
                   {result.width}×{result.height}
                 </dd>
-                <dt>Size</dt>
+                <dt>{t('export.size')}</dt>
                 <dd data-fact="size">{fmtBytes(result.blob.size)}</dd>
-                <dt>Codecs</dt>
+                <dt>{t('export.codecs')}</dt>
                 <dd data-fact="codecs">
                   {codecName(result.videoCodec)}
                   {result.audioCodec ? ` + ${codecName(result.audioCodec)}` : ' (no audio)'}
                 </dd>
-                <dt>Encoded in</dt>
+                <dt>{t('export.encoded')}</dt>
                 <dd data-fact="encoded">{(result.elapsedMs / 1000).toFixed(1)} s</dd>
               </dl>
             </span>
             <a className="btn primary" href={url} download={result.fileName}>
-              <Icon name="download" /> Save file
+              <Icon name="download" /> {t('export.save')}
             </a>
           </div>
         </div>

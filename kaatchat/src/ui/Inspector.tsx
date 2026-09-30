@@ -6,6 +6,7 @@ import { Icon, fmtTime, toast } from './bits';
 import type { AudioClip, Clip, Easing, Effects, Overlay, OverlayAnimation, TransitionKind } from '../engine/types';
 import type { Command } from '../engine/commands/schema';
 import { LOOKS, TRANSITIONS, effectsOf, isNeutral, keyedState, OVERLAY_FONTS, type Animatable } from '../engine/motion';
+import { t, type StringKey } from '../i18n';
 
 export function Inspector({ session, clipId, time }: { session: EditorSession; clipId: string | null; time: number }) {
   const { store } = session;
@@ -72,7 +73,7 @@ export function Inspector({ session, clipId, time }: { session: EditorSession; c
       {asset?.hasAudio && (
         <label className="field">
           <span className="row">
-            <span className="grow">Clip gain</span>
+            <span className="grow">{t('inspector.gain')}</span>
             <span className="mono">{(gain ?? clip.gainDb).toFixed(1)} dB</span>
           </span>
           <input
@@ -102,7 +103,7 @@ export function Inspector({ session, clipId, time }: { session: EditorSession; c
           <Num label="Fade out (s)" value={clip.fadeOut ?? 0} max={5} onCommit={(v) => patchClip(store, clip.id, { fadeOut: v }, 'Fade out')} />
           <label className="row small" style={{ alignSelf: 'flex-end', height: 32 }}>
             <input type="checkbox" className="check" checked={!!clip.muted} onChange={(e) => patchClip(store, clip.id, { muted: e.target.checked }, e.target.checked ? 'Mute clip' : 'Unmute clip')} />
-            Mute
+            {t('inspector.mute')}
           </label>
         </div>
       )}
@@ -561,11 +562,11 @@ function OverlayInspector({ session, id, time }: { session: EditorSession; id: s
   );
 }
 
-const NOISE_LEVELS: { label: string; value: number }[] = [
-  { label: 'Off', value: 0 },
-  { label: 'Light', value: 0.3 },
-  { label: 'Medium', value: 0.6 },
-  { label: 'Strong', value: 0.9 },
+const NOISE_LEVELS: { label: StringKey; value: number }[] = [
+  { label: 'noise.off', value: 0 },
+  { label: 'noise.light', value: 0.3 },
+  { label: 'noise.medium', value: 0.6 },
+  { label: 'noise.strong', value: 0.9 },
 ];
 
 /** Background-noise reduction for one clip (or every clip), from the measured noise profile. */
@@ -578,7 +579,7 @@ function NoiseControl({ session, clip }: { session: EditorSession; clip: Clip })
     store.run([{ type: 'reduce_noise', strength, ...(all ? {} : { clipIds: [clip.id] }) }], strength > 0 ? 'Reduce noise' : 'Noise reduction off');
   return (
     <div className="field">
-      <span>Background noise</span>
+      <span>{t('noise.title')}</span>
       <div className="row" style={{ flexWrap: 'wrap' }}>
         <div className="row" style={{ gap: 4 }} role="radiogroup" aria-label="Background noise reduction">
           {NOISE_LEVELS.map((l) => (
@@ -589,22 +590,22 @@ function NoiseControl({ session, clip }: { session: EditorSession; clip: Clip })
               className={`btn sm${nearest.label === l.label ? ' primary' : ''}`}
               onClick={() => run(l.value, false)}
             >
-              {l.label}
+              {t(l.label)}
             </button>
           ))}
         </div>
         {current > 0 && store.doc.clips.length > 1 && (
           <button className="btn ghost sm" onClick={() => run(current, true)}>
-            Apply to all clips
+            {t('noise.all')}
           </button>
         )}
       </div>
       <span className="faint tiny" role="status">
         {noise === undefined
-          ? 'Measuring the background noise of this file…'
+          ? t('noise.measuring')
           : noise === null
-            ? 'Too little sound in this file to measure its background noise.'
-            : 'Removes steady hiss, hum, fans and room tone. You hear it in the preview; export uses the same processing.'}
+            ? t('noise.none')
+            : t('noise.help')}
       </span>
     </div>
   );

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ensureFixtures } from './fixtures';
+import { ensureFixtures, ensureSpeechFixture } from './fixtures';
 
 const fx = ensureFixtures();
 
@@ -25,4 +25,40 @@ test('Whisper: a model download failure is reported and nothing stays stuck', as
   // The job settled as failed; the header is idle again, and trying again is possible.
   await expect(page.getByRole('button', { name: 'Background tasks' })).toBeVisible();
   await expect(page.locator('.asset').first().getByRole('button', { name: 'Transcribe' })).toBeEnabled();
+});
+
+// The real thing: downloads the Whisper model from Hugging Face and transcribes
+// real speech on this machine. Runs where the model host is reachable (CI sets
+// KAATCHAT_WHISPER_E2E=1); the sandboxed development environment blocks it.
+test('Whisper: transcribes real speech end to end, and the transcript drives Find and captions', async ({ page }) => {
+  test.skip(process.env.KAATCHAT_WHISPER_E2E !== '1', 'Needs network access to huggingface.co (set KAATCHAT_WHISPER_E2E=1)');
+  test.setTimeout(420_000);
+  const speech = ensureSpeechFixture();
+  expect(speech, 'espeak-ng is needed to make the speech fixture').toBeTruthy();
+
+  await page.goto('/#/settings');
+  await page.getByRole('region', { name: 'Transcription' }).getByLabel('Model').selectOption('onnx-community/whisper-base.en');
+  await page.goto('/');
+  await page.locator('input[type=file]').setInputFiles(speech!);
+  await expect(page.locator('.asset').first().getByText('Loudness')).toBeVisible();
+  await page.locator('.asset').first().getByRole('button', { name: 'Transcribe' }).click();
+  await expect(page.locator('.toast').filter({ hasText: /Transcript ready/ })).toBeVisible({ timeout: 360_000 });
+  await expect(page.locator('.toast.err')).toHaveCount(0);
+
+  await page.getByRole('tab', { name: 'Transcript' }).click();
+  const text = (await page.locator('.transcript').innerText()).toLowerCase();
+  expect(text).toMatch(/hello/);
+  expect(text).toMatch(/test/);
+  expect(text).toMatch(/money/);
+
+  // Find uses the transcript.
+  const studio = page.locator('.panel.right');
+  await studio.getByRole('tab', { name: 'Find' }).click();
+  await studio.getByRole('textbox', { name: 'Search your footage' }).fill('where do I talk about money');
+  await studio.getByRole('button', { name: 'Search' }).click();
+  await expect(studio.getByText(/Found \d+ moment/)).toBeVisible();
+
+  // Captions come from it.
+  await page.getByRole('button', { name: 'Captions', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Captions', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });

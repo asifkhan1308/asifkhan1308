@@ -8,7 +8,7 @@ import { PROVIDERS } from '../ai/providers';
 import type { EditPlan, Command } from '../engine/commands/schema';
 import type { PlanPreview } from '../engine/commands/execute';
 import { Icon, fmtTime, toast } from './bits';
-import { t } from '../i18n';
+import { t, type StringKey } from '../i18n';
 import { Inspector } from './Inspector';
 import { Repurpose } from './Repurpose';
 import { BrandPanel } from './Brand';
@@ -67,20 +67,22 @@ export function Studio(p: Props) {
 
 // ---------------------------------------------------------------- Ask
 
-const SUGGESTIONS = [
-  'Remove all boring pauses',
-  'Turn this into a 30 second Reel',
-  'Make it vertical',
-  'Match the audio levels',
-  'Add captions',
-  'Remove um and uh',
-  'Keep the best 60 seconds',
-  'Add dissolve transitions',
-  'Make it cinematic',
-  'Punch in on alternate clips',
-  'Sync the cuts to the beat',
-  'Clean up this talking head',
-  'Use my brand',
+/** Shown in the person's language; the request sent is always the English one the built-in rules know. */
+const SUGGESTIONS: { key: StringKey; request: string }[] = [
+  { key: 's.pauses', request: 'Remove all boring pauses' },
+  { key: 's.reel', request: 'Turn this into a 30 second Reel' },
+  { key: 's.vertical', request: 'Make it vertical' },
+  { key: 's.levels', request: 'Match the audio levels' },
+  { key: 's.captions', request: 'Add captions' },
+  { key: 's.fillers', request: 'Remove um and uh' },
+  { key: 's.best', request: 'Keep the best 60 seconds' },
+  { key: 's.dissolve', request: 'Add dissolve transitions' },
+  { key: 's.cinematic', request: 'Make it cinematic' },
+  { key: 's.punch', request: 'Punch in on alternate clips' },
+  { key: 's.beat', request: 'Sync the cuts to the beat' },
+  { key: 's.noise', request: 'Remove the background noise' },
+  { key: 's.talking', request: 'Clean up this talking head' },
+  { key: 's.brand', request: 'Use my brand' },
 ];
 
 /** Features named in the roadmap that this build does not have. Shown, disabled, with the reason. */
@@ -263,7 +265,7 @@ function Ask({ session, ask, time }: Props) {
             </>
           ) : (
             <button className="btn primary" type="submit" disabled={!text.trim() || store.doc.clips.length === 0}>
-              <Icon name="spark" size={14} /> Plan it
+              <Icon name="spark" size={14} /> {t('ai.plan')}
             </button>
           )}
         </div>
@@ -289,12 +291,12 @@ function Ask({ session, ask, time }: Props) {
           <h3>{t('ai.suggestions')}</h3>
           <div className="suggest">
             {SUGGESTIONS.map((s) => (
-              <button key={s} className="chip" onClick={() => { setText(s); void run(s); }} disabled={store.doc.clips.length === 0}>
-                {s}
+              <button key={s.key} className="chip" onClick={() => { setText(t(s.key)); void run(s.request); }} disabled={store.doc.clips.length === 0}>
+                {t(s.key)}
               </button>
             ))}
           </div>
-          <h3 className="faint">Not in this build</h3>
+          <h3 className="faint">{t('ai.notInBuild')}</h3>
           <div className="suggest">
             {NOT_IN_BUILD.map((s) => (
               <span key={s.label} className="chip" aria-disabled="true" title={s.why} style={{ opacity: 0.5, cursor: 'not-allowed' }}>

@@ -115,3 +115,25 @@ export function meanVolume(file: string, start: number, dur: number): number {
   if (!m) throw new Error(`ffmpeg could not measure ${file}: ${r.stderr}`);
   return +m[1];
 }
+
+/**
+ * speech.webm — real synthesized English speech (espeak-ng), for testing Whisper
+ * end to end. Returns null where espeak-ng is not installed.
+ */
+export function ensureSpeechFixture(): string | null {
+  mkdirSync(FIXTURES, { recursive: true });
+  const out = join(FIXTURES, 'speech.webm');
+  if (existsSync(out)) return out;
+  const wav = join(FIXTURES, 'speech.wav');
+  const r = spawnSync('espeak-ng', ['-v', 'en-us', '-s', '140', '-w', wav, 'Hello world. This is a test of the video editor. Money matters when you start a company.']);
+  if (r.error || r.status !== 0) return null;
+  execFileSync(ffmpeg, [
+    '-v', 'error', '-y',
+    '-f', 'lavfi', '-i', 'color=c=0x303030:s=640x360:r=30',
+    '-i', wav,
+    '-shortest',
+    '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuv420p', '-deadline', 'realtime', '-cpu-used', '8',
+    '-c:a', 'libopus', '-b:a', '64k', '-ar', '48000', out,
+  ]);
+  return out;
+}

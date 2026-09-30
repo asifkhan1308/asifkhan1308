@@ -1,0 +1,64 @@
+name: Kaatchat website
+
+# Publishes the marketing site at the Pages root and the web editor under /app/,
+# after the Kaatchat tests pass on main. One-time setup: repository Settings →
+# Pages → Build and deployment → Source: "GitHub Actions".
+
+on:
+  workflow_run:
+    workflows: [Kaatchat]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: kaatchat-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    # Only after a green test run of main (or by hand).
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: kaatchat/package-lock.json
+      - id: pages
+        uses: actions/configure-pages@v5
+      - name: Build the web editor
+        working-directory: kaatchat
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+      - name: Assemble the site
+        env:
+          BASE_URL: ${{ steps.pages.outputs.base_url }}
+        run: |
+          rm -rf _site && mkdir _site
+          cp -r kaatchat/site/. _site/
+          cp -r kaatchat/dist _site/app
+          # Point the site's "Open the web app" button at this deployment.
+          sed -i "s#appUrl: ''#appUrl: '${BASE_URL}/app/'#" _site/config.js
+          grep -q "appUrl: '${BASE_URL}/app/'" _site/config.js
+          # Host-specific files that Pages does not use.
+          rm -f _site/vercel.json _site/_headers _site/README.md
+          touch _site/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
