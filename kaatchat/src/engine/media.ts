@@ -307,6 +307,16 @@ export async function decodeForSpeech(blob: Blob, ctl: JobControl): Promise<Floa
 
 let worker: Worker | null = null;
 
+/** No word from the worker for this long while it loads the model means the download has stalled. */
+export const SPEECH_MODEL_STALL_MS = 120_000;
+
+/** Turns a model-loading failure into something the user can act on. */
+export function speechModelError(model: string, message: string): string {
+  if (/fetch|network|internet|ERR_|timed? ?out|stalled|Could not locate|404|403|CORS|load/i.test(message))
+    return `Couldn't download the speech model “${model}” (${message}). Check your internet connection or firewall and try Transcribe again — the model downloads once and is then kept on this device. You can also load an existing .srt/.vtt subtitle file instead.`;
+  return `Transcription failed: ${message}`;
+}
+
 export async function transcribe(blob: Blob, model: string, language: string | undefined, ctl: JobControl): Promise<Transcript> {
   const audio = await decodeForSpeech(blob, ctl);
   if (!audio) throw new Error('This file has no audio track to transcribe.');
@@ -316,26 +326,49 @@ export async function transcribe(blob: Blob, model: string, language: string | u
   const seconds = audio.length / 16000;
   return new Promise<Transcript>((resolve, reject) => {
     const started = performance.now();
-    const onAbort = () => {
-      // Whisper cannot be interrupted mid-chunk; restart the worker instead.
+    let stall: ReturnType<typeof setTimeout> | undefined;
+    const kill = () => {
+      // Whisper cannot be interrupted mid-chunk; a fresh worker is started next time.
       w.terminate();
-      worker = null;
+      if (worker === w) worker = null;
+    };
+    const fail = (err: Error) => {
       cleanup();
+      kill();
+      reject(err);
+    };
+    // Until transcription starts, the worker reports download progress; silence means a stalled download.
+    const watch = () => {
+      clearTimeout(stall);
+      stall = setTimeout(() => fail(new Error(speechModelError(model, `download stalled — nothing received for ${SPEECH_MODEL_STALL_MS / 1000}s`))), SPEECH_MODEL_STALL_MS);
+    };
+    const onAbort = () => {
+      cleanup();
+      kill();
       reject(new DOMException('Cancelled', 'AbortError'));
     };
+    const onCrash = (e: Event) => fail(new Error(speechModelError(model, e instanceof ErrorEvent && e.message ? e.message : 'the speech worker could not start')));
     const cleanup = () => {
+      clearTimeout(stall);
       w.removeEventListener('message', onMsg);
+      w.removeEventListener('error', onCrash);
+      w.removeEventListener('messageerror', onCrash);
       ctl.signal.removeEventListener('abort', onAbort);
     };
     const onMsg = (e: MessageEvent) => {
       const m = e.data as import('./transcribe.worker').WorkerOut;
       if (m.id !== id) return;
       if (m.type === 'status') {
-        if (m.phase === 'download') ctl.progress(m.progress, `Downloading speech model ${m.detail ?? ''}`.trim());
-        else ctl.progress(null, `Transcribing ${Math.round(seconds)}s of audio on this device (${Math.round((performance.now() - started) / 1000)}s elapsed)`);
+        if (m.phase === 'download') {
+          watch();
+          ctl.progress(m.progress, `Downloading speech model ${m.detail ?? ''}`.trim());
+        } else {
+          clearTimeout(stall); // transcription itself reports no progress; long audio takes minutes
+          ctl.progress(null, `Transcribing ${Math.round(seconds)}s of audio on this device (${Math.round((performance.now() - started) / 1000)}s elapsed)`);
+        }
       } else if (m.type === 'error') {
         cleanup();
-        reject(new Error(`Transcription failed: ${m.message}`));
+        reject(new Error(speechModelError(model, m.message)));
       } else {
         cleanup();
         const words = m.chunks
@@ -345,7 +378,11 @@ export async function transcribe(blob: Blob, model: string, language: string | u
       }
     };
     w.addEventListener('message', onMsg);
+    w.addEventListener('error', onCrash);
+    w.addEventListener('messageerror', onCrash);
     ctl.signal.addEventListener('abort', onAbort, { once: true });
+    ctl.progress(null, 'Loading speech model');
+    watch();
     const msg: import('./transcribe.worker').WorkerIn = { type: 'transcribe', id, model, audio, language };
     w.postMessage(msg, [audio.buffer]);
   });

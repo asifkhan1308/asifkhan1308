@@ -129,7 +129,12 @@ function registerIpc() {
 
     const ac = new AbortController();
     inflight.set(requestId, ac);
-    const timer = setTimeout(() => ac.abort(), 180_000);
+    // Backstop only: the renderer times out first (150 s cloud, 300 s local) with a clearer message.
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      ac.abort();
+    }, 330_000);
     try {
       const res = await fetch(url, { method, headers, body: method === 'POST' ? req.body : undefined, signal: ac.signal, redirect: 'error' });
       const text = await res.text();
@@ -140,6 +145,7 @@ function registerIpc() {
       if (rid) outHeaders['request-id'] = rid;
       return { status: res.status, statusText: res.statusText, headers: outHeaders, body: text.slice(0, 8 * 1024 * 1024) };
     } catch (e) {
+      if (timedOut) return { status: 504, statusText: 'Timed out', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ error: { message: `${url.hostname} did not respond in time.` } }) };
       if (ac.signal.aborted) return { status: 499, statusText: 'Cancelled', headers: {}, body: '{"error":{"message":"Cancelled"}}' };
       return { status: 502, statusText: 'Network error', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ error: { message: `Could not reach ${url.hostname}: ${e.message}` } }) };
     } finally {

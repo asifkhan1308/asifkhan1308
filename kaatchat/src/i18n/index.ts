@@ -39,6 +39,7 @@ const en = {
   'ai.addToTimeline': 'Keep only these',
   'ai.jump': 'Jump',
   'jobs.title': 'Processing',
+  'jobs.idle': 'Background tasks',
   'jobs.none': 'Nothing running.',
   'recovery.title': 'Recovered project',
   'recovery.body': 'Kaatchat found changes that were not saved, from',

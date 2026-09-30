@@ -6,7 +6,8 @@ import { Player } from '../engine/playback';
 import { ACCEPT } from '../engine/formats';
 import { ASPECT_IDS, ASPECTS, type AspectId } from '../engine/types';
 import { sequenceDuration } from '../engine/timeline';
-import { Brand, Dialog, Icon, fmtTime, toast } from './bits';
+import { Brand, Dialog, Icon, dismissToast, fmtTime, toast } from './bits';
+import { activeJobCount } from '../engine/jobs';
 import { t } from '../i18n';
 import { pendingImport } from './pending';
 import { Timeline } from './Timeline';
@@ -142,7 +143,7 @@ function EditorView({ session }: { session: EditorSession }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const cmdRef = useRef<HTMLInputElement>(null);
   const jobs = useJobs(session.jobs);
-  const activeJobs = jobs.filter((j) => j.state === 'running' || j.state === 'queued').length;
+  const activeJobs = activeJobCount(jobs);
 
   const attachCanvas = useCallback((c: HTMLCanvasElement | null) => player.attach(c), [player]);
   useEffect(() => () => player.dispose(), [player]);
@@ -160,9 +161,21 @@ function EditorView({ session }: { session: EditorSession }) {
   const importFiles = useCallback(
     async (files: File[]) => {
       if (!files.length) return;
-      const { imported, errors } = await session.importFiles(files);
+      const { imported, errors, jobIds } = await session.importFiles(files);
       for (const e of errors) toast(e, 'err');
-      if (imported.length) toast(`Imported ${imported.length} file${imported.length === 1 ? '' : 's'}. Measuring loudness and framing on this device…`);
+      if (!imported.length) return;
+      const files_ = `${imported.length} file${imported.length === 1 ? '' : 's'}`;
+      if (!jobIds.length) {
+        toast(`Imported ${files_}.`);
+        return;
+      }
+      // The message lives exactly as long as the measurements it describes.
+      const pending = toast(`Imported ${files_}. Measuring on this device…`, 'info', undefined, { sticky: true });
+      const settled = await session.jobs.whenSettled(jobIds);
+      dismissToast(pending);
+      const failed = settled.filter((j) => j.state === 'failed');
+      for (const j of failed) toast(`${j.label} failed: ${j.error ?? 'unknown error'}`, 'err');
+      if (!failed.length && settled.some((j) => j.state === 'done')) toast(`Measured ${files_}.`);
     },
     [session],
   );
@@ -333,10 +346,18 @@ function EditorView({ session }: { session: EditorSession }) {
           </span>
           <input ref={cmdRef} className="input" placeholder={`${t('ai.ask')}  (Ctrl+K)`} aria-label="Ask Kaatchat" />
         </form>
-        <button className="btn ghost" onClick={() => setShowJobs((v) => !v)} aria-expanded={showJobs} title={t('jobs.title')}>
-          {activeJobs ? <span className="spin" /> : <Icon name="layers" />}
-          <span className="label">{activeJobs ? `${activeJobs}` : t('jobs.title')}</span>
-        </button>
+        {activeJobs ? (
+          <button className="btn ghost" onClick={() => setShowJobs((v) => !v)} aria-expanded={showJobs} title={`${t('jobs.title')}: ${activeJobs}`}>
+            <span className="spin" />
+            <span className="label">
+              {t('jobs.title')} · {activeJobs}
+            </span>
+          </button>
+        ) : (
+          <button className="btn ghost icon" onClick={() => setShowJobs((v) => !v)} aria-expanded={showJobs} aria-label={t('jobs.idle')} title={t('jobs.idle')}>
+            <Icon name="layers" />
+          </button>
+        )}
         <button className="btn ghost icon hide-sm" onClick={save} aria-label={t('editor.save')} title={`${t('editor.save')} (Ctrl+S)`}>
           {saving === 'saved' ? <Icon name="check" /> : <Icon name="save" />}
         </button>

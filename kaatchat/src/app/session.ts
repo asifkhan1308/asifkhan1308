@@ -80,9 +80,10 @@ export class EditorSession {
 
   // ---------------------------------------------------------------- import
 
-  async importFiles(files: File[], addToTimeline = true): Promise<{ imported: MediaAsset[]; errors: string[] }> {
+  async importFiles(files: File[], addToTimeline = true): Promise<{ imported: MediaAsset[]; errors: string[]; jobIds: string[] }> {
     const imported: MediaAsset[] = [];
     const errors: string[] = [];
+    const jobIds: string[] = [];
     for (const f of files) {
       try {
         const asset = await importFile(f);
@@ -90,12 +91,12 @@ export class EditorSession {
         imported.push(asset);
         if (asset.storage === 'session')
           errors.push(`“${asset.name}” is larger than ${Math.round(MAX_STORED_BYTES / 1024 / 1024)} MB, so it was not copied into browser storage. It works now; after a reload you will be asked to relink it.`);
-        this.analyze(asset, true);
+        jobIds.push(...this.analyze(asset, true));
       } catch (e) {
         errors.push(e instanceof ImportError ? e.message : `Could not import “${f.name}”: ${e instanceof Error ? e.message : e}`);
       }
     }
-    return { imported, errors };
+    return { imported, errors, jobIds };
   }
 
   /** Relink a missing file. Only the same file (name + size) is accepted. */
@@ -117,40 +118,50 @@ export class EditorSession {
 
   // ---------------------------------------------------------------- measurement
 
-  analyze(asset: MediaAsset, force: boolean) {
+  /** Queues the measurements this asset still needs; returns their job ids. */
+  analyze(asset: MediaAsset, force: boolean): string[] {
     const blob = media.get(asset.id);
-    if (!blob) return;
+    if (!blob) return [];
     const idx = this.store.index[asset.id] ?? {};
     const group = `asset:${asset.id}`;
+    const ids: string[] = [];
     if (asset.kind === 'audio' && (force || !idx.audio)) {
-      this.jobs.add(`Loudness and beat · ${asset.name}`, group, async (ctl) => {
-        const r = await analyzeAudio(blob, ctl, true);
-        if (r) await this.setIndex(asset.id, { audio: r.audio, beats: r.beats ?? undefined });
-      });
-      return;
+      ids.push(
+        this.jobs.add(`Loudness and beat · ${asset.name}`, group, async (ctl) => {
+          const r = await analyzeAudio(blob, ctl, true);
+          if (r) await this.setIndex(asset.id, { audio: r.audio, beats: r.beats ?? undefined });
+        }).id,
+      );
+      return ids;
     }
     if (asset.kind === 'video' && asset.hasAudio && (force || !idx.audio)) {
-      this.jobs.add(`Loudness · ${asset.name}`, group, async (ctl) => {
-        const r = await analyzeAudio(blob, ctl);
-        if (r) await this.setIndex(asset.id, { audio: r.audio });
-      });
+      ids.push(
+        this.jobs.add(`Loudness · ${asset.name}`, group, async (ctl) => {
+          const r = await analyzeAudio(blob, ctl);
+          if (r) await this.setIndex(asset.id, { audio: r.audio });
+        }).id,
+      );
     }
     if (asset.kind !== 'audio' && (force || !idx.framing || !idx.thumbs)) {
-      this.jobs.add(`Framing · ${asset.name}`, group, async (ctl) => {
-        const r = await analyzeFrames(asset, blob, ctl);
-        await this.setIndex(asset.id, r);
-      });
+      ids.push(
+        this.jobs.add(`Framing · ${asset.name}`, group, async (ctl) => {
+          const r = await analyzeFrames(asset, blob, ctl);
+          await this.setIndex(asset.id, r);
+        }).id,
+      );
     }
+    return ids;
   }
 
-  transcribe(asset: MediaAsset) {
+  /** Queues local transcription; returns the job id (null when the file needs relinking). */
+  transcribe(asset: MediaAsset): string | null {
     const blob = media.get(asset.id);
-    if (!blob) return;
+    if (!blob) return null;
     const p = getPrefs();
-    this.jobs.add(`Transcribe · ${asset.name}`, `asset:${asset.id}`, async (ctl) => {
+    return this.jobs.add(`Transcribe · ${asset.name}`, `asset:${asset.id}`, async (ctl) => {
       const transcript = await transcribe(blob, p.whisperModel, p.speechLanguage || undefined, ctl);
       await this.setIndex(asset.id, { transcript });
-    });
+    }).id;
   }
 
   async importSubtitles(asset: MediaAsset, file: File) {

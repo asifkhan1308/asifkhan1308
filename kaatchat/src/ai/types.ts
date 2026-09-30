@@ -52,12 +52,30 @@ export interface AIProvider {
 }
 
 /** Errors a person can act on. `kind` drives the UI message. */
+/** Key-shaped strings, as providers sometimes echo (partly masked) keys back in error bodies. */
+const SECRET_PATTERNS = [/\bsk-(?:ant-|proj-)?[A-Za-z0-9_*.-]{6,}/g, /\bAIza[0-9A-Za-z_*-]{10,}/g, /\bBearer\s+\S+/gi];
+const knownSecrets = new Set<string>();
+
+/** Registers a key value so it can never appear in a message, even if a provider echoes it. */
+export function rememberSecret(value: string | null | undefined) {
+  if (value && value.length >= 8) knownSecrets.add(value);
+}
+
+/** Removes API keys (and key-shaped strings) from text that may be shown to the user. */
+export function redactSecrets(text: string): string {
+  let out = text;
+  for (const k of knownSecrets) out = out.split(k).join('[key hidden]');
+  for (const re of SECRET_PATTERNS) out = out.replace(re, '[key hidden]');
+  return out;
+}
+
 export class AIError extends Error {
   constructor(
     message: string,
-    readonly kind: 'no-key' | 'auth' | 'rate-limit' | 'network' | 'offline' | 'bad-output' | 'refused' | 'server' | 'cancelled',
+    readonly kind: 'no-key' | 'auth' | 'rate-limit' | 'network' | 'offline' | 'bad-output' | 'refused' | 'server' | 'cancelled' | 'timeout',
   ) {
-    super(message);
+    // Every message a person can see passes through here, so keys are scrubbed here.
+    super(redactSecrets(message));
   }
 }
 

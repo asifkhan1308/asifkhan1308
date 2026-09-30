@@ -75,6 +75,16 @@ export class JobQueue {
     } else if (e.job.state === 'running') e.ac.abort();
   }
 
+  /**
+   * Resolves once every listed job has finished, failed or been cancelled,
+   * with their final states. Unknown ids count as settled.
+   */
+  async whenSettled(ids: string[]): Promise<Job[]> {
+    const entries = ids.map((id) => this.entries.find((e) => e.job.id === id)).filter((e): e is Entry => !!e);
+    await Promise.all(entries.map((e) => e.done));
+    return entries.map((e) => ({ ...e.job }));
+  }
+
   cancelGroup(group: string) {
     for (const e of this.entries) if (e.job.group === group) this.cancel(e.job.id);
   }
@@ -126,6 +136,11 @@ export class JobQueue {
       this.pump();
     }
   }
+}
+
+/** Jobs that are waiting or running — the only ones the UI calls "processing". */
+export function activeJobCount(jobs: readonly Job[]): number {
+  return jobs.filter((j) => j.state === 'running' || j.state === 'queued').length;
 }
 
 export function throwIfAborted(signal: AbortSignal) {

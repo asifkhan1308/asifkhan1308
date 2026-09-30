@@ -318,3 +318,22 @@ export interface TimeRange {
   start: number;
   end: number;
 }
+
+/** The preset closest to a source's shape (log-ratio distance), or null for audio / unknown sizes. */
+export function nearestAspect(width: number, height: number): AspectId | null {
+  if (!(width > 0 && height > 0)) return null;
+  const r = Math.log(width / height);
+  let best: AspectId = '16:9';
+  for (const id of ASPECT_IDS) {
+    const a = ASPECTS[id];
+    if (Math.abs(r - Math.log(a.width / a.height)) < Math.abs(r - Math.log(ASPECTS[best].width / ASPECTS[best].height))) best = id;
+  }
+  return best;
+}
+
+/** True when a source's shape differs from the canvas enough that filling it would crop noticeably (> ~8%). */
+export function shapeDiffers(width: number, height: number, aspect: AspectId): boolean {
+  if (!(width > 0 && height > 0)) return false;
+  const a = ASPECTS[aspect];
+  return Math.abs(Math.log(width / height) - Math.log(a.width / a.height)) > 0.08;
+}

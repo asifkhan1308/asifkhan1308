@@ -1,6 +1,7 @@
 import type { AspectId, Clip, EditView, ProjectDoc, Sequence } from './types';
 import { DEFAULT_MIX } from './types';
 import { uid } from './id';
+import { clampProjectOverlays } from './timeline';
 
 export function newSequence(name = 'Main edit', aspect: AspectId = '16:9', clips: Clip[] = []): Sequence {
   return {
@@ -46,7 +47,12 @@ export function fromView(p: ProjectDoc, v: EditView): ProjectDoc {
 }
 
 /** Accept a stored or imported project (v2 or v3), rejecting anything malformed. */
+/** Validates and migrates a stored project; layers are kept inside their edit, as on every edit. */
 export function reviveProject(raw: unknown): ProjectDoc {
+  return clampProjectOverlays(reviveUnclamped(raw));
+}
+
+function reviveUnclamped(raw: unknown): ProjectDoc {
   if (!raw || typeof raw !== 'object') throw new Error('Not a Kaatchat project.');
   const d = raw as Record<string, unknown>;
   if (typeof d.id !== 'string' || typeof d.assets !== 'object' || !d.assets) throw new Error('Not a Kaatchat project file.');
