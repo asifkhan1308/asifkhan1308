@@ -5,7 +5,7 @@
 | | |
 | --- | --- |
 | **Owner** | Asif Khan |
-| **Version** | 2.0.0-alpha.4 |
+| **Version** | 2.0.0-alpha.5 |
 | **Licence** | MPL-2.0 (see `LICENSE`). Built on Mediabunny (MPL-2.0), with thanks to WolfCut (MPL-2.0). |
 | **Platforms** | Web app, Windows and macOS desktop (Electron; Apple Silicon and Intel), one codebase |
 | **Status** | The agreed v2 scope is built and tested. See [docs/ROADMAP.md](docs/ROADMAP.md) for exactly what is and is not built. |

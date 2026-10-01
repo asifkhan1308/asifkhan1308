@@ -31,13 +31,18 @@ describe('SourceIndex', () => {
     }
   });
 
-  it('is fast: 10,000 lookups over 2,000 clips in well under 50 ms', () => {
+  it('is far faster than scanning every clip (2,000 clips), whatever the machine load', () => {
     const clips: Clip[] = Array.from({ length: 2000 }, (_, i) => ({ id: `c${i}`, assetId: 'A', in: i * 1.8, out: i * 1.8 + 1.2, gainDb: 0 }) as Clip);
-    const t0 = performance.now();
     const idx = new SourceIndex(clips);
-    let n = 0;
-    for (let q = 0; q < 10_000; q++) if (idx.first('A', (q * 0.36) % 3600) !== null) n++;
-    expect(performance.now() - t0).toBeLessThan(50);
-    expect(n).toBeGreaterThan(0);
+    const qs = Array.from({ length: 2000 }, (_, q) => (q * 1.77) % 3600);
+    const time = (f: (t: number) => unknown) => {
+      for (const t of qs.slice(0, 200)) f(t); // warm up the JIT
+      const t0 = performance.now();
+      for (const t of qs) f(t);
+      return performance.now() - t0;
+    };
+    const indexed = time((t) => idx.first('A', t));
+    const scanned = time((t) => sourceToTimeline(clips, 'A', t));
+    expect(indexed * 10).toBeLessThan(scanned);
   });
 });
