@@ -60,6 +60,9 @@ export function Home() {
         <nav className="page-top" aria-label="Main">
           <Brand />
           <span className="spacer" />
+          <a className="btn ghost" href="#/motionlab">
+            <Icon name="spark" /> <span className="label">Motion Design</span>
+          </a>
           <a className="btn ghost" href="#/privacy">
             <Icon name="shield" /> <span className="label">{t('nav.privacy')}</span>
           </a>

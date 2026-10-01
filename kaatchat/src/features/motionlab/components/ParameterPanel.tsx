@@ -24,12 +24,12 @@ export default function ParameterPanel({ template, project }: ParameterPanelProp
                   min={param.min}
                   max={param.max}
                   step={param.step}
-                  value={project.parameters[param.id] || param.default}
+                  value={Number(project.parameters[param.id] ?? param.default)}
                   onChange={(e) => updateParameter(param.id, parseFloat(e.target.value))}
                   className="slider"
                 />
                 <span className="param-value">
-                  {project.parameters[param.id] || param.default}
+                  {String(project.parameters[param.id] ?? param.default)}
                   {param.unit}
                 </span>
               </div>
@@ -37,7 +37,7 @@ export default function ParameterPanel({ template, project }: ParameterPanelProp
             {param.type === 'color' && (
               <input
                 type="color"
-                value={project.parameters[param.id] || param.default}
+                value={String(project.parameters[param.id] ?? param.default)}
                 onChange={(e) => updateParameter(param.id, e.target.value)}
                 className="color-input"
               />

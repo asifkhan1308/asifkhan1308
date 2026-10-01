@@ -42,7 +42,7 @@ const parameters: ParameterConfig[] = [
   },
 ];
 
-const animationFunction = (ctx: CanvasRenderingContext2D, media: HTMLImageElement | HTMLVideoElement, params: Record<string, any>, progress: number, aspect: any) => {
+const animationFunction = (ctx: CanvasRenderingContext2D, media: HTMLImageElement | HTMLVideoElement, params: Record<string, any>, progress: number, _aspect: any) => {
   const w = ctx.canvas.width;
   const h = ctx.canvas.height;
   const centerX = w / 2;

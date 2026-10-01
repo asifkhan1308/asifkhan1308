@@ -8,8 +8,9 @@ import { useLang } from '../i18n';
 const Editor = lazy(() => import('../ui/Editor').then((m) => ({ default: m.Editor })));
 const Settings = lazy(() => import('../ui/Settings').then((m) => ({ default: m.Settings })));
 const Privacy = lazy(() => import('../ui/Privacy').then((m) => ({ default: m.Privacy })));
+const MotionLab = lazy(() => import('../features/motionlab/MotionLabFeature'));
 
-type Route = { name: 'home' } | { name: 'editor'; id: string } | { name: 'settings' } | { name: 'privacy' };
+type Route = { name: 'home' } | { name: 'editor'; id: string } | { name: 'settings' } | { name: 'privacy' } | { name: 'motionlab' };
 
 function parse(hash: string): Route {
   const h = hash.replace(/^#/, '');
@@ -17,6 +18,7 @@ function parse(hash: string): Route {
   if (m) return { name: 'editor', id: m[1] };
   if (h === '/settings') return { name: 'settings' };
   if (h === '/privacy') return { name: 'privacy' };
+  if (h === '/motionlab') return { name: 'motionlab' };
   return { name: 'home' };
 }
 
@@ -45,6 +47,7 @@ export function App() {
         {route.name === 'editor' && <Editor key={route.id} projectId={route.id} />}
         {route.name === 'settings' && <Settings />}
         {route.name === 'privacy' && <Privacy />}
+        {route.name === 'motionlab' && <MotionLab />}
       </Suspense>
       <Toasts />
     </>

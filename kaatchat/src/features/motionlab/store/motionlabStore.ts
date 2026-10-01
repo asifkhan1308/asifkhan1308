@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Project, MediaAsset, AspectRatio, BackgroundSettings, AnimationState, TransformState, HistoryEntry } from '../../../types';
+import type { Project, MediaAsset, AspectRatio, BackgroundSettings, AnimationState, TransformState, HistoryEntry } from '../types';
 
 interface MotionLabStore {
   // Project
@@ -53,7 +53,7 @@ const createDefaultProject = (templateId: string): Project => ({
   updatedAt: Date.now(),
 });
 
-export const useMotionLabStore = create<MotionLabStore>((set, get) => ({
+export const useMotionLabStore = create<MotionLabStore>((set) => ({
   currentProject: null,
   projects: [],
   mediaAssets: [],

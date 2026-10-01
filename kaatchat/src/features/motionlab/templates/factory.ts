@@ -5,7 +5,7 @@ export const createTemplate = (
   name: string,
   category: any,
   duration: number,
-  animationFn: (ctx: CanvasRenderingContext2D, media: any, params: any, progress: number) => void,
+  animationFn: (ctx: CanvasRenderingContext2D, media: any, _params: any, progress: number) => void,
 ): Template => ({
   id,
   name,
@@ -16,16 +16,16 @@ export const createTemplate = (
   supportedMediaTypes: ['image', 'video'],
   parameters: [{ id: 'duration', label: 'Duration', type: 'slider', min: 1, max: 15, step: 0.1, default: duration, unit: 's' }],
   animationFunction: animationFn,
-  previewFunction: (canvas, media, params, progress) => {
+  previewFunction: (canvas, media, _params, progress) => {
     const ctx = canvas.getContext('2d')!;
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    animationFn(ctx, media, params, progress);
+    animationFn(ctx, media, _params, progress);
   },
 });
 
 // Template implementations
-export const perspectiveSlide = createTemplate('perspective-slide', 'Perspective Slide', 'perspective', 5, (ctx, media, params, progress) => {
+export const perspectiveSlide = createTemplate('perspective-slide', 'Perspective Slide', 'perspective', 5, (ctx, media, _params, progress) => {
   const w = ctx.canvas.width, h = ctx.canvas.height;
   ctx.save();
   ctx.globalAlpha = 0.9;
@@ -35,7 +35,7 @@ export const perspectiveSlide = createTemplate('perspective-slide', 'Perspective
   ctx.restore();
 });
 
-export const productTurn = createTemplate('product-turn', 'Product Turn', 'product', 5, (ctx, media, params, progress) => {
+export const productTurn = createTemplate('product-turn', 'Product Turn', 'product', 5, (ctx, media, _params, progress) => {
   const w = ctx.canvas.width, h = ctx.canvas.height;
   ctx.save();
   ctx.translate(w / 2, h / 2);
@@ -44,7 +44,7 @@ export const productTurn = createTemplate('product-turn', 'Product Turn', 'produ
   ctx.restore();
 });
 
-export const cinemaricPush = createTemplate('cinematic-push', 'Cinematic Push', 'product', 5, (ctx, media, params, progress) => {
+export const cinemaricPush = createTemplate('cinematic-push', 'Cinematic Push', 'product', 5, (ctx, media, _params, progress) => {
   const w = ctx.canvas.width, h = ctx.canvas.height;
   ctx.save();
   ctx.globalAlpha = progress;
@@ -55,7 +55,7 @@ export const cinemaricPush = createTemplate('cinematic-push', 'Cinematic Push', 
   ctx.restore();
 });
 
-export const depthZoom = createTemplate('depth-zoom', 'Depth Zoom', '3d', 5, (ctx, media, params, progress) => {
+export const depthZoom = createTemplate('depth-zoom', 'Depth Zoom', '3d', 5, (ctx, media, _params, progress) => {
   const w = ctx.canvas.width, h = ctx.canvas.height;
   ctx.save();
   ctx.translate(w / 2, h / 2);
@@ -66,13 +66,13 @@ export const depthZoom = createTemplate('depth-zoom', 'Depth Zoom', '3d', 5, (ct
   ctx.restore();
 });
 
-export const minimalFade = createTemplate('minimal-fade', 'Minimal Fade', 'minimal', 3, (ctx, media, params, progress) => {
+export const minimalFade = createTemplate('minimal-fade', 'Minimal Fade', 'minimal', 3, (ctx, media, _params, progress) => {
   const w = ctx.canvas.width, h = ctx.canvas.height;
   ctx.globalAlpha = Math.sin(progress * Math.PI);
   ctx.drawImage(media, w / 2 - media.width / 2, h / 2 - media.height / 2, media.width, media.height);
 });
 
-export const splitScreen = createTemplate('split-screen', 'Split Screen', 'social', 5, (ctx, media, params, progress) => {
+export const splitScreen = createTemplate('split-screen', 'Split Screen', 'social', 5, (ctx, media, _params, progress) => {
   const w = ctx.canvas.width, h = ctx.canvas.height;
   ctx.save();
   ctx.beginPath();
@@ -82,7 +82,7 @@ export const splitScreen = createTemplate('split-screen', 'Split Screen', 'socia
   ctx.restore();
 });
 
-export const elasticEntrance = createTemplate('elastic-entrance', 'Elastic Entrance', 'experimental', 4, (ctx, media, params, progress) => {
+export const elasticEntrance = createTemplate('elastic-entrance', 'Elastic Entrance', 'experimental', 4, (ctx, media, _params, progress) => {
   const w = ctx.canvas.width, h = ctx.canvas.height;
   const elastic = Math.sin(progress * Math.PI * 3) * (1 - progress) * 0.1;
   ctx.save();
@@ -92,7 +92,7 @@ export const elasticEntrance = createTemplate('elastic-entrance', 'Elastic Entra
   ctx.restore();
 });
 
-export const horizontalSweep = createTemplate('horizontal-sweep', 'Horizontal Sweep', 'editorial', 5, (ctx, media, params, progress) => {
+export const horizontalSweep = createTemplate('horizontal-sweep', 'Horizontal Sweep', 'editorial', 5, (ctx, media, _params, progress) => {
   const w = ctx.canvas.width;
   ctx.save();
   ctx.beginPath();
@@ -102,7 +102,7 @@ export const horizontalSweep = createTemplate('horizontal-sweep', 'Horizontal Sw
   ctx.restore();
 });
 
-export const verticalReveal = createTemplate('vertical-reveal', 'Vertical Reveal', 'editorial', 4, (ctx, media, params, progress) => {
+export const verticalReveal = createTemplate('vertical-reveal', 'Vertical Reveal', 'editorial', 4, (ctx, media, _params, progress) => {
   const h = ctx.canvas.height;
   ctx.save();
   ctx.beginPath();
@@ -112,7 +112,7 @@ export const verticalReveal = createTemplate('vertical-reveal', 'Vertical Reveal
   ctx.restore();
 });
 
-export const parallaxDrift = createTemplate('parallax-drift', 'Parallax Drift', 'perspective', 6, (ctx, media, params, progress) => {
+export const parallaxDrift = createTemplate('parallax-drift', 'Parallax Drift', 'perspective', 6, (ctx, media, _params, progress) => {
   const w = ctx.canvas.width;
   ctx.save();
   ctx.globalAlpha = 0.9;
@@ -120,7 +120,7 @@ export const parallaxDrift = createTemplate('parallax-drift', 'Parallax Drift', 
   ctx.restore();
 });
 
-export const perspective3DTilt = createTemplate('perspective-3d-tilt', '3D Tilt', '3d', 5, (ctx, media, params, progress) => {
+export const perspective3DTilt = createTemplate('perspective-3d-tilt', '3D Tilt', '3d', 5, (ctx, media, _params, progress) => {
   const w = ctx.canvas.width, h = ctx.canvas.height;
   ctx.save();
   ctx.translate(w / 2, h / 2);
@@ -131,7 +131,7 @@ export const perspective3DTilt = createTemplate('perspective-3d-tilt', '3D Tilt'
   ctx.restore();
 });
 
-export const imageStack = createTemplate('image-stack', 'Image Stack', 'portfolio', 5, (ctx, media, params, progress) => {
+export const imageStack = createTemplate('image-stack', 'Image Stack', 'portfolio', 5, (ctx, media, _params, progress) => {
   for (let i = 0; i < 3; i++) {
     ctx.save();
     ctx.globalAlpha = (1 - progress) * (1 - i * 0.3);
@@ -141,7 +141,7 @@ export const imageStack = createTemplate('image-stack', 'Image Stack', 'portfoli
   }
 });
 
-export const magazineFlip = createTemplate('magazine-flip', 'Magazine Flip', 'editorial', 5, (ctx, media, params, progress) => {
+export const magazineFlip = createTemplate('magazine-flip', 'Magazine Flip', 'editorial', 5, (ctx, media, _params, progress) => {
   const w = ctx.canvas.width;
   ctx.save();
   ctx.beginPath();
@@ -152,7 +152,7 @@ export const magazineFlip = createTemplate('magazine-flip', 'Magazine Flip', 'ed
   ctx.restore();
 });
 
-export const windowReveal = createTemplate('window-reveal', 'Window Reveal', 'experimental', 4, (ctx, media, params, progress) => {
+export const windowReveal = createTemplate('window-reveal', 'Window Reveal', 'experimental', 4, (ctx, media, _params, progress) => {
   const w = ctx.canvas.width, h = ctx.canvas.height;
   const size = Math.min(w, h) * progress;
   ctx.save();
@@ -163,7 +163,7 @@ export const windowReveal = createTemplate('window-reveal', 'Window Reveal', 'ex
   ctx.restore();
 });
 
-export const glasPanel = createTemplate('glass-panel', 'Glass Panel', 'minimal', 5, (ctx, media, params, progress) => {
+export const glasPanel = createTemplate('glass-panel', 'Glass Panel', 'minimal', 5, (ctx, media, _params, progress) => {
   ctx.save();
   ctx.globalAlpha = 0.7;
   ctx.fillStyle = '#1a1a1a';
@@ -173,14 +173,14 @@ export const glasPanel = createTemplate('glass-panel', 'Glass Panel', 'minimal',
   ctx.restore();
 });
 
-export const cardCarousel = createTemplate('card-carousel', 'Card Carousel', 'social', 6, (ctx, media, params, progress) => {
+export const cardCarousel = createTemplate('card-carousel', 'Card Carousel', 'social', 6, (ctx, media, _params, progress) => {
   ctx.save();
   ctx.translate(progress * ctx.canvas.width * 0.5, 0);
   ctx.drawImage(media, ctx.canvas.width / 2 - media.width / 2, ctx.canvas.height / 2 - media.height / 2, media.width, media.height);
   ctx.restore();
 });
 
-export const dynamicCrop = createTemplate('dynamic-crop', 'Dynamic Crop', 'experimental', 4, (ctx, media, params, progress) => {
+export const dynamicCrop = createTemplate('dynamic-crop', 'Dynamic Crop', 'experimental', 4, (ctx, media, _params, progress) => {
   const w = ctx.canvas.width, h = ctx.canvas.height;
   const crop = progress * 50;
   ctx.save();
@@ -191,7 +191,7 @@ export const dynamicCrop = createTemplate('dynamic-crop', 'Dynamic Crop', 'exper
   ctx.restore();
 });
 
-export const infinitePerspectiveLoop = createTemplate('infinite-perspective-loop', 'Infinite Perspective Loop', 'experimental', 8, (ctx, media, params, progress) => {
+export const infinitePerspectiveLoop = createTemplate('infinite-perspective-loop', 'Infinite Perspective Loop', 'experimental', 8, (ctx, media, _params, progress) => {
   const w = ctx.canvas.width, h = ctx.canvas.height;
   ctx.save();
   ctx.translate(w / 2, h / 2);
@@ -203,7 +203,7 @@ export const infinitePerspectiveLoop = createTemplate('infinite-perspective-loop
   ctx.restore();
 });
 
-export const deviceShowcase = createTemplate('device-showcase', 'Device Showcase', 'device', 6, (ctx, media, params, progress) => {
+export const deviceShowcase = createTemplate('device-showcase', 'Device Showcase', 'device', 6, (ctx, media, _params, progress) => {
   const w = ctx.canvas.width, h = ctx.canvas.height;
   ctx.save();
   ctx.globalAlpha = 0.9;
@@ -216,7 +216,7 @@ export const deviceShowcase = createTemplate('device-showcase', 'Device Showcase
   ctx.restore();
 });
 
-export const cameraOrbit = createTemplate('camera-orbit', 'Camera Orbit', '3d', 7, (ctx, media, params, progress) => {
+export const cameraOrbit = createTemplate('camera-orbit', 'Camera Orbit', '3d', 7, (ctx, media, _params, progress) => {
   const w = ctx.canvas.width, h = ctx.canvas.height;
   const angle = progress * Math.PI * 2;
   ctx.save();
@@ -227,7 +227,7 @@ export const cameraOrbit = createTemplate('camera-orbit', 'Camera Orbit', '3d', 
   ctx.restore();
 });
 
-export const rotationReveal = createTemplate('rotation-reveal', 'Rotation Reveal', 'experimental', 5, (ctx, media, params, progress) => {
+export const rotationReveal = createTemplate('rotation-reveal', 'Rotation Reveal', 'experimental', 5, (ctx, media, _params, progress) => {
   const w = ctx.canvas.width, h = ctx.canvas.height;
   ctx.save();
   ctx.translate(w / 2, h / 2);
