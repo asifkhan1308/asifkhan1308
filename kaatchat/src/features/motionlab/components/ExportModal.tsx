@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useEditorStore } from '../store/editorStore';
 import { templateRegistry } from '../templates/registry';
+import { renderMotionToVideo } from '../engine/renderVideo';
+import { sendMotionToNewProject } from '../engine/bridge';
 import type { ExportSettings } from '../types';
 
 interface ExportModalProps {
@@ -8,8 +10,17 @@ interface ExportModalProps {
   onClose: () => void;
 }
 
+const RESOLUTIONS: Record<string, [number, number]> = {
+  '720p': [1280, 720],
+  '1080p': [1920, 1080],
+  '2k': [2560, 1440],
+  '4k': [3840, 2160],
+  '8k': [7680, 4320],
+};
+
 export default function ExportModal({ isOpen, onClose }: ExportModalProps) {
   const currentProject = useEditorStore((s) => s.currentProject);
+  const mediaAssets = useEditorStore((s) => s.mediaAssets);
   const [settings, setSettings] = useState<ExportSettings>({
     format: 'mp4',
     resolution: '1080p',
@@ -18,75 +29,96 @@ export default function ExportModal({ isOpen, onClose }: ExportModalProps) {
   });
   const [isExporting, setIsExporting] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [progressLabel, setProgressLabel] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   if (!isOpen || !currentProject) return null;
-
-  const resolutions: Record<string, [number, number]> = {
-    '720p': [1280, 720],
-    '1080p': [1920, 1080],
-    '2k': [2560, 1440],
-    '4k': [3840, 2160],
-    '8k': [7680, 4320],
-  };
 
   const template = templateRegistry.find((t) => t.id === currentProject.templateId);
   if (!template) return null;
 
-  const [width, height] = resolutions[settings.resolution];
+  const [width, height] = RESOLUTIONS[settings.resolution];
   const duration = currentProject.animation.duration;
   const totalFrames = Math.ceil(duration * settings.frameRate);
-  const estimatedSize = Math.round((width * height * totalFrames) / (1024 * 1024 * 100));
 
-  const handleExport = async () => {
+  const loadMedia = async (): Promise<HTMLImageElement | HTMLVideoElement | { width: number; height: number } | null> => {
+    const asset = mediaAssets[0];
+    if (!asset) return { width: 400, height: 300 };
+    if (asset.type === 'image') {
+      return await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Could not load media image for export.'));
+        img.src = asset.url;
+      });
+    }
+    return await new Promise((resolve, reject) => {
+      const v = document.createElement('video');
+      v.muted = true;
+      v.playsInline = true;
+      v.onloadeddata = () => resolve(v);
+      v.onerror = () => reject(new Error('Could not load media video for export.'));
+      v.src = asset.url;
+    });
+  };
+
+  const runRender = async () => {
+    setError(null);
     setIsExporting(true);
     setProgress(0);
+    const media = await loadMedia();
+    return await renderMotionToVideo({
+      template,
+      project: currentProject,
+      media,
+      width,
+      height,
+      fps: settings.frameRate,
+      format: settings.format,
+      quality: settings.quality,
+      onProgress: (ratio, message) => {
+        setProgress(Math.round(ratio * 100));
+        setProgressLabel(message);
+      },
+    });
+  };
 
+  const handleDownload = async () => {
     try {
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('Cannot get canvas context');
-
-      const frames: ImageData[] = [];
-
-      for (let i = 0; i < totalFrames; i++) {
-        const progress = i / totalFrames;
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, width, height);
-
-        template.animationFunction(ctx, { width: 400, height: 300 } as any, currentProject.parameters, progress, currentProject.aspectRatio);
-
-        const imageData = ctx.getImageData(0, 0, width, height);
-        frames.push(imageData);
-
-        setProgress(Math.round((i / totalFrames) * 50));
-      }
-
-      setProgress(50);
-
-      const blob = new Blob([JSON.stringify({ frames, width, height, frameRate: settings.frameRate })], {
-        type: 'application/json',
-      });
-
-      const url = URL.createObjectURL(blob);
+      const result = await runRender();
+      const url = URL.createObjectURL(result.blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${currentProject.name}-${Date.now()}.json`;
+      a.download = result.fileName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-
-      setProgress(100);
+      setProgressLabel('Downloaded');
       setTimeout(() => {
         onClose();
         setIsExporting(false);
         setProgress(0);
-      }, 1000);
-    } catch (error) {
-      console.error('Export failed:', error);
-      alert('Export failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
+        setProgressLabel('');
+      }, 800);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Export failed');
+      setIsExporting(false);
+    }
+  };
+
+  const handleSendToPodcast = async () => {
+    try {
+      const result = await runRender();
+      setProgressLabel('Opening in Podcast Editor…');
+      const projectId = await sendMotionToNewProject(result.blob, result.fileName, currentProject.name);
+      location.hash = `#/p/${projectId}`;
+      onClose();
+      setIsExporting(false);
+      setProgress(0);
+      setProgressLabel('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Send to Podcast Editor failed');
       setIsExporting(false);
     }
   };
@@ -95,7 +127,7 @@ export default function ExportModal({ isOpen, onClose }: ExportModalProps) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>Export Animation</h2>
+          <h2>Export Motion</h2>
           <button className="btn-close" onClick={onClose}>✕</button>
         </div>
 
@@ -105,15 +137,15 @@ export default function ExportModal({ isOpen, onClose }: ExportModalProps) {
               <div className="export-options">
                 <div className="option-group">
                   <label>Format</label>
-                  <select value={settings.format} onChange={(e) => setSettings({ ...settings, format: e.target.value as any })}>
-                    <option value="mp4">MP4 (H.264)</option>
+                  <select value={settings.format} onChange={(e) => setSettings({ ...settings, format: e.target.value as ExportSettings['format'] })}>
+                    <option value="mp4">MP4 (H.264 / HEVC)</option>
                     <option value="webm">WebM (VP9)</option>
                   </select>
                 </div>
 
                 <div className="option-group">
                   <label>Resolution</label>
-                  <select value={settings.resolution} onChange={(e) => setSettings({ ...settings, resolution: e.target.value as any })}>
+                  <select value={settings.resolution} onChange={(e) => setSettings({ ...settings, resolution: e.target.value as ExportSettings['resolution'] })}>
                     <option value="720p">720p (1280×720)</option>
                     <option value="1080p">1080p (1920×1080)</option>
                     <option value="2k">2K (2560×1440)</option>
@@ -124,7 +156,7 @@ export default function ExportModal({ isOpen, onClose }: ExportModalProps) {
 
                 <div className="option-group">
                   <label>Frame Rate</label>
-                  <select value={settings.frameRate} onChange={(e) => setSettings({ ...settings, frameRate: parseInt(e.target.value) as any })}>
+                  <select value={settings.frameRate} onChange={(e) => setSettings({ ...settings, frameRate: parseInt(e.target.value, 10) as ExportSettings['frameRate'] })}>
                     <option value={24}>24 FPS</option>
                     <option value={30}>30 FPS</option>
                     <option value={60}>60 FPS</option>
@@ -133,10 +165,11 @@ export default function ExportModal({ isOpen, onClose }: ExportModalProps) {
 
                 <div className="option-group">
                   <label>Quality</label>
-                  <select value={settings.quality} onChange={(e) => setSettings({ ...settings, quality: e.target.value as any })}>
-                    <option value="draft">Draft (faster)</option>
+                  <select value={settings.quality} onChange={(e) => setSettings({ ...settings, quality: e.target.value as ExportSettings['quality'] })}>
+                    <option value="low">Low (fastest)</option>
+                    <option value="medium">Medium</option>
                     <option value="high">High</option>
-                    <option value="maximum">Maximum (slower)</option>
+                    <option value="ultra">Ultra (slowest)</option>
                   </select>
                 </div>
               </div>
@@ -154,16 +187,15 @@ export default function ExportModal({ isOpen, onClose }: ExportModalProps) {
                   <span>Resolution:</span>
                   <strong>{width}×{height}</strong>
                 </div>
-                <div className="info-row">
-                  <span>Est. File Size:</span>
-                  <strong>{estimatedSize}MB</strong>
-                </div>
               </div>
+
+              {error && <div className="export-error">{error}</div>}
             </div>
 
             <div className="modal-footer">
               <button className="btn-secondary" onClick={onClose}>Cancel</button>
-              <button className="btn-primary" onClick={handleExport}>Export</button>
+              <button className="btn-secondary" onClick={handleSendToPodcast}>Send to Podcast Editor</button>
+              <button className="btn-primary" onClick={handleDownload}>Download</button>
             </div>
           </>
         ) : (
@@ -172,10 +204,7 @@ export default function ExportModal({ isOpen, onClose }: ExportModalProps) {
               <div className="progress-fill" style={{ width: `${progress}%` }} />
             </div>
             <div className="progress-text">
-              Rendering... {progress}%
-            </div>
-            <div className="progress-frame">
-              Frame {Math.round((progress / 50) * totalFrames)} / {totalFrames}
+              {progressLabel || 'Rendering…'} ({progress}%)
             </div>
           </div>
         )}

@@ -1,38 +1,33 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useEditorStore } from '../store/editorStore';
-import type { MediaAsset } from '../types';
+import { importFileToMotion } from '../engine/bridge';
 
 export default function MediaUploader() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const addMediaAsset = useEditorStore((s) => s.addMediaAsset);
   const mediaAssets = useEditorStore((s) => s.mediaAssets);
-  // const currentProject = useEditorStore((s) => s.currentProject);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const ingest = async (file: File) => {
+    setError(null);
+    setBusy(true);
+    try {
+      // Route through the Kaatchat engine so the media is probed, decoded
+      // and persisted in the shared library the Podcast Editor can see too.
+      const asset = await importFileToMotion(file);
+      addMediaAsset(asset);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not import this file.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const blob = new Blob([event.target?.result as ArrayBuffer], { type: file.type });
-      const url = URL.createObjectURL(blob);
-
-      const media = new Image();
-      media.onload = () => {
-        const asset: MediaAsset = {
-          id: Math.random().toString(36).substring(7),
-          type: file.type.startsWith('image') ? 'image' : 'video',
-          name: file.name,
-          data: blob,
-          url,
-          width: media.width,
-          height: media.height,
-        };
-        addMediaAsset(asset);
-      };
-      media.src = url;
-    };
-    reader.readAsArrayBuffer(file);
+    if (file) await ingest(file);
+    if (e.target) e.target.value = '';
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -44,18 +39,11 @@ export default function MediaUploader() {
     e.currentTarget.classList.remove('drag-over');
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.currentTarget.classList.remove('drag-over');
     const file = e.dataTransfer.files[0];
-    if (file) {
-      if (fileInputRef.current) {
-        const dt = new DataTransfer();
-        dt.items.add(file);
-        fileInputRef.current.files = dt.files;
-        handleFileChange({ target: { files: dt.files } } as any);
-      }
-    }
+    if (file) await ingest(file);
   };
 
   return (
@@ -67,10 +55,11 @@ export default function MediaUploader() {
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
+          aria-busy={busy}
         >
           <div className="drop-icon">📁</div>
-          <div className="drop-text">Drag media here or click to upload</div>
-          <div className="drop-hint">PNG, JPG, WEBP, MP4, WEBM</div>
+          <div className="drop-text">{busy ? 'Importing…' : 'Drag media here or click to upload'}</div>
+          <div className="drop-hint">PNG, JPG, WEBP, MP4, WEBM — shared with Podcast Editor</div>
         </div>
         <input
           ref={fileInputRef}
@@ -79,11 +68,12 @@ export default function MediaUploader() {
           onChange={handleFileChange}
           style={{ display: 'none' }}
         />
+        {error && <div className="upload-error">{error}</div>}
       </div>
 
       {mediaAssets.length > 0 && (
         <div className="media-library">
-          <div className="library-label">Uploaded Media</div>
+          <div className="library-label">Shared Media</div>
           {mediaAssets.map((asset) => (
             <div key={asset.id} className="media-item">
               <div className="media-thumb">

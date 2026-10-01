@@ -42,3 +42,14 @@
 .btn-upload-media:hover {
   background: #357aaa;
 }
+
+.upload-error,
+.export-error {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #3a1a1a;
+  border: 1px solid #6a2a2a;
+  border-radius: 4px;
+  color: #ff9090;
+  font-size: 12px;
+}
