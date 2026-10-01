@@ -1,8 +1,14 @@
 {
-  "version": "2.0.0-alpha.4",
-  "windowsUrl": "https://github.com/asifkhan1308/asifkhan1308/releases/download/kaatchat-v2.0.0-alpha.4/Kaatchat-Setup-2.0.0-alpha.4.exe",
-  "sha256": "5c2edd0f7b37dbed050069df21c2ce2cec1ce82a065c6d22396c76aaa1315e78",
-  "size": 116265143,
+  "version": "2.0.0-alpha.5",
+  "windowsUrl": "https://github.com/asifkhan1308/asifkhan1308/releases/download/kaatchat-v2.0.0-alpha.5/Kaatchat-Setup-2.0.0-alpha.5.exe",
+  "sha256": "24fce70700b999d6071a350ebb56d2efc9d9b092ab0637648ffd914dbad626f9",
+  "size": 118877965,
+  "macOSArm64Url": "https://github.com/asifkhan1308/asifkhan1308/releases/download/kaatchat-v2.0.0-alpha.5/Kaatchat-2.0.0-alpha.5-mac-arm64.dmg",
+  "macOSArm64Sha256": "95a9c44e4d05be9c35d43269966e1b6341da35be0a6aa7027df3913aa4654c1f",
+  "macOSArm64Size": 136868884,
+  "macOSX64Url": "https://github.com/asifkhan1308/asifkhan1308/releases/download/kaatchat-v2.0.0-alpha.5/Kaatchat-2.0.0-alpha.5-mac-x64.dmg",
+  "macOSX64Sha256": "fa8ee2e4429bf2727e0cc6595841d2fbd01f1e98f005c4f294eabe61a513e37d",
+  "macOSX64Size": 143591067,
   "signed": false,
-  "notes": "Kaatchat 2.0.0-alpha.4 for Windows 10/11 (64-bit). One-click installer, unsigned: SmartScreen may say the publisher is unknown. Release: https://github.com/asifkhan1308/asifkhan1308/releases/tag/kaatchat-v2.0.0-alpha.4"
+  "notes": "Kaatchat 2.0.0-alpha.5 for Windows 10/11 and macOS (64-bit). One-click installers. Release: https://github.com/asifkhan1308/asifkhan1308/releases/tag/kaatchat-v2.0.0-alpha.5"
 }
