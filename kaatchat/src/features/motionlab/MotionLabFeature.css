@@ -1,0 +1,44 @@
+.motionlab-feature {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: #0a0a0a;
+  color: #e0e0e0;
+}
+
+.motionlab-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.motionlab-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a1a1a;
+  padding: 20px;
+  overflow: hidden;
+  position: relative;
+}
+
+.btn-upload-media {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #2a6a8a;
+  border: 1px solid #3a7aaa;
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  z-index: 10;
+}
+
+.btn-upload-media:hover {
+  background: #357aaa;
+}
