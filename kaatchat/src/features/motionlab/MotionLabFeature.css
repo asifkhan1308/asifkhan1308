@@ -37,15 +37,45 @@
 .topbar-left {
   gap: 14px;
 }
+.brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #f0f0f3;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.12s;
+}
+.brand-link:hover {
+  background: #1a1a1d;
+}
+.brand-link svg {
+  color: #e9e9ec;
+}
+.brand-name {
+  letter-spacing: 0.2px;
+}
+.brand-sep {
+  color: #4a4a4e;
+  font-weight: 300;
+  font-size: 16px;
+  margin: 0 2px;
+}
 .logo {
-  font-weight: 700;
-  letter-spacing: 2px;
-  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  font-size: 13px;
   color: #e9e9ec;
 }
 .project-name {
-  color: #9a9aa0;
+  color: #76767a;
   font-size: 12px;
+  padding-left: 10px;
+  margin-left: 4px;
+  border-left: 1px solid #2a2a2e;
 }
 .btn-icon,
 .btn-play,

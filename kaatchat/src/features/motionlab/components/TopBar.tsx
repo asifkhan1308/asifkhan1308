@@ -1,4 +1,5 @@
 import { useEditorStore } from '../store/editorStore';
+import { Logo } from '../../../ui/bits';
 
 interface TopBarProps {
   onExport: () => void;
@@ -15,7 +16,12 @@ export default function TopBar({ onExport }: TopBarProps) {
   return (
     <div className="topbar">
       <div className="topbar-left">
-        <div className="logo">MOTIONLAB</div>
+        <a className="brand-link" href="#/" aria-label="Back to Kaatchat home">
+          <Logo size={22} />
+          <span className="brand-name">Kaatchat</span>
+        </a>
+        <span className="brand-sep" aria-hidden="true">/</span>
+        <div className="logo">Motion Design</div>
         <div className="project-name">{currentProject?.name || 'Untitled'}</div>
       </div>
       <div className="topbar-center">
