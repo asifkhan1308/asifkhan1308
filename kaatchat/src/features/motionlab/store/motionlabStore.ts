@@ -1,5 +1,14 @@
 import { create } from 'zustand';
-import type { Project, MediaAsset, AspectRatio, BackgroundSettings, AnimationState, TransformState, HistoryEntry } from '../types';
+import type {
+  Project,
+  MediaAsset,
+  AspectRatio,
+  BackgroundSettings,
+  AnimationState,
+  TransformState,
+  HistoryEntry,
+  TextLayer,
+} from '../types';
 
 interface MotionLabStore {
   // Project
@@ -26,6 +35,13 @@ interface MotionLabStore {
   setAnimation: (animation: Partial<AnimationState>) => void;
   setTransform: (transform: Partial<TransformState>) => void;
 
+  // Text layers
+  selectedTextLayerId: string | null;
+  addTextLayer: (text?: string) => void;
+  updateTextLayer: (id: string, patch: Partial<TextLayer>) => void;
+  removeTextLayer: (id: string) => void;
+  selectTextLayer: (id: string | null) => void;
+
   // Playback
   isPlaying: boolean;
   currentTime: number;
@@ -49,9 +65,29 @@ const createDefaultProject = (templateId: string): Project => ({
   background: { type: 'solid', color: '#000000', opacity: 1 },
   animation: { duration: 5, delay: 0, speed: 1, loop: true },
   transform: { x: 0, y: 0, scale: 1, rotation: 0, perspective: 1000 },
+  textLayers: [],
   createdAt: Date.now(),
   updatedAt: Date.now(),
 });
+
+const makeTextLayer = (text: string, duration: number): TextLayer => ({
+  id: `t_${Math.random().toString(36).slice(2, 9)}`,
+  text,
+  x: 0.5,
+  y: 0.82,
+  size: 0.08,
+  color: '#ffffff',
+  fontFamily: 'Inter, -apple-system, system-ui, sans-serif',
+  fontWeight: 700,
+  align: 'center',
+  start: 0,
+  end: duration,
+  animation: 'fade-in',
+});
+
+/** Older projects loaded from storage may lack textLayers; keep them safe to render. */
+const normalizeProject = (p: Project): Project =>
+  p.textLayers ? p : { ...p, textLayers: [] };
 
 export const useMotionLabStore = create<MotionLabStore>((set) => ({
   currentProject: null,
@@ -76,9 +112,10 @@ export const useMotionLabStore = create<MotionLabStore>((set) => ({
   },
 
   loadProject: (id: string) => {
-    set((state) => ({
-      currentProject: state.projects.find((p) => p.id === id) || null,
-    }));
+    set((state) => {
+      const found = state.projects.find((p) => p.id === id);
+      return { currentProject: found ? normalizeProject(found) : null };
+    });
   },
 
   saveProject: () => {
@@ -198,6 +235,60 @@ export const useMotionLabStore = create<MotionLabStore>((set) => ({
         projects: state.projects.map((p) => (p.id === updated.id ? updated : p)),
       };
     });
+  },
+
+  selectedTextLayerId: null,
+
+  addTextLayer: (text = 'Your text') => {
+    set((state) => {
+      if (!state.currentProject) return state;
+      const layer = makeTextLayer(text, state.currentProject.animation.duration);
+      const updated = normalizeProject({
+        ...state.currentProject,
+        textLayers: [...(state.currentProject.textLayers ?? []), layer],
+      });
+      return {
+        currentProject: updated,
+        projects: state.projects.map((p) => (p.id === updated.id ? updated : p)),
+        selectedTextLayerId: layer.id,
+      };
+    });
+  },
+
+  updateTextLayer: (id: string, patch: Partial<TextLayer>) => {
+    set((state) => {
+      if (!state.currentProject) return state;
+      const updated = normalizeProject({
+        ...state.currentProject,
+        textLayers: (state.currentProject.textLayers ?? []).map((l) =>
+          l.id === id ? { ...l, ...patch } : l,
+        ),
+      });
+      return {
+        currentProject: updated,
+        projects: state.projects.map((p) => (p.id === updated.id ? updated : p)),
+      };
+    });
+  },
+
+  removeTextLayer: (id: string) => {
+    set((state) => {
+      if (!state.currentProject) return state;
+      const updated = normalizeProject({
+        ...state.currentProject,
+        textLayers: (state.currentProject.textLayers ?? []).filter((l) => l.id !== id),
+      });
+      return {
+        currentProject: updated,
+        projects: state.projects.map((p) => (p.id === updated.id ? updated : p)),
+        selectedTextLayerId:
+          state.selectedTextLayerId === id ? null : state.selectedTextLayerId,
+      };
+    });
+  },
+
+  selectTextLayer: (id: string | null) => {
+    set({ selectedTextLayerId: id });
   },
 
   setIsPlaying: (playing: boolean) => {

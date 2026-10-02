@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import { useEditorStore } from '../store/editorStore';
+import { drawTextLayers } from '../engine/drawText';
 import type { Template, Project } from '../types';
 
 interface CanvasProps {
@@ -28,7 +29,7 @@ export default function Canvas({ template, project }: CanvasProps) {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !media) return;
+    if (!canvas) return;
 
     let lastTimestamp = Date.now();
 
@@ -42,13 +43,15 @@ export default function Canvas({ template, project }: CanvasProps) {
       }
 
       const progress = (startTimeRef.current % (template.duration * 1000)) / (template.duration * 1000);
-      setCurrentTime(progress * template.duration);
+      const time = progress * template.duration;
+      setCurrentTime(time);
 
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        ctx.fillStyle = '#000';
+        ctx.fillStyle = project.background?.color ?? '#000';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        template.animationFunction(ctx, media, project.parameters, progress, project.aspectRatio);
+        if (media) template.animationFunction(ctx, media, project.parameters, progress, project.aspectRatio);
+        drawTextLayers(ctx, project.textLayers, time, canvas.width, canvas.height);
       }
 
       animFrameRef.current = requestAnimationFrame(render);
@@ -59,7 +62,7 @@ export default function Canvas({ template, project }: CanvasProps) {
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [isPlaying, template, project.parameters, media]);
+  }, [isPlaying, template, project.parameters, project.textLayers, project.background, project.aspectRatio, media]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;

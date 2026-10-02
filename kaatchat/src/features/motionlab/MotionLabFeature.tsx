@@ -3,6 +3,7 @@ import { useMotionLabStore } from './store/motionlabStore';
 import { templateRegistry } from './templates/registry';
 import Canvas from './components/Canvas';
 import ParameterPanel from './components/ParameterPanel';
+import TextLayerPanel from './components/TextLayerPanel';
 import MediaUploader from './components/MediaUploader';
 import ExportModal from './components/ExportModal';
 import Sidebar from './components/Sidebar';
@@ -62,10 +63,13 @@ export default function MotionLabFeature() {
           )}
         </div>
         {currentProject && (
-          <ParameterPanel
-            template={templateRegistry.find((t) => t.id === currentProject.templateId)!}
-            project={currentProject}
-          />
+          <div className="right-rail">
+            <ParameterPanel
+              template={templateRegistry.find((t) => t.id === currentProject.templateId)!}
+              project={currentProject}
+            />
+            <TextLayerPanel />
+          </div>
         )}
       </div>
       <ExportModal isOpen={showExport} onClose={() => setShowExport(false)} />

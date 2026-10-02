@@ -77,6 +77,26 @@ export interface Template {
   previewFunction?: PreviewFunction;
 }
 
+export type TextAnimation = 'none' | 'fade-in' | 'slide-up' | 'typewriter';
+
+export interface TextLayer {
+  id: string;
+  text: string;
+  /** Normalised 0..1 in canvas space. Center-anchored. */
+  x: number;
+  y: number;
+  /** Font size as a fraction of canvas height (0.05 = 5% of H). */
+  size: number;
+  color: string;
+  fontFamily: string;
+  fontWeight: 400 | 500 | 600 | 700 | 800;
+  align: 'left' | 'center' | 'right';
+  /** Visible window in seconds, within the project's animation.duration. */
+  start: number;
+  end: number;
+  animation: TextAnimation;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -86,6 +106,7 @@ export interface Project {
   background: BackgroundSettings;
   animation: AnimationState;
   transform: TransformState;
+  textLayers: TextLayer[];
   createdAt: number;
   updatedAt: number;
 }

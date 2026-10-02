@@ -10,6 +10,7 @@ import {
   WebMOutputFormat,
   type VideoCodec,
 } from 'mediabunny';
+import { drawTextLayers } from './drawText';
 import type { Template, Project } from '../types';
 
 export interface RenderOptions {
@@ -97,6 +98,8 @@ export async function renderMotionToVideo(opts: RenderOptions): Promise<RenderRe
       } catch {
         // A single frame failure should not kill the whole render — skip and continue.
       }
+
+      drawTextLayers(ctx, opts.project.textLayers, time, width, height);
 
       await videoSource.add(time, 1 / fps);
       opts.onProgress?.((k + 1) / totalFrames, `Frame ${k + 1} of ${totalFrames} · ${videoCodec.toUpperCase()}`);
