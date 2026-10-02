@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Kaatchat — brag</title>
+    <script src="assets/gsap.min.js"></script>
+    <script src="assets/audio-data.js"></script>
+    <style>
+      @font-face { font-family: 'Inter Variable'; src: url('assets/fonts/Inter-Variable.woff2') format('woff2'); font-weight: 100 900; }
+      @font-face { font-family: 'JetBrains Mono'; src: url('assets/fonts/JetBrainsMono-400.woff2') format('woff2'); font-weight: 400; }
+      @font-face { font-family: 'JetBrains Mono'; src: url('assets/fonts/JetBrainsMono-500.woff2') format('woff2'); font-weight: 500; }
+
+      body { margin: 0; background: #0D0D0F; color: #F2F2F4; font-family: 'Inter Variable', sans-serif; -webkit-font-smoothing: antialiased; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #0D0D0F; }
+      .clip { position: absolute; inset: 0; }
+      .mono { font-family: 'JetBrains Mono', monospace; }
+
+      /* stage: the site's dark show gradient + a glow that breathes with the bass */
+      #bg { background: linear-gradient(160deg, #2A2A2E 0%, #17171A 45%, #0D0D0F 100%); }
+      #glow { position: absolute; left: 460px; top: 140px; width: 1000px; height: 800px; border-radius: 50%;
+        background: radial-gradient(closest-side, rgba(242, 242, 244, .10), rgba(242, 242, 244, 0)); }
+
+      /* scene 1: command bar */
+      .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+      #s1-eyebrow { font-size: 26px; letter-spacing: .14em; text-transform: uppercase; color: rgba(242, 242, 244, .66); margin-bottom: 40px; }
+      #s1-bar { width: 1100px; height: 110px; border-radius: 999px; background: #1D1D20; border: 2px solid #45454B;
+        display: flex; align-items: center; padding: 0 48px; box-sizing: border-box; gap: 28px; box-shadow: 0 30px 80px rgba(0, 0, 0, .5); }
+      #s1-spark { width: 40px; height: 40px; flex: none; }
+      #s1-text { font-size: 46px; font-weight: 500; letter-spacing: -.01em; white-space: nowrap; }
+      #s1-caret { display: inline-block; width: 3px; height: 50px; background: #F2F2F4; vertical-align: -8px; margin-left: 4px; }
+
+      /* scene 2: headline */
+      #s2-mark { width: 96px; height: 96px; margin-bottom: 44px; }
+      .h1 { font-size: 132px; line-height: 1.04; font-weight: 640; letter-spacing: -.035em; display: block; }
+
+      /* screens (real screenshots) */
+      .cam { position: absolute; left: 0; top: 0; width: 1440px; height: 900px; transform-origin: 0 0; }
+      .shot { position: absolute; inset: 0; border-radius: 14px; overflow: hidden; box-shadow: 0 40px 120px rgba(0, 0, 0, .55); }
+      .shot img { display: block; width: 1440px; height: 900px; }
+      .scrim { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(13, 13, 15, .94) 0%, rgba(13, 13, 15, .9) 44%, rgba(13, 13, 15, 0) 56%); }
+      .caption { position: absolute; left: 120px; width: 860px; text-wrap: balance; font-size: 76px; line-height: 1.08; font-weight: 640; letter-spacing: -.03em; }
+      .kicker { position: absolute; left: 124px; font-size: 24px; letter-spacing: .14em; text-transform: uppercase; color: rgba(242, 242, 244, .66); }
+      #plan-mask { position: absolute; left: 1090px; top: 278px; width: 340px; height: 282px; background: #FFFFFF; transform-origin: 50% 100%; }
+      .hl { position: absolute; left: 1104px; width: 300px; height: 38px; border-radius: 6px; background: rgba(17, 19, 24, .07); border-left: 3px solid #111318; }
+      .cursor { position: absolute; left: 0; top: 0; width: 44px; height: 44px; }
+      .press { position: absolute; border-radius: 8px; background: rgba(255, 255, 255, .22); }
+
+      /* scene 5 cards: real 9:16 frames cropped from the editor preview */
+      .card { position: absolute; top: 400px; width: 290px; height: 516px; border-radius: 16px; overflow: hidden;
+        border: 2px solid rgba(242, 242, 244, .5); box-shadow: 0 30px 80px rgba(0, 0, 0, .6);
+        background-size: 1800px 1125px; background-position: -710px -104px; }
+      .card span { position: absolute; left: 14px; bottom: 12px; font-family: 'JetBrains Mono', monospace; font-size: 20px; color: #F2F2F4;
+        background: rgba(13, 13, 15, .78); padding: 4px 10px; border-radius: 6px; }
+
+      /* scene 6: local means local */
+      #s6 .wrap { position: absolute; left: 260px; top: 200px; width: 1400px; }
+      #s6 h2 { margin: 0 0 60px; font-size: 118px; font-weight: 640; letter-spacing: -.035em; }
+      .row { display: flex; justify-content: space-between; align-items: center; padding: 30px 0; border-top: 2px solid #2E2E33; font-size: 42px; }
+      .row:last-child { border-bottom: 2px solid #2E2E33; }
+      .row .k { color: rgba(242, 242, 244, .72); }
+      .row .v { font-weight: 600; display: flex; align-items: center; gap: 16px; }
+      .row .v.ok::before { content: ''; width: 16px; height: 16px; border-radius: 50%; background: #5BD39A; }
+
+      /* scene 7: outro */
+      #s7-lockup { display: flex; align-items: center; gap: 36px; }
+      #s7-mark { width: 130px; height: 130px; }
+      #s7-word { font-size: 150px; font-weight: 700; letter-spacing: -.04em; }
+      #s7-fine { margin-top: 34px; font-size: 30px; color: rgba(242, 242, 244, .74); }
+      #s7-url { margin-top: 20px; font-size: 34px; color: #F2F2F4; }
+      #s7-sign { position: absolute; left: 0; right: 0; bottom: 70px; display: flex; justify-content: center; align-items: center; gap: 22px; }
+      #s7-mascot { width: 150px; height: 100px; object-fit: contain; }
+      #s7-logo { width: 330px; height: 110px; object-fit: cover; object-position: 50% 50%; }
+      #s7-from { font-size: 24px; letter-spacing: .14em; text-transform: uppercase; color: rgba(242, 242, 244, .66); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-width="1920" data-height="1080" data-duration="24">
+      <!-- stage -->
+      <section id="bg" class="clip" data-start="0" data-duration="24" data-track-index="0">
+        <div id="glow"></div>
+      </section>
+
+      <!-- 1. the ask -->
+      <section id="s1" class="clip" data-start="0" data-duration="3.7" data-track-index="1">
+        <div class="center" id="s1-in">
+          <div id="s1-eyebrow" class="mono">Talk to your footage</div>
+          <div id="s1-bar">
+            <svg id="s1-spark" viewBox="0 0 24 24" fill="#F2F2F4"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>
+            <div><span id="s1-text"></span><span id="s1-caret"></span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. reveal -->
+      <section id="s2" class="clip" data-start="3.6" data-duration="3.5" data-track-index="2">
+        <div class="center" id="s2-in">
+          <img id="s2-mark" src="assets/img/logo-mark-white.svg" alt="" />
+          <div class="h1" id="s2-l1">Shoot once.</div>
+          <div class="h1" id="s2-l2">Edit intelligently.</div>
+          <div class="h1" id="s2-l3">Create more.</div>
+        </div>
+      </section>
+
+      <!-- 3 + 4. ask for the edit → the plan (plan.png) -->
+      <section id="s3" class="clip" data-start="7.0" data-duration="6.1" data-track-index="3">
+        <div id="s3-in" style="position:absolute;inset:0">
+          <div class="cam" id="cam3">
+            <div class="shot"><img src="assets/img/plan.png" alt="" /></div>
+            <div id="plan-mask"></div>
+            <div class="hl" id="hl1" style="top:369px"></div>
+            <div class="hl" id="hl2" style="top:409px"></div>
+            <div class="hl" id="hl3" style="top:450px"></div>
+            <div class="press" id="press3" style="left:1101px;top:238px;width:84px;height:32px"></div>
+          </div>
+          <div class="scrim" id="scrim3"></div>
+          <div class="kicker mono" id="k3" style="top:360px">Ask</div>
+          <div class="caption" id="c3" style="top:410px">Ask for the edit.</div>
+          <div class="kicker mono" id="k4" style="top:330px">Plan</div>
+          <div class="caption" id="c4" style="top:380px">Every AI edit is a plan you can read before it runs.</div>
+          <svg class="cursor" id="cur3" viewBox="0 0 24 24"><path d="M4 2l16 9.5-7 1.6L9.6 20z" fill="#FFFFFF" stroke="#111318" stroke-width="1.4" stroke-linejoin="round"/></svg>
+        </div>
+      </section>
+
+      <!-- 5. repurpose -->
+      <section id="s5" class="clip" data-start="12.9" data-duration="4.1" data-track-index="4">
+        <div id="s5-in" style="position:absolute;inset:0">
+          <div class="cam" id="cam5">
+            <div class="shot"><img src="assets/img/repurpose.png" alt="" /></div>
+            <div class="press" id="press5" style="left:1101px;top:529px;width:106px;height:32px"></div>
+          </div>
+          <div class="scrim"></div>
+          <div class="kicker mono" id="k5" style="top:120px">Repurpose</div>
+          <div class="caption" id="c5" style="top:166px;width:1000px">One video, many pieces.</div>
+          <div class="card" id="card1" style="left:110px;background-image:url(assets/img/editor.png)"><span>Reel 1</span></div>
+          <div class="card" id="card2" style="left:420px;background-image:url(assets/img/plan.png)"><span>Reel 2</span></div>
+          <div class="card" id="card3" style="left:730px;background-image:url(assets/img/repurpose.png)"><span>Reel 3</span></div>
+          <svg class="cursor" id="cur5" viewBox="0 0 24 24"><path d="M4 2l16 9.5-7 1.6L9.6 20z" fill="#FFFFFF" stroke="#111318" stroke-width="1.4" stroke-linejoin="round"/></svg>
+        </div>
+      </section>
+
+      <!-- 6. local means local -->
+      <section id="s6" class="clip" data-start="16.9" data-duration="3.6" data-track-index="5">
+        <div class="wrap" id="s6-in">
+          <h2 id="s6-h">Local means local.</h2>
+          <div class="row" id="r1"><span class="k">Video and audio files</span><span class="v ok">Stay on your machine</span></div>
+          <div class="row" id="r2"><span class="k">Projects, timelines, transcripts</span><span class="v ok">Stay on your machine</span></div>
+          <div class="row" id="r3"><span class="k">Accounts, tracking, telemetry</span><span class="v ok">None</span></div>
+        </div>
+      </section>
+
+      <!-- 7. outro -->
+      <section id="s7" class="clip" data-start="20.4" data-duration="3.6" data-track-index="6">
+        <div class="center" style="bottom:140px">
+          <div id="s7-lockup">
+            <img id="s7-mark" src="assets/img/logo-mark-white.svg" alt="" />
+            <div id="s7-word">Kaatchat</div>
+          </div>
+          <div id="s7-fine" class="mono">Free · MPL-2.0 open source · No account · No uploads</div>
+          <div id="s7-url" class="mono">kaatchat-website.vercel.app</div>
+        </div>
+        <div id="s7-sign">
+          <span id="s7-from" class="mono">from</span>
+          <img id="s7-mascot" src="assets/img/eternl-draft-mascot.png" alt="" />
+          <img id="s7-logo" src="assets/img/eternl-draft-logo.png" alt="eternl.draft" />
+        </div>
+      </section>
+
+      <!-- audio -->
+      <audio id="bgm" src="assets/music/happy-beats-business-moves-vol-12-by-ende-dot-app.mp3" data-start="0" data-duration="24" data-track-index="10" data-volume="0.34"
+        data-automation='{"version":1,"lanes":[{"target":"volume","points":[{"t":0,"v":0.34},{"t":23,"v":0.34},{"t":24,"v":0}]}]}'></audio>
+      <audio id="sfx-k1" src="assets/sfx/keypress-003.wav" data-start="0.84" data-duration="0.3" data-track-index="11" data-volume="0.4"></audio>
+      <audio id="sfx-k2" src="assets/sfx/keypress-011.wav" data-start="1.08" data-duration="0.3" data-track-index="12" data-volume="0.35"></audio>
+      <audio id="sfx-k3" src="assets/sfx/keypress-019.wav" data-start="1.32" data-duration="0.3" data-track-index="13" data-volume="0.4"></audio>
+      <audio id="sfx-k4" src="assets/sfx/keypress-027.wav" data-start="1.56" data-duration="0.3" data-track-index="14" data-volume="0.35"></audio>
+      <audio id="sfx-k5" src="assets/sfx/keypress-007.wav" data-start="1.8" data-duration="0.3" data-track-index="15" data-volume="0.4"></audio>
+      <audio id="sfx-k6" src="assets/sfx/keypress-023.wav" data-start="2.04" data-duration="0.3" data-track-index="16" data-volume="0.35"></audio>
+      <audio id="sfx-k7" src="assets/sfx/keypress-031.wav" data-start="2.28" data-duration="0.3" data-track-index="17" data-volume="0.4"></audio>
+      <audio id="sfx-click3" src="assets/sfx/click_003.ogg" data-start="8.72" data-duration="0.05" data-track-index="18" data-volume="0.7"></audio>
+      <audio id="sfx-drop" src="assets/sfx/drop_001.ogg" data-start="8.95" data-duration="0.11" data-track-index="19" data-volume="0.55"></audio>
+      <audio id="sfx-click5" src="assets/sfx/click2.ogg" data-start="14.71" data-duration="0.06" data-track-index="20" data-volume="0.65"></audio>
+      <audio id="sfx-cards" src="assets/sfx/card-slide-1.ogg" data-start="14.9" data-duration="0.6" data-track-index="21" data-volume="0.5"></audio>
+      <audio id="sfx-local" src="assets/sfx/impactSoft_medium_001.ogg" data-start="17.44" data-duration="0.18" data-track-index="22" data-volume="0.6"></audio>
+      <audio id="sfx-bell" src="assets/sfx/impactBell_heavy_000.ogg" data-start="22.9" data-duration="1.1" data-track-index="23" data-volume="0.5"></audio>
+    </div>
+
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      const E = 'power3.out', IO = 'power2.inOut';
+
+      // ---------- audio-reactive stage glow (bass, normalized over the window) ----------
+      const A = window.AUDIO_DATA;
+      const bmax = Math.max.apply(null, A.bass) || 1;
+      for (let f = 0; f < 24 * 30; f++) {
+        const b = (A.bass[Math.min(f, A.bass.length - 1)] || 0) / bmax;
+        tl.set('#glow', { opacity: 0.55 + 0.45 * b, scale: 1 + 0.06 * b }, f / 30);
+      }
+
+      // ---------- 1. the ask (typed request) ----------
+      const req = 'turn this into a 30-second Reel';
+      tl.fromTo('#s1-eyebrow', { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.6, ease: E }, 0.2);
+      tl.fromTo('#s1-bar', { opacity: 0, scale: 0.94 }, { opacity: 1, scale: 1, duration: 0.6, ease: E }, 0.45);
+      const t0 = 0.8, cps = 0.046;
+      for (let i = 0; i <= req.length; i++) tl.set('#s1-text', { textContent: req.slice(0, i) }, t0 + i * cps);
+      for (let i = 0; i < 6; i++) tl.set('#s1-caret', { opacity: i % 2 ? 1 : 0 }, 2.35 + i * 0.25);
+      tl.to('#s1-in', { opacity: 0, y: -30, duration: 0.35, ease: 'power2.in' }, 3.3);
+
+      // ---------- 2. reveal: headline on the beat grid ----------
+      tl.fromTo('#s2-mark', { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.5, ease: E }, 3.62);
+      // beat-grid: line 1 at 3.82s, line 2 at 4.39s, line 3 at 4.91s
+      tl.fromTo('#s2-l1', { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, 3.82);
+      tl.fromTo('#s2-l2', { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, 4.39);
+      tl.fromTo('#s2-l3', { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, 4.91);
+      tl.to('#s2-in', { opacity: 0, duration: 0.35, ease: 'power2.in' }, 6.7);
+
+      // ---------- 3. ask for the edit (plan.png) ----------
+      // camera: wide (s .95) → push into the Ask panel (s 1.9)
+      tl.set('#cam3', { x: 276, y: 150, scale: 0.95 }, 7.0);
+      tl.fromTo('#s3-in', { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power1.out' }, 7.0);
+      tl.fromTo('#cam3', { y: 190 }, { y: 150, duration: 0.6, ease: E }, 7.0);
+      tl.to('#cam3', { x: -900, y: -58, scale: 1.9, duration: 1.0, ease: IO }, 7.55);
+      tl.fromTo('#scrim3', { opacity: 0 }, { opacity: 1, duration: 0.7, ease: IO }, 7.75);
+      tl.fromTo(['#k3', '#c3'], { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.5, ease: E, stagger: 0.08 }, 7.95);
+      tl.set(['#k4', '#c4'], { opacity: 0 }, 7.0);
+      tl.set(['#hl1', '#hl2', '#hl3', '#press3'], { opacity: 0 }, 7.0);
+      // cursor glides to "Plan it" (px 1143,254 → screen 1128,424) and clicks
+      tl.fromTo('#cur3', { x: 1700, y: 860, opacity: 0 }, { x: 1700, y: 860, opacity: 1, duration: 0.2 }, 8.0);
+      tl.to('#cur3', { x: 1270, y: 422, duration: 0.55, ease: IO }, 8.15);
+      // beat-locked: 8.74s — the Plan it press
+      tl.to('#cur3', { scale: 0.86, duration: 0.08, ease: 'power1.in' }, 8.7);
+      tl.to('#press3', { opacity: 1, duration: 0.06 }, 8.72);
+      tl.to('#cur3', { scale: 1, duration: 0.14, ease: 'power1.out' }, 8.78);
+      tl.to('#press3', { opacity: 0, duration: 0.2 }, 8.86);
+      // the plan appears
+      tl.to('#plan-mask', { scaleY: 0, duration: 0.6, ease: 'power2.inOut' }, 8.95);
+      tl.to('#cur3', { opacity: 0, duration: 0.3 }, 9.3);
+
+      // ---------- 4. the plan: camera settles on the list, rows highlight ----------
+      tl.to('#cam3', { x: -889, y: -262, duration: 0.9, ease: IO }, 9.4);
+      tl.to(['#k3', '#c3'], { opacity: 0, y: -20, duration: 0.3, ease: 'power2.in' }, 9.45);
+      tl.fromTo(['#k4', '#c4'], { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.5, ease: E, stagger: 0.08 }, 9.8);
+      // beat-grid (every other beat): row 1 at 10.37s, row 2 at 11.46s, row 3 at 12.55s
+      tl.fromTo('#hl1', { opacity: 0 }, { opacity: 1, duration: 0.25 }, 10.37);
+      tl.to('#hl1', { opacity: 0, duration: 0.3 }, 11.4);
+      tl.fromTo('#hl2', { opacity: 0 }, { opacity: 1, duration: 0.25 }, 11.46);
+      tl.to('#hl2', { opacity: 0, duration: 0.3 }, 12.5);
+      tl.fromTo('#hl3', { opacity: 0 }, { opacity: 1, duration: 0.25 }, 12.55);
+      tl.to('#cam3', { scale: 1.96, x: -955, y: -290, duration: 3.0, ease: 'none' }, 10.3);
+      tl.to('#s3-in', { opacity: 0, duration: 0.3, ease: 'power2.in' }, 12.8);
+
+      // ---------- 5. repurpose ----------
+      tl.set('#cam5', { x: -900, y: -87, scale: 1.9 }, 12.9);
+      tl.fromTo('#s5-in', { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power1.out' }, 13.1);
+      tl.fromTo('#cam5', { scale: 1.8, x: -770, y: -50 }, { scale: 1.9, x: -900, y: -87, duration: 1.2, ease: E }, 13.1);
+      tl.fromTo(['#k5', '#c5'], { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.5, ease: E, stagger: 0.08 }, 13.3);
+      tl.set(['#card1', '#card2', '#card3', '#press5'], { opacity: 0 }, 12.9);
+      // cursor to "Find clips" (px 1154,545 → screen 1148,948), click on the beat at 14.73s
+      tl.fromTo('#cur5', { x: 1740, y: 700, opacity: 0 }, { x: 1740, y: 700, opacity: 1, duration: 0.2 }, 13.7);
+      tl.to('#cur5', { x: 1294, y: 944, duration: 0.7, ease: IO }, 13.9);
+      tl.to('#cur5', { scale: 0.86, duration: 0.08, ease: 'power1.in' }, 14.69);
+      tl.to('#press5', { opacity: 1, duration: 0.06 }, 14.71);
+      tl.to('#cur5', { scale: 1, duration: 0.14 }, 14.77);
+      tl.to('#press5', { opacity: 0, duration: 0.2 }, 14.85);
+      tl.to('#cur5', { opacity: 0, duration: 0.3 }, 15.0);
+      // three separate vertical edits fan out from the button
+      [['#card1', 1184, -8], ['#card2', 874, 0], ['#card3', 564, 8]].forEach(([id, dx, r], i) => {
+        tl.fromTo(id, { opacity: 0, x: dx, y: 300, rotation: r * 2, scale: 0.6 },
+          { opacity: 1, x: 0, y: 0, rotation: r * 0.25, scale: 1, duration: 0.7, ease: 'power3.out' }, 14.9 + i * 0.09);
+      });
+      tl.to('#s5-in', { opacity: 0, duration: 0.3, ease: 'power2.in' }, 16.7);
+
+      // ---------- 6. local means local ----------
+      // beat-locked: 17.47s — the privacy heading
+      tl.fromTo('#s6-h', { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.55, ease: E }, 17.45);
+      tl.fromTo('#r1', { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.45, ease: E }, 18.02);
+      tl.fromTo('#r2', { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.45, ease: E }, 18.56);
+      tl.fromTo('#r3', { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.45, ease: E }, 19.1);
+      tl.to('#s6-in', { opacity: 0, duration: 0.3, ease: 'power2.in' }, 20.2);
+
+      // ---------- 7. outro ----------
+      tl.fromTo('#s7-mark', { opacity: 0, rotation: -40, scale: 0.7 }, { opacity: 1, rotation: 0, scale: 1, duration: 0.7, ease: E }, 20.5);
+      tl.fromTo('#s7-word', { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: 0.6, ease: E }, 20.75);
+      tl.fromTo('#s7-fine', { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, 21.28);
+      tl.fromTo('#s7-url', { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, 21.6);
+      // beat-locked: 22.93s — eternl.draft sign-off
+      tl.fromTo('#s7-sign', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.6, ease: E }, 22.9);
+
+      window.__timelines['main'] = tl;
+    </script>
+  </body>
+</html>
