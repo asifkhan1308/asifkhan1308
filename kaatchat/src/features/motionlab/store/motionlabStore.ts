@@ -8,6 +8,8 @@ import type {
   TransformState,
   HistoryEntry,
   TextLayer,
+  Keyframe,
+  KeyframeProp,
 } from '../types';
 
 interface MotionLabStore {
@@ -41,6 +43,8 @@ interface MotionLabStore {
   updateTextLayer: (id: string, patch: Partial<TextLayer>) => void;
   removeTextLayer: (id: string) => void;
   selectTextLayer: (id: string | null) => void;
+  addKeyframe: (layerId: string, prop: KeyframeProp, time: number, value: number) => void;
+  removeKeyframe: (layerId: string, prop: KeyframeProp, time: number) => void;
 
   // Playback
   isPlaying: boolean;
@@ -289,6 +293,48 @@ export const useMotionLabStore = create<MotionLabStore>((set) => ({
 
   selectTextLayer: (id: string | null) => {
     set({ selectedTextLayerId: id });
+  },
+
+  addKeyframe: (layerId, prop, time, value) => {
+    set((state) => {
+      if (!state.currentProject) return state;
+      const updated = normalizeProject({
+        ...state.currentProject,
+        textLayers: (state.currentProject.textLayers ?? []).map((l) => {
+          if (l.id !== layerId) return l;
+          const existing = l.keyframes?.[prop] ?? [];
+          // Replace any keyframe within 10ms (treat as same time) with the new value.
+          const filtered = existing.filter((k) => Math.abs(k.time - time) > 0.01);
+          const next: Keyframe[] = [...filtered, { time, value }].sort(
+            (a, b) => a.time - b.time,
+          );
+          return { ...l, keyframes: { ...(l.keyframes ?? {}), [prop]: next } };
+        }),
+      });
+      return {
+        currentProject: updated,
+        projects: state.projects.map((p) => (p.id === updated.id ? updated : p)),
+      };
+    });
+  },
+
+  removeKeyframe: (layerId, prop, time) => {
+    set((state) => {
+      if (!state.currentProject) return state;
+      const updated = normalizeProject({
+        ...state.currentProject,
+        textLayers: (state.currentProject.textLayers ?? []).map((l) => {
+          if (l.id !== layerId) return l;
+          const existing = l.keyframes?.[prop] ?? [];
+          const next = existing.filter((k) => Math.abs(k.time - time) > 0.01);
+          return { ...l, keyframes: { ...(l.keyframes ?? {}), [prop]: next } };
+        }),
+      });
+      return {
+        currentProject: updated,
+        projects: state.projects.map((p) => (p.id === updated.id ? updated : p)),
+      };
+    });
   },
 
   setIsPlaying: (playing: boolean) => {

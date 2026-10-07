@@ -79,6 +79,18 @@ export interface Template {
 
 export type TextAnimation = 'none' | 'fade-in' | 'slide-up' | 'typewriter';
 
+export type Easing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out';
+
+export interface Keyframe {
+  /** Absolute time in seconds within the project. */
+  time: number;
+  value: number;
+  easing?: Easing;
+}
+
+/** Properties on TextLayer that support keyframed animation. */
+export type KeyframeProp = 'x' | 'y' | 'size' | 'opacity' | 'rotation';
+
 export interface TextLayer {
   id: string;
   text: string;
@@ -87,6 +99,10 @@ export interface TextLayer {
   y: number;
   /** Font size as a fraction of canvas height (0.05 = 5% of H). */
   size: number;
+  /** 0..1 base opacity (multiplied with the entrance animation alpha). */
+  opacity?: number;
+  /** Degrees. Rotation around the text's anchor point. */
+  rotation?: number;
   color: string;
   fontFamily: string;
   fontWeight: 400 | 500 | 600 | 700 | 800;
@@ -95,6 +111,10 @@ export interface TextLayer {
   start: number;
   end: number;
   animation: TextAnimation;
+  /** Optional per-property keyframes. Values override the static base at
+   *  render time via ease-in-out interpolation between the two surrounding
+   *  keyframes (or clamp to the nearest keyframe outside the range). */
+  keyframes?: Partial<Record<KeyframeProp, Keyframe[]>>;
 }
 
 export interface Project {

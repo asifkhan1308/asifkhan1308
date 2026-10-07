@@ -1,5 +1,6 @@
 import { useEditorStore } from '../store/editorStore';
-import type { TextLayer } from '../types';
+import { resolveKeyframedValue } from '../engine/drawText';
+import type { KeyframeProp, TextLayer } from '../types';
 
 const FONTS = [
   { label: 'Inter', value: 'Inter, -apple-system, system-ui, sans-serif' },
@@ -15,6 +16,10 @@ export default function TextLayerPanel() {
   const updateTextLayer = useEditorStore((s) => s.updateTextLayer);
   const removeTextLayer = useEditorStore((s) => s.removeTextLayer);
   const selectTextLayer = useEditorStore((s) => s.selectTextLayer);
+  const addKeyframe = useEditorStore((s) => s.addKeyframe);
+  const removeKeyframe = useEditorStore((s) => s.removeKeyframe);
+  const currentTime = useEditorStore((s) => s.currentTime);
+  const setCurrentTime = useEditorStore((s) => s.setCurrentTime);
 
   if (!project) return null;
 
@@ -24,6 +29,68 @@ export default function TextLayerPanel() {
 
   const update = (patch: Partial<TextLayer>) => {
     if (selected) updateTextLayer(selected.id, patch);
+  };
+
+  /** Snapshot the current animated value at the current time so the diamond
+   *  button records what the user is actually seeing on the canvas. */
+  const snapshotValue = (layer: TextLayer, prop: KeyframeProp): number => {
+    const base =
+      prop === 'x'
+        ? layer.x
+        : prop === 'y'
+          ? layer.y
+          : prop === 'size'
+            ? layer.size
+            : prop === 'opacity'
+              ? layer.opacity ?? 1
+              : layer.rotation ?? 0;
+    return resolveKeyframedValue(base, layer.keyframes?.[prop], currentTime);
+  };
+
+  const toggleKeyframeAtNow = (layer: TextLayer, prop: KeyframeProp) => {
+    const existing = layer.keyframes?.[prop] ?? [];
+    const match = existing.find((k) => Math.abs(k.time - currentTime) < 0.05);
+    if (match) removeKeyframe(layer.id, prop, match.time);
+    else addKeyframe(layer.id, prop, currentTime, snapshotValue(layer, prop));
+  };
+
+  const KeyframeStrip = ({ layer, prop }: { layer: TextLayer; prop: KeyframeProp }) => {
+    const frames = layer.keyframes?.[prop] ?? [];
+    const hasNow = frames.some((k) => Math.abs(k.time - currentTime) < 0.05);
+    return (
+      <div className="kf-strip">
+        <button
+          type="button"
+          className={`kf-diamond${hasNow ? ' active' : ''}`}
+          onClick={() => toggleKeyframeAtNow(layer, prop)}
+          title={hasNow ? 'Remove keyframe at current time' : 'Add keyframe at current time'}
+          aria-label={hasNow ? 'Remove keyframe' : 'Add keyframe'}
+        >
+          ◆
+        </button>
+        <div className="kf-track" title={`${frames.length} keyframe${frames.length === 1 ? '' : 's'}`}>
+          {frames.map((k) => (
+            <button
+              type="button"
+              key={k.time}
+              className={`kf-marker${Math.abs(k.time - currentTime) < 0.05 ? ' now' : ''}`}
+              style={{ left: `${Math.min(100, Math.max(0, (k.time / duration) * 100))}%` }}
+              onClick={(e) => {
+                if (e.altKey) removeKeyframe(layer.id, prop, k.time);
+                else setCurrentTime(k.time);
+              }}
+              title={`${k.time.toFixed(2)}s · ${k.value.toFixed(3)} (alt-click to delete)`}
+              aria-label={`Keyframe at ${k.time.toFixed(2)} seconds`}
+            />
+          ))}
+          <div
+            className="kf-playhead"
+            style={{ left: `${Math.min(100, Math.max(0, (currentTime / duration) * 100))}%` }}
+            aria-hidden
+          />
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -127,6 +194,7 @@ export default function TextLayerPanel() {
                   onChange={(e) => update({ size: parseFloat(e.target.value) })}
                   className="slider"
                 />
+                <KeyframeStrip layer={selected} prop="size" />
               </div>
 
               <div className="param-row">
@@ -141,6 +209,7 @@ export default function TextLayerPanel() {
                     onChange={(e) => update({ x: parseFloat(e.target.value) })}
                     className="slider"
                   />
+                  <KeyframeStrip layer={selected} prop="x" />
                 </div>
                 <div className="parameter half">
                   <label className="param-label">Y · {Math.round(selected.y * 100)}%</label>
@@ -153,6 +222,36 @@ export default function TextLayerPanel() {
                     onChange={(e) => update({ y: parseFloat(e.target.value) })}
                     className="slider"
                   />
+                  <KeyframeStrip layer={selected} prop="y" />
+                </div>
+              </div>
+
+              <div className="param-row">
+                <div className="parameter half">
+                  <label className="param-label">Opacity · {Math.round((selected.opacity ?? 1) * 100)}%</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={selected.opacity ?? 1}
+                    onChange={(e) => update({ opacity: parseFloat(e.target.value) })}
+                    className="slider"
+                  />
+                  <KeyframeStrip layer={selected} prop="opacity" />
+                </div>
+                <div className="parameter half">
+                  <label className="param-label">Rotation · {Math.round(selected.rotation ?? 0)}°</label>
+                  <input
+                    type="range"
+                    min="-180"
+                    max="180"
+                    step="1"
+                    value={selected.rotation ?? 0}
+                    onChange={(e) => update({ rotation: parseFloat(e.target.value) })}
+                    className="slider"
+                  />
+                  <KeyframeStrip layer={selected} prop="rotation" />
                 </div>
               </div>
 
