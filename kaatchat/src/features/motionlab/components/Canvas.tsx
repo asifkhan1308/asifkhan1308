@@ -50,7 +50,10 @@ export default function Canvas({ template, project }: CanvasProps) {
       if (ctx) {
         ctx.fillStyle = project.background?.color ?? '#000';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        if (media) template.animationFunction(ctx, media, project.parameters, progress, project.aspectRatio);
+        // Templates run with or without media — generative templates draw pure shapes.
+        try {
+          template.animationFunction(ctx, media as unknown as HTMLImageElement, project.parameters, progress, project.aspectRatio);
+        } catch { /* skip a bad frame rather than kill the loop */ }
         drawTextLayers(ctx, project.textLayers, time, canvas.width, canvas.height);
       }
 

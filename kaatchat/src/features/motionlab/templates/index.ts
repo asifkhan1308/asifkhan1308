@@ -3,6 +3,14 @@ export { softZoom } from './softZoom';
 export { infiniteFloat } from './infiniteFloat';
 export { editorialReveal } from './editorialReveal';
 export {
+  pulseCircles,
+  gridFade,
+  barChartIntro,
+  waveLines,
+  rotatingPolygon,
+  dotSpiral,
+} from './generative';
+export {
   perspectiveSlide,
   productTurn,
   cinemaricPush,

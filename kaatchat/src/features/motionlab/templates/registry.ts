@@ -27,6 +27,12 @@ export const templateRegistry: Template[] = [
   templates.deviceShowcase,
   templates.cameraOrbit,
   templates.rotationReveal,
+  templates.pulseCircles,
+  templates.gridFade,
+  templates.barChartIntro,
+  templates.waveLines,
+  templates.rotatingPolygon,
+  templates.dotSpiral,
 ];
 
 export const getTemplateById = (id: string): Template | undefined => {
@@ -48,4 +54,5 @@ export const categories = [
   { value: 'social', label: 'Social' },
   { value: 'portfolio', label: 'Portfolio' },
   { value: 'experimental', label: 'Experimental' },
+  { value: 'generative', label: 'Generative' },
 ];
