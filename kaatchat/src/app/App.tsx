@@ -9,8 +9,9 @@ const Editor = lazy(() => import('../ui/Editor').then((m) => ({ default: m.Edito
 const Settings = lazy(() => import('../ui/Settings').then((m) => ({ default: m.Settings })));
 const Privacy = lazy(() => import('../ui/Privacy').then((m) => ({ default: m.Privacy })));
 const MotionLab = lazy(() => import('../features/motionlab/MotionLabFeature'));
+const MotionLabV1 = lazy(() => import('../features/motionlab-v1/MotionLabV1'));
 
-type Route = { name: 'home' } | { name: 'editor'; id: string } | { name: 'settings' } | { name: 'privacy' } | { name: 'motionlab' };
+type Route = { name: 'home' } | { name: 'editor'; id: string } | { name: 'settings' } | { name: 'privacy' } | { name: 'motionlab' } | { name: 'motionlab-v1' };
 
 function parse(hash: string): Route {
   const h = hash.replace(/^#/, '');
@@ -19,6 +20,7 @@ function parse(hash: string): Route {
   if (h === '/settings') return { name: 'settings' };
   if (h === '/privacy') return { name: 'privacy' };
   if (h === '/motionlab') return { name: 'motionlab' };
+  if (h === '/motionlab-v1' || h === '/studio') return { name: 'motionlab-v1' };
   return { name: 'home' };
 }
 
@@ -48,6 +50,7 @@ export function App() {
         {route.name === 'settings' && <Settings />}
         {route.name === 'privacy' && <Privacy />}
         {route.name === 'motionlab' && <MotionLab />}
+        {route.name === 'motionlab-v1' && <MotionLabV1 />}
       </Suspense>
       <Toasts />
     </>
