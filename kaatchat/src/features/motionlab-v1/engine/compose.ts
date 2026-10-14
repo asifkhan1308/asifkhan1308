@@ -1,5 +1,33 @@
-import type { Asset, Layer, Project, Transform, V2 } from '../types';
+import type { Asset, Effects, Layer, Project, Transform, V2 } from '../types';
 import { resolveAnimated } from './interp';
+
+/* Resolve effects into a CSS filter string + the two overlay amounts
+ * (vignette, grain) that are drawn separately in composition space. */
+function resolveEffectsFilter(e: Effects | undefined, time: number): {
+  filter: string;
+  vignette: number;
+  grain: number;
+  tintColor: string;
+  tintAmount: number;
+} {
+  if (!e) return { filter: 'none', vignette: 0, grain: 0, tintColor: '#ffffff', tintAmount: 0 };
+  const b = resolveAnimated(e.brightness, time);
+  const c = resolveAnimated(e.contrast, time);
+  const s = resolveAnimated(e.saturation, time);
+  const bl = resolveAnimated(e.blur, time);
+  const parts: string[] = [];
+  if (b) parts.push(`brightness(${1 + b})`);
+  if (c) parts.push(`contrast(${1 + c})`);
+  if (s) parts.push(`saturate(${Math.max(0, 1 + s)})`);
+  if (bl > 0) parts.push(`blur(${bl * 20}px)`);
+  return {
+    filter: parts.length ? parts.join(' ') : 'none',
+    vignette: resolveAnimated(e.vignette, time),
+    grain: resolveAnimated(e.grain, time),
+    tintColor: e.tintColor,
+    tintAmount: resolveAnimated(e.tintAmount, time),
+  };
+}
 
 export interface ResolvedTransform {
   position: V2;
@@ -54,8 +82,13 @@ export function composeFrame(
     const t = resolveTransform(layer.transform, time);
     if (t.opacity <= 0) continue;
 
+    const fx = resolveEffectsFilter(layer.effects, time);
+
     ctx.save();
     ctx.globalAlpha = Math.max(0, Math.min(1, t.opacity));
+    // Apply colour/brightness/contrast/blur as a canvas filter for the whole
+    // layer draw (cheap compared to per-pixel work; honoured by Chromium/Safari).
+    if (fx.filter !== 'none') ctx.filter = fx.filter;
     ctx.translate(t.position[0], t.position[1]);
     if (t.rotation) ctx.rotate((t.rotation * Math.PI) / 180);
     if (t.scale[0] !== 1 || t.scale[1] !== 1) ctx.scale(t.scale[0], t.scale[1]);
@@ -81,7 +114,59 @@ export function composeFrame(
         break;
     }
     ctx.restore();
+
+    // Tint, grain and vignette compose over the whole composition after the
+    // layer draw so transforms don't affect them.
+    if (fx.tintAmount > 0) drawTint(ctx, fx.tintColor, fx.tintAmount, w, h);
+    if (fx.grain > 0) drawGrain(ctx, fx.grain, w, h, time);
+    if (fx.vignette > 0) drawVignette(ctx, fx.vignette, w, h);
   }
+}
+
+function drawVignette(ctx: CanvasRenderingContext2D, amount: number, w: number, h: number) {
+  const cx = w / 2;
+  const cy = h / 2;
+  const g = ctx.createRadialGradient(cx, cy, Math.min(w, h) * 0.3, cx, cy, Math.max(w, h) * 0.7);
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(1, `rgba(0,0,0,${Math.min(1, amount)})`);
+  ctx.save();
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
+
+function drawTint(ctx: CanvasRenderingContext2D, color: string, amount: number, w: number, h: number) {
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, Math.min(1, amount));
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
+
+function drawGrain(ctx: CanvasRenderingContext2D, amount: number, w: number, h: number, seed: number) {
+  // Draw sparse noise flecks. Cheap stand-in for GPU grain — plenty for V1.
+  const n = Math.round(amount * w * h * 0.0003);
+  ctx.save();
+  ctx.globalAlpha = Math.min(0.4, amount * 0.6);
+  // Mulberry32-style deterministic seed so each frame looks different but a
+  // scrub to the same time reproduces identical grain.
+  let s = Math.floor(seed * 1000) | 0;
+  const rand = () => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  for (let i = 0; i < n; i++) {
+    const x = rand() * w;
+    const y = rand() * h;
+    const r = rand() > 0.5 ? 255 : 0;
+    ctx.fillStyle = `rgb(${r},${r},${r})`;
+    ctx.fillRect(x, y, 1, 1);
+  }
+  ctx.restore();
 }
 
 function drawText(ctx: CanvasRenderingContext2D, layer: import('../types').TextLayer, time: number) {

@@ -2,7 +2,12 @@ import { useV1 } from '../store';
 import { resolveAnimated } from '../engine/interp';
 import type { AnimatedProperty, Layer, V2 } from '../types';
 
-type AnimPath = 'position' | 'scale' | 'rotation' | 'anchor' | 'opacity' | 'size' | 'cornerRadius' | 'fontSize';
+type AnimPath =
+  | 'position' | 'scale' | 'rotation' | 'anchor' | 'opacity'
+  | 'size' | 'cornerRadius' | 'fontSize'
+  | 'brightness' | 'contrast' | 'saturation' | 'blur' | 'vignette' | 'grain' | 'tintAmount';
+
+const EFFECT_PATHS: AnimPath[] = ['brightness', 'contrast', 'saturation', 'blur', 'vignette', 'grain', 'tintAmount'];
 
 export default function V1Inspector() {
   const project = useV1((s) => s.project);
@@ -11,6 +16,8 @@ export default function V1Inspector() {
   const setPropertyBase = useV1((s) => s.setPropertyBase);
   const toggleKeyframe = useV1((s) => s.toggleKeyframe);
   const patchLayer = useV1((s) => s.patchLayer);
+  const enableEffects = useV1((s) => s.enableEffects);
+  const setEffectTintColor = useV1((s) => s.setEffectTintColor);
 
   const layer = project.layers.find((l) => l.id === selectedId);
 
@@ -154,6 +161,60 @@ export default function V1Inspector() {
         </section>
       )}
 
+      {layer.type !== 'null' && (
+        <section className="v1-section">
+          <div className="v1-section-head">
+            <span>Effects</span>
+            {!layer.effects && (
+              <button
+                type="button"
+                className="btn-icon xs"
+                style={{ marginLeft: 10 }}
+                onClick={() => enableEffects(layer.id)}
+                title="Add neutral effects so each parameter is keyframable"
+              >
+                + Enable
+              </button>
+            )}
+          </div>
+          {layer.effects ? (
+            <>
+              {EFFECT_PATHS.map((p) => (
+                <Row
+                  key={p}
+                  label={p === 'tintAmount' ? 'Tint' : p[0].toUpperCase() + p.slice(1)}
+                  path={p}
+                >
+                  <SliderField
+                    value={resolve((layer.effects as unknown as Record<string, import('../types').AnimatedProperty<number>>)[p]) ?? 0}
+                    onChange={(v) => setPropertyBase<number>(layer.id, p, v)}
+                    min={p === 'brightness' || p === 'contrast' || p === 'saturation' ? -1 : 0}
+                    max={1}
+                    step={0.01}
+                    display={(v) => (p === 'brightness' || p === 'contrast' || p === 'saturation'
+                      ? v.toFixed(2)
+                      : `${Math.round(v * 100)}%`)}
+                  />
+                </Row>
+              ))}
+              <div className="v1-prop">
+                <div className="v1-prop-head"><span className="v1-prop-label">Tint colour</span></div>
+                <input
+                  type="color"
+                  className="color-input"
+                  value={layer.effects.tintColor}
+                  onChange={(e) => setEffectTintColor(layer.id, e.target.value)}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="v1-inspector-empty" style={{ padding: 8, fontSize: 11.5 }}>
+              Neutral. Click + Enable to add brightness, contrast, saturation, blur, vignette, grain and tint — all keyframable.
+            </div>
+          )}
+        </section>
+      )}
+
       {layer.type === 'text' && (
         <section className="v1-section">
           <div className="v1-section-head">Text</div>
@@ -232,6 +293,15 @@ function animatedPropertyFor(layer: Layer, path: AnimPath): AnimatedProperty<unk
     case 'fontSize':
       if (layer.type === 'text') return layer.fontSize as unknown as AnimatedProperty<unknown>;
       return;
+    case 'brightness':
+    case 'contrast':
+    case 'saturation':
+    case 'blur':
+    case 'vignette':
+    case 'grain':
+    case 'tintAmount':
+      if (!layer.effects) return;
+      return (layer.effects as unknown as Record<string, AnimatedProperty<unknown>>)[path];
   }
 }
 

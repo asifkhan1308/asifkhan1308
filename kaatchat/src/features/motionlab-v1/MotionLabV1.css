@@ -2,16 +2,23 @@
    adopting Kaatchat tokens where they fit. */
 
 .motionlab-v1 {
-  --v1-bg: #0D0D0F;
-  --v1-surface: #17171A;
-  --v1-surface-2: #1E1E22;
-  --v1-line: #2A2A2E;
-  --v1-line-strong: #3A3A3E;
-  --v1-text: #E6E6E8;
-  --v1-text-2: #A0A0A6;
-  --v1-text-3: #6C6C72;
-  --v1-accent: #4D7FFF;
-  --v1-accent-wash: rgba(77, 127, 255, 0.14);
+  /* Monochrome Apple-style — mirrors Kaatchat's existing editor palette so
+     Studio sits inside the same visual system. Light defaults; dark mode
+     flips below via prefers-color-scheme / data-theme. */
+  --v1-bg: #F7F7F8;
+  --v1-surface: #FFFFFF;
+  --v1-surface-2: #F2F2F4;
+  --v1-line: #D4D4D8;
+  --v1-line-strong: #B4B4B8;
+  --v1-text: #111318;
+  --v1-text-2: rgba(17, 19, 24, .62);
+  --v1-text-3: rgba(17, 19, 24, .42);
+  --v1-accent: #111111;
+  --v1-accent-ink: #FFFFFF;
+  --v1-accent-wash: rgba(17, 17, 17, .07);
+  --v1-stage: linear-gradient(160deg, #2A2A2E 0%, #17171A 45%, #0D0D0F 100%);
+  --v1-danger: #C8283A;
+  --v1-danger-wash: rgba(200, 40, 58, .08);
   --v1-row-h: 32px;
   --v1-header-h: 48px;
   --v1-toolbar-w: 64px;
@@ -70,7 +77,7 @@
 }
 .btn-export {
   background: var(--v1-accent);
-  color: #fff;
+  color: var(--v1-accent-ink);
   border: 1px solid var(--v1-accent);
   padding: 7px 14px;
   border-radius: 5px;
@@ -79,7 +86,7 @@
   cursor: pointer;
   font-family: inherit;
 }
-.btn-export:hover { filter: brightness(1.1); }
+.btn-export:hover { opacity: 0.88; }
 .btn-icon { background: var(--v1-surface-2); border: 1px solid var(--v1-line); color: var(--v1-text); padding: 5px 9px; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 12px; }
 .btn-icon.xs { padding: 2px 6px; font-size: 10px; }
 .btn-icon:hover { background: var(--v1-line); }
@@ -118,7 +125,7 @@
   font-family: inherit;
 }
 .v1-tool:hover { background: var(--v1-surface-2); color: var(--v1-text); }
-.v1-tool.active { background: var(--v1-accent-wash); color: var(--v1-accent); border-color: var(--v1-accent); }
+.v1-tool.active { background: var(--v1-accent); color: var(--v1-accent-ink); border-color: var(--v1-accent); }
 .v1-tool-icon { font-size: 16px; }
 .v1-tool-label { font-size: 10px; }
 
@@ -411,4 +418,137 @@
 .motionlab-v1 .progress-bar { background: var(--v1-line); height: 6px; border-radius: 3px; overflow: hidden; }
 .motionlab-v1 .progress-fill { background: var(--v1-accent); height: 100%; transition: width 0.2s; }
 .motionlab-v1 .progress-text { text-align: center; font-size: 11.5px; color: var(--v1-text-2); }
-.motionlab-v1 .export-error { padding: 8px 12px; background: rgba(200,40,58,0.1); border: 1px solid rgba(200,40,58,0.4); border-radius: 4px; color: #ff8080; font-size: 12px; }
+.motionlab-v1 .export-error { padding: 8px 12px; background: var(--v1-danger-wash); border: 1px solid var(--v1-danger); border-radius: 4px; color: var(--v1-danger); font-size: 12px; }
+
+/* ─── Dark mode flip (also matches Kaatchat's data-theme=dark) ─── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .motionlab-v1 {
+    --v1-bg: #0D0D0F;
+    --v1-surface: #17171A;
+    --v1-surface-2: #1E1E22;
+    --v1-line: #2A2A2E;
+    --v1-line-strong: #3A3A3E;
+    --v1-text: #F2F2F4;
+    --v1-text-2: rgba(242, 242, 244, .62);
+    --v1-text-3: rgba(242, 242, 244, .42);
+    --v1-accent: #F2F2F4;
+    --v1-accent-ink: #111318;
+    --v1-accent-wash: rgba(242, 242, 244, .08);
+    --v1-danger: #FF6B7D;
+    --v1-danger-wash: rgba(255, 107, 125, .1);
+  }
+}
+:root[data-theme='dark'] .motionlab-v1 {
+  --v1-bg: #0D0D0F;
+  --v1-surface: #17171A;
+  --v1-surface-2: #1E1E22;
+  --v1-line: #2A2A2E;
+  --v1-line-strong: #3A3A3E;
+  --v1-text: #F2F2F4;
+  --v1-text-2: rgba(242, 242, 244, .62);
+  --v1-text-3: rgba(242, 242, 244, .42);
+  --v1-accent: #F2F2F4;
+  --v1-accent-ink: #111318;
+  --v1-accent-wash: rgba(242, 242, 244, .08);
+  --v1-danger: #FF6B7D;
+  --v1-danger-wash: rgba(255, 107, 125, .1);
+}
+
+/* ─── AI command bar ─── */
+.v1-ai-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--v1-line);
+  border-bottom: 1px solid var(--v1-line);
+  background: var(--v1-surface);
+}
+.v1-ai-prefix {
+  color: var(--v1-text-3);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+.v1-ai-input {
+  flex: 1;
+  background: var(--v1-surface-2);
+  border: 1px solid var(--v1-line);
+  color: var(--v1-text);
+  font-size: 12.5px;
+  font-family: inherit;
+  padding: 7px 11px;
+  border-radius: 6px;
+}
+.v1-ai-input:focus { outline: none; border-color: var(--v1-accent); }
+.v1-ai-input::placeholder { color: var(--v1-text-3); }
+.v1-ai-run {
+  background: var(--v1-accent);
+  color: var(--v1-accent-ink);
+  border: 1px solid var(--v1-accent);
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.v1-ai-run:hover { opacity: 0.88; }
+.v1-ai-run:disabled { opacity: 0.5; cursor: not-allowed; }
+.v1-ai-generate {
+  background: var(--v1-surface-2);
+  color: var(--v1-text);
+  border: 1px solid var(--v1-line);
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.v1-ai-generate:hover { background: var(--v1-surface); border-color: var(--v1-line-strong); }
+.v1-ai-status {
+  font-size: 11px;
+  color: var(--v1-text-2);
+  font-family: ui-monospace, Menlo, monospace;
+  padding: 0 6px;
+}
+.v1-ai-status.err { color: var(--v1-danger); }
+
+/* ─── Generation modal (local vs cloud provider picker) ─── */
+.v1-gen-rows { display: flex; flex-direction: column; gap: 10px; }
+.v1-gen-row {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--v1-surface-2);
+  border: 1px solid var(--v1-line);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.v1-gen-row:hover { border-color: var(--v1-line-strong); }
+.v1-gen-row.active { border-color: var(--v1-accent); background: var(--v1-accent-wash); }
+.v1-gen-row .meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.v1-gen-row .title { font-size: 12.5px; font-weight: 600; color: var(--v1-text); }
+.v1-gen-row .sub { font-size: 11px; color: var(--v1-text-2); line-height: 1.4; }
+.v1-gen-row .badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--v1-surface);
+  border: 1px solid var(--v1-line);
+  color: var(--v1-text-2);
+  font-weight: 500;
+}
+.v1-gen-row .badge.ready { color: #1E7F4F; border-color: #1E7F4F; }
+.v1-gen-row .badge.setup { color: var(--v1-text-3); }
+
+/* ─── Effects section ─── */
+.v1-effects-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}

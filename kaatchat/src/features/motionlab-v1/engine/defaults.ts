@@ -1,5 +1,6 @@
 import type {
   Composition,
+  Effects,
   EllipseLayer,
   ImageLayer,
   Layer,
@@ -11,6 +12,17 @@ import type {
   Transform,
 } from '../types';
 import { anim } from './interp';
+
+export const neutralEffects = (): Effects => ({
+  brightness: anim<number>(0),
+  contrast: anim<number>(0),
+  saturation: anim<number>(0),
+  blur: anim<number>(0),
+  vignette: anim<number>(0),
+  grain: anim<number>(0),
+  tintColor: '#ffffff',
+  tintAmount: anim<number>(0),
+});
 
 const uid = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
 

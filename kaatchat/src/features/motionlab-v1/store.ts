@@ -3,6 +3,7 @@ import type {
   AnimatedProperty,
   Asset,
   Easing,
+  EffectProp,
   Layer,
   Project,
   TransformProp,
@@ -12,6 +13,7 @@ import { removeKeyframeAt, resolveAnimated, upsertKeyframe } from './engine/inte
 import {
   defaultProject,
   duplicateLayer,
+  neutralEffects,
   newEllipseLayer,
   newImageLayer,
   newMediaLayer,
@@ -53,9 +55,13 @@ interface MotionLabV1State extends UIState {
   setSolo: (id: string, v: boolean) => void;
   patchLayer: <L extends Layer>(id: string, patch: Partial<L>) => void;
 
-  /* Animated-property writes */
-  setPropertyBase: <T>(layerId: string, path: TransformProp | 'size' | 'cornerRadius' | 'fontSize', value: T) => void;
-  toggleKeyframe: (layerId: string, path: TransformProp | 'size' | 'cornerRadius' | 'fontSize', easing?: Easing) => void;
+  /* Animated-property writes (works for transform, shape, text and effect paths) */
+  setPropertyBase: <T>(layerId: string, path: TransformProp | EffectProp | 'size' | 'cornerRadius' | 'fontSize', value: T) => void;
+  toggleKeyframe: (layerId: string, path: TransformProp | EffectProp | 'size' | 'cornerRadius' | 'fontSize', easing?: Easing) => void;
+
+  /* Effects */
+  enableEffects: (layerId: string) => void;
+  setEffectTintColor: (layerId: string, color: string) => void;
 
   /* Assets */
   addAsset: (a: Asset) => void;
@@ -68,6 +74,8 @@ interface MotionLabV1State extends UIState {
 }
 
 const touch = (p: Project): Project => ({ ...p, updatedAt: Date.now() });
+
+const EFFECT_KEYS: EffectProp[] = ['brightness', 'contrast', 'saturation', 'blur', 'vignette', 'grain', 'tintAmount'];
 
 /* Locate the AnimatedProperty that a path name refers to on a layer. */
 function getAnimated(layer: Layer, path: string): AnimatedProperty<unknown> | null {
@@ -88,6 +96,10 @@ function getAnimated(layer: Layer, path: string): AnimatedProperty<unknown> | nu
       if (layer.type === 'text') return layer.fontSize;
       return null;
     default:
+      if (EFFECT_KEYS.includes(path as EffectProp)) {
+        if (!layer.effects) return null;
+        return (layer.effects as unknown as Record<string, AnimatedProperty<unknown>>)[path] ?? null;
+      }
       return null;
   }
 }
@@ -107,6 +119,13 @@ function setAnimated(layer: Layer, path: string, next: AnimatedProperty<unknown>
   }
   if (path === 'fontSize' && layer.type === 'text') {
     return { ...layer, fontSize: next as AnimatedProperty<number> };
+  }
+  if (EFFECT_KEYS.includes(path as EffectProp)) {
+    const effects = layer.effects ?? neutralEffects();
+    return {
+      ...layer,
+      effects: { ...effects, [path]: next } as Layer['effects'],
+    } as Layer;
   }
   return layer;
 }
@@ -269,6 +288,28 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
 
   addAsset: (a) =>
     set((s) => ({ project: touch({ ...s.project, assets: [...s.project.assets, a] }) })),
+
+  enableEffects: (layerId) =>
+    set((s) => ({
+      project: touch({
+        ...s.project,
+        layers: s.project.layers.map((l) =>
+          l.id === layerId && !l.effects ? ({ ...l, effects: neutralEffects() } as Layer) : l,
+        ),
+      }),
+    })),
+
+  setEffectTintColor: (layerId, color) =>
+    set((s) => ({
+      project: touch({
+        ...s.project,
+        layers: s.project.layers.map((l) => {
+          if (l.id !== layerId) return l;
+          const effects = l.effects ?? neutralEffects();
+          return { ...l, effects: { ...effects, tintColor: color } } as Layer;
+        }),
+      }),
+    })),
 
   selectLayer: (id) => set({ selectedLayerId: id }),
   setCurrentTime: (t) => {

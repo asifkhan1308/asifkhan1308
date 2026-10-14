@@ -5,6 +5,8 @@ import V1Canvas from './components/Canvas';
 import V1Inspector from './components/Inspector';
 import V1Timeline from './components/Timeline';
 import V1ExportDialog from './components/ExportDialog';
+import AIBar from './components/AIBar';
+import GenerateModal from './components/GenerateModal';
 import { useV1 } from './store';
 import './MotionLabV1.css';
 
@@ -15,6 +17,7 @@ import './MotionLabV1.css';
  */
 export default function MotionLabV1() {
   const [showExport, setShowExport] = useState(false);
+  const [showGenerate, setShowGenerate] = useState(false);
   const setIsPlaying = useV1((s) => s.setIsPlaying);
   const isPlaying = useV1((s) => s.isPlaying);
   const removeLayer = useV1((s) => s.removeLayer);
@@ -60,6 +63,7 @@ export default function MotionLabV1() {
   return (
     <div className="motionlab-v1">
       <V1TopBar onExport={() => setShowExport(true)} />
+      <AIBar onOpenGenerate={() => setShowGenerate(true)} />
       <div className="v1-body">
         <V1Toolbar />
         <V1Canvas />
@@ -67,6 +71,7 @@ export default function MotionLabV1() {
       </div>
       <V1Timeline />
       {showExport && <V1ExportDialog onClose={() => setShowExport(false)} />}
+      {showGenerate && <GenerateModal onClose={() => setShowGenerate(false)} />}
     </div>
   );
 }

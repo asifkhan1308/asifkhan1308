@@ -39,6 +39,28 @@ export interface Transform {
   opacity: AnimatedProperty<number>; // 0..1
 }
 
+/* ───── Quick Effects (per layer; optional, all keyframable) ───── */
+export interface Effects {
+  brightness: AnimatedProperty<number>; // -1..1, 0 neutral
+  contrast: AnimatedProperty<number>;   // -1..1, 0 neutral
+  saturation: AnimatedProperty<number>; // -1..1, -1 = greyscale, 0 neutral
+  blur: AnimatedProperty<number>;       // 0..1 fraction of max radius
+  vignette: AnimatedProperty<number>;   // 0..1
+  grain: AnimatedProperty<number>;      // 0..1
+  tintColor: RGBA;
+  tintAmount: AnimatedProperty<number>; // 0..1 mix
+}
+export const EFFECT_PROPS = [
+  'brightness',
+  'contrast',
+  'saturation',
+  'blur',
+  'vignette',
+  'grain',
+  'tintAmount',
+] as const;
+export type EffectProp = (typeof EFFECT_PROPS)[number];
+
 /* ───── Layer kinds ───── */
 export type LayerType = 'media' | 'image' | 'text' | 'rectangle' | 'ellipse' | 'null';
 
@@ -52,6 +74,8 @@ interface LayerBase {
   startTime: number;   // composition seconds where the layer becomes active
   duration: number;    // seconds; layer disappears after startTime + duration
   transform: Transform;
+  /** Optional per-layer effects. Absent = neutral (no cost at render). */
+  effects?: Effects;
 }
 
 export interface MediaLayer extends LayerBase {
