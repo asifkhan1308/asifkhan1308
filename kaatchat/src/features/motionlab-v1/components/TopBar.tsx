@@ -1,5 +1,6 @@
 import { useV1 } from '../store';
 import { Logo } from '../../../ui/bits';
+import ProjectMenu from './ProjectMenu';
 
 interface Props {
   onExport: () => void;
@@ -12,6 +13,10 @@ export default function V1TopBar({ onExport }: Props) {
   const setSize = useV1((s) => s.setCompositionSize);
   const setFps = useV1((s) => s.setCompositionFps);
   const setDur = useV1((s) => s.setCompositionDuration);
+  const undo = useV1((s) => s.undo);
+  const redo = useV1((s) => s.redo);
+  const canUndo = useV1((s) => s.canUndo());
+  const canRedo = useV1((s) => s.canRedo());
 
   const PRESETS: Array<{ label: string; w: number; h: number }> = [
     { label: 'HD 1920×1080', w: 1920, h: 1080 },
@@ -35,6 +40,7 @@ export default function V1TopBar({ onExport }: Props) {
           onChange={(e) => renameProject(e.target.value)}
           spellCheck={false}
         />
+        <ProjectMenu />
       </div>
 
       <div className="v1-topbar-center">
@@ -77,6 +83,20 @@ export default function V1TopBar({ onExport }: Props) {
       </div>
 
       <div className="v1-topbar-right">
+        <button
+          className="btn-icon"
+          onClick={undo}
+          disabled={!canUndo}
+          title="Undo (⌘Z)"
+          aria-label="Undo"
+        >↶</button>
+        <button
+          className="btn-icon"
+          onClick={redo}
+          disabled={!canRedo}
+          title="Redo (⌘⇧Z)"
+          aria-label="Redo"
+        >↷</button>
         <button className="btn-export" onClick={onExport}>Export</button>
       </div>
     </div>

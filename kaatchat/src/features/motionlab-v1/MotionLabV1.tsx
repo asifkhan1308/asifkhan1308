@@ -27,12 +27,36 @@ export default function MotionLabV1() {
   const duration = useV1((s) => s.project.composition.duration);
   const currentTime = useV1((s) => s.currentTime);
   const fps = useV1((s) => s.project.composition.fps);
+  const undo = useV1((s) => s.undo);
+  const redo = useV1((s) => s.redo);
+  const saveToStorage = useV1((s) => s.saveToStorage);
+  const newProject = useV1((s) => s.newProject);
 
   // Essential keyboard shortcuts.
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      const mod = e.metaKey || e.ctrlKey;
+      const inField = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+      // Mod shortcuts always run (users expect Cmd+S/Z to work while typing).
+      // Non-mod shortcuts (Space, Delete, arrows) stay out of text fields.
+      if (inField && !mod) return;
+      if (mod && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if (mod && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        void saveToStorage();
+        return;
+      }
+      if (mod && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        newProject();
+        return;
+      }
       if (e.code === 'Space') {
         e.preventDefault();
         setIsPlaying(!isPlaying);
@@ -41,7 +65,7 @@ export default function MotionLabV1() {
           e.preventDefault();
           removeLayer(selectedLayerId);
         }
-      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
+      } else if (mod && e.key.toLowerCase() === 'd') {
         if (selectedLayerId) {
           e.preventDefault();
           duplicate(selectedLayerId);
@@ -58,7 +82,7 @@ export default function MotionLabV1() {
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
-  }, [isPlaying, selectedLayerId, duration, currentTime, fps, setIsPlaying, removeLayer, duplicate, setCurrentTime]);
+  }, [isPlaying, selectedLayerId, duration, currentTime, fps, setIsPlaying, removeLayer, duplicate, setCurrentTime, undo, redo, saveToStorage, newProject]);
 
   return (
     <div className="motionlab-v1">

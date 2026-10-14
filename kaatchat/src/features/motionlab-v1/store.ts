@@ -21,6 +21,13 @@ import {
   newRectangleLayer,
   newTextLayer,
 } from './engine/defaults';
+import { createHistory } from './engine/history';
+import {
+  autosave as persistAutosave,
+  loadProject as persistLoad,
+  rehydrateMedia,
+  saveProject as persistSave,
+} from './engine/persist';
 
 interface UIState {
   selectedLayerId: string | null;
@@ -71,9 +78,39 @@ interface MotionLabV1State extends UIState {
   setCurrentTime: (t: number) => void;
   setIsPlaying: (b: boolean) => void;
   setActiveTool: (t: UIState['activeTool']) => void;
+
+  /* History */
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+  undoLabel: () => string | null;
+  redoLabel: () => string | null;
+
+  /* Persistence */
+  savedAt: number | null;
+  isDirty: boolean;
+  saveToStorage: () => Promise<void>;
+  loadFromStorage: (id: string) => Promise<void>;
+  replaceProject: (project: Project) => void;
 }
 
 const touch = (p: Project): Project => ({ ...p, updatedAt: Date.now() });
+
+/* One module-scoped history + autosave timer. Lives outside create() because
+ * the state object is only authoritative for persistent fields; the history
+ * stack and the autosave debounce are process state, not project state, and
+ * resetting them on hot-reload breaks nothing. */
+const initialProject = defaultProject();
+const history = createHistory(initialProject);
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+const AUTOSAVE_DEBOUNCE = 1200;
+const scheduleAutosave = (project: Project) => {
+  if (autosaveTimer) clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(() => {
+    void persistAutosave(project).catch(() => undefined);
+  }, AUTOSAVE_DEBOUNCE);
+};
 
 const EFFECT_KEYS: EffectProp[] = ['brightness', 'contrast', 'saturation', 'blur', 'vignette', 'grain', 'tintAmount'];
 
@@ -131,13 +168,19 @@ function setAnimated(layer: Layer, path: string, next: AnimatedProperty<unknown>
 }
 
 export const useV1 = create<MotionLabV1State>((set, get) => ({
-  project: defaultProject(),
+  project: initialProject,
   selectedLayerId: null,
   currentTime: 0,
   isPlaying: false,
   activeTool: 'select',
+  savedAt: null,
+  isDirty: false,
 
-  newProject: () => set({ project: defaultProject(), selectedLayerId: null, currentTime: 0, isPlaying: false }),
+  newProject: () => {
+    const fresh = defaultProject();
+    history.clear(fresh);
+    set({ project: fresh, selectedLayerId: null, currentTime: 0, isPlaying: false, savedAt: null, isDirty: false });
+  },
   renameProject: (name) => set((s) => ({ project: touch({ ...s.project, name }) })),
 
   setCompositionSize: (width, height) =>
@@ -318,4 +361,56 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
   },
   setIsPlaying: (b) => set({ isPlaying: b }),
   setActiveTool: (t) => set({ activeTool: t }),
+
+  undo: () => {
+    const prev = history.undo();
+    if (prev) history.silence(() => set({ project: prev, isDirty: true }));
+  },
+  redo: () => {
+    const next = history.redo();
+    if (next) history.silence(() => set({ project: next, isDirty: true }));
+  },
+  canUndo: () => history.canUndo(),
+  canRedo: () => history.canRedo(),
+  undoLabel: () => history.state().undoLabel,
+  redoLabel: () => history.state().redoLabel,
+
+  saveToStorage: async () => {
+    const p = get().project;
+    await persistSave(p);
+    set({ savedAt: Date.now(), isDirty: false });
+  },
+
+  loadFromStorage: async (id: string) => {
+    const { saved, autosave } = await persistLoad(id);
+    const pick = autosave && (!saved || autosave.savedAt > saved.savedAt) ? autosave : saved;
+    if (!pick) throw new Error('Project not found in local storage.');
+    const rehydrated = await rehydrateMedia(pick.project);
+    history.clear(rehydrated);
+    set({
+      project: rehydrated,
+      selectedLayerId: null,
+      currentTime: 0,
+      isPlaying: false,
+      savedAt: saved?.savedAt ?? null,
+      isDirty: !!autosave && (!saved || autosave.savedAt > saved.savedAt),
+    });
+  },
+
+  replaceProject: (project: Project) => {
+    history.clear(project);
+    set({ project, selectedLayerId: null, currentTime: 0, isPlaying: false, savedAt: null, isDirty: true });
+  },
 }));
+
+/* Wire history + autosave: every time the project reference changes, append
+ * a snapshot to the history ring and (debounced) write an autosave. Changes
+ * made by undo/redo themselves are silenced via history.silence() so they
+ * don't re-enter the stack. */
+useV1.subscribe((state, prev) => {
+  if (state.project !== prev.project) {
+    history.push(state.project);
+    scheduleAutosave(state.project);
+    if (!state.isDirty) useV1.setState({ isDirty: true });
+  }
+});
