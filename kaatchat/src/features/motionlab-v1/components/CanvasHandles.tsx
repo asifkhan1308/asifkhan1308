@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { useV1 } from '../store';
-import { worldCorners } from '../engine/bbox';
+import { pickLayerAt, worldCorners } from '../engine/bbox';
 import type { V2 } from '../types';
 
 /* SVG overlay drawn on top of the composition canvas. Renders the selection
@@ -36,6 +36,7 @@ export default function V1CanvasHandles() {
   const layer = project.layers.find((l) => l.id === selectedId);
   const comp = project.composition;
   const box = layer ? worldCorners(layer, time, project.assets) : null;
+  const selectLayer = useV1((s) => s.selectLayer);
 
   /** Convert a pointer event to composition pixels, so dragging keeps feel at
    *  any CSS zoom. */
@@ -51,6 +52,46 @@ export default function V1CanvasHandles() {
     const p = pt.matrixTransform(inv);
     return [p.x, p.y];
   }, []);
+
+  const dragBodyOf = (layerId: string, ev: React.PointerEvent) => {
+    // Shared body-drag used by (a) dragging the selection outline, (b) a
+    // click-to-select-then-drag initiated by the picker. Pulls the needed
+    // state from the store rather than closure so it works on the layer we
+    // JUST selected, not the one that was selected when the closure ran.
+    const state = useV1.getState();
+    const l = state.project.layers.find((x) => x.id === layerId);
+    if (!l || l.locked || l.type === 'null') return;
+    const b = worldCorners(l, state.currentTime, state.project.assets);
+    if (!b) return;
+    (ev.target as Element).setPointerCapture(ev.pointerId);
+    const start = toComp(ev);
+    const startPos: V2 = [...b.position];
+    const onMove = (me: PointerEvent) => {
+      const cur = toComp(me);
+      state.setPropertyBase<V2>(l.id, 'position', [
+        startPos[0] + (cur[0] - start[0]),
+        startPos[1] + (cur[1] - start[1]),
+      ]);
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
+  const onBackdropDown = (ev: React.PointerEvent) => {
+    const p = toComp(ev);
+    const hit = pickLayerAt(project, time, p);
+    if (hit) {
+      selectLayer(hit);
+      // One-gesture click-and-drag like Figma / After Effects.
+      dragBodyOf(hit, ev);
+    } else {
+      selectLayer(null);
+    }
+  };
 
   const beginDrag = (kind: HandleKind) => (ev: React.PointerEvent) => {
     if (!layer || !box || layer.locked) return;
@@ -126,9 +167,24 @@ export default function V1CanvasHandles() {
   };
 
   if (!layer || !box || layer.locked || layer.type === 'null') {
-    // Still render the svg so pointer events target the ref consistently.
+    // Still render the picker so clicks on the canvas can pick a layer even
+    // when nothing is selected (or a locked / null layer is selected).
     return (
-      <svg ref={svgRef} className="v1-canvas-handles" viewBox={`0 0 ${comp.width} ${comp.height}`} preserveAspectRatio="none" aria-hidden />
+      <svg
+        ref={svgRef}
+        className="v1-canvas-handles"
+        viewBox={`0 0 ${comp.width} ${comp.height}`}
+        preserveAspectRatio="none"
+      >
+        <rect
+          x={0}
+          y={0}
+          width={comp.width}
+          height={comp.height}
+          className="v1-sel-picker"
+          onPointerDown={onBackdropDown}
+        />
+      </svg>
     );
   }
 
@@ -149,6 +205,17 @@ export default function V1CanvasHandles() {
       viewBox={`0 0 ${comp.width} ${comp.height}`}
       preserveAspectRatio="none"
     >
+      {/* Backdrop: picks a different layer or deselects on click outside the
+          selected layer's body / handles. Placed FIRST so SVG hit-testing
+          falls through to it only when nothing on top caught the click. */}
+      <rect
+        x={0}
+        y={0}
+        width={comp.width}
+        height={comp.height}
+        className="v1-sel-picker"
+        onPointerDown={onBackdropDown}
+      />
       {/* Selection outline */}
       <polygon
         className="v1-sel-outline"
@@ -206,15 +273,3 @@ export default function V1CanvasHandles() {
   );
 }
 
-/* Clicking an unselected layer on the canvas also selects it. The Canvas
- * component defers to this helper so logic lives in one file. */
-export function pickLayerAt(
-  _project: unknown,
-  _comp: unknown,
-): string | null {
-  // Phase 2: reverse-walk layers at a time, pick-test against intrinsic
-  // bounds. Not shipped in this slice because clicking in the Layers panel
-  // and dragging the body of the already-selected layer covers the V1 use
-  // case. Stub kept so Canvas can import a named function.
-  return null;
-}

@@ -1,6 +1,6 @@
-import type { Asset, Layer, V2 } from '../types';
+import type { Asset, Layer, Project, V2 } from '../types';
 import { resolveAnimated } from './interp';
-import { resolveTransform } from './compose';
+import { isLayerActive, resolveTransform } from './compose';
 
 /* ──────────────────────────────────────────────────────────────────────────
  * Layer bounding boxes in composition space.
@@ -109,4 +109,52 @@ export function worldCorners(layer: Layer, time: number, assets: Asset[]): World
     scale: t.scale,
     anchor: t.anchor,
   };
+}
+
+/* Convert a point in composition space into the layer's local-pixel space
+ * (undoing position · rotation · scale · −anchor). Returns null for a layer
+ * we don't give a selection box (null layers today). */
+function toLocal(layer: Layer, time: number, p: V2): V2 | null {
+  if (layer.type === 'null') return null;
+  const t = resolveTransform(layer.transform, time);
+  // Inverse-transform: subtract position, rotate by -rotation, divide by
+  // scale, then add anchor back so the result is in the local rect we draw.
+  const dx = p[0] - t.position[0];
+  const dy = p[1] - t.position[1];
+  const rad = (-t.rotation * Math.PI) / 180;
+  const cosA = Math.cos(rad);
+  const sinA = Math.sin(rad);
+  const rx = dx * cosA - dy * sinA;
+  const ry = dx * sinA + dy * cosA;
+  const sx = t.scale[0] === 0 ? 0 : rx / t.scale[0];
+  const sy = t.scale[1] === 0 ? 0 : ry / t.scale[1];
+  return [sx + t.anchor[0], sy + t.anchor[1]];
+}
+
+/* Hit-test the composition at `point`. Walks layers top-down (last draws on
+ * top of the stack), returns the id of the first visible, unlocked, active
+ * layer whose local rect contains the point. Locked and hidden layers are
+ * skipped — if the user wants them selected they can click in the Layers
+ * panel.
+ *
+ * Text layers are tested against the glyph box (approximated the same way
+ * worldCorners does, so clicks match what the user sees).
+ */
+export function pickLayerAt(project: Project, time: number, point: V2): string | null {
+  for (let i = project.layers.length - 1; i >= 0; i--) {
+    const layer = project.layers[i];
+    if (layer.type === 'null') continue;
+    if (!isLayerActive(layer, time)) continue;
+    if (layer.locked) continue;
+    const [lw, lh] = intrinsicSize(layer, time, project.assets);
+    const localTop = layer.type === 'text'
+      ? -resolveAnimated(layer.fontSize, time) * 0.8
+      : 0;
+    const local = toLocal(layer, time, point);
+    if (!local) continue;
+    if (local[0] >= 0 && local[0] <= lw && local[1] >= localTop && local[1] <= localTop + lh) {
+      return layer.id;
+    }
+  }
+  return null;
 }

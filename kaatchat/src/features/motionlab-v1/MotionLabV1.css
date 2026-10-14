@@ -163,6 +163,13 @@
   overflow: visible;
 }
 .v1-canvas-handles * { pointer-events: auto; }
+.v1-sel-picker {
+  /* Full-stage pointer target that sits at the back of the overlay. Its
+     cursor is "default" rather than crosshair so empty-area clicks still
+     feel neutral. */
+  fill: transparent;
+  cursor: default;
+}
 .v1-sel-outline {
   fill: none;
   stroke: var(--v1-accent);
