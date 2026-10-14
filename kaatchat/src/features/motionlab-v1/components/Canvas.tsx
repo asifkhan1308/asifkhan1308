@@ -3,6 +3,7 @@ import { useV1 } from '../store';
 import { composeFrame } from '../engine/compose';
 import { useMediaElements } from '../engine/useMedia';
 import { usePlaybackClock } from '../engine/playback';
+import V1CanvasHandles from './CanvasHandles';
 
 export default function V1Canvas() {
   const project = useV1((s) => s.project);
@@ -29,9 +30,14 @@ export default function V1Canvas() {
       <div
         className="v1-canvas-stage"
         style={{ aspectRatio: `${project.composition.width} / ${project.composition.height}` }}
-        onClick={() => selectLayer(null)}
+        onPointerDown={(e) => {
+          // Clicking the stage (not a handle, not the canvas) deselects. The
+          // SVG overlay stops propagation when a handle is grabbed.
+          if (e.target === e.currentTarget) selectLayer(null);
+        }}
       >
         <canvas ref={canvasRef} className="v1-canvas" />
+        <V1CanvasHandles />
       </div>
       <div className="v1-canvas-hint">
         {project.composition.width}×{project.composition.height} · {project.composition.fps}fps · {project.composition.duration}s

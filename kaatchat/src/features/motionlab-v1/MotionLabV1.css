@@ -141,6 +141,7 @@
   position: relative;
 }
 .v1-canvas-stage {
+  position: relative;
   background:
     linear-gradient(45deg, #1a1a1d 25%, transparent 25%, transparent 75%, #1a1a1d 75%),
     linear-gradient(45deg, #1a1a1d 25%, #141416 25%, #141416 75%, #1a1a1d 75%);
@@ -153,6 +154,43 @@
   overflow: hidden;
 }
 .v1-canvas { display: block; width: 100%; height: 100%; }
+.v1-canvas-handles {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.v1-canvas-handles * { pointer-events: auto; }
+.v1-sel-outline {
+  fill: none;
+  stroke: var(--v1-accent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.v1-sel-body {
+  fill: transparent;
+  cursor: move;
+}
+.v1-sel-rot-line {
+  stroke: var(--v1-accent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.v1-sel-handle {
+  fill: var(--v1-surface);
+  stroke: var(--v1-accent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+.v1-sel-corner { cursor: nwse-resize; }
+.v1-sel-edge { cursor: ns-resize; }
+.v1-sel-handle.v1-sel-rot { cursor: grab; }
+.v1-sel-handle.v1-sel-rot:active { cursor: grabbing; }
+.v1-sel-handle:hover { fill: var(--v1-accent); }
 .v1-canvas-hint { margin-top: 12px; color: var(--v1-text-3); font-size: 11px; font-family: ui-monospace, Menlo, monospace; }
 
 /* ─── Inspector ─── */
