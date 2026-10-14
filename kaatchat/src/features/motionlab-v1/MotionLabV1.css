@@ -422,6 +422,35 @@
   background: var(--v1-surface-2);
   border: 1px solid var(--v1-line-strong);
   border-radius: 3px;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.v1-tl-clip:active { cursor: grabbing; }
+.v1-tl-clip-trim {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 6px;
+  background: var(--v1-line-strong);
+  cursor: ew-resize;
+}
+.v1-tl-clip-trim:hover { background: var(--v1-accent); }
+.v1-tl-clip-trim-in { left: 0; border-top-left-radius: 2px; border-bottom-left-radius: 2px; }
+.v1-tl-clip-trim-out { right: 0; border-top-right-radius: 2px; border-bottom-right-radius: 2px; }
+.v1-tl-clip-label {
+  flex: 1;
+  padding: 0 10px;
+  font-size: 10.5px;
+  color: var(--v1-text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.v1-tl-layer-row-track.selected .v1-tl-clip {
+  background: var(--v1-accent-wash);
+  border-color: var(--v1-accent);
 }
 .v1-tl-kf {
   position: absolute;

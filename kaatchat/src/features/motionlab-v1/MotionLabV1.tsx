@@ -31,6 +31,7 @@ export default function MotionLabV1() {
   const redo = useV1((s) => s.redo);
   const saveToStorage = useV1((s) => s.saveToStorage);
   const newProject = useV1((s) => s.newProject);
+  const splitLayerAt = useV1((s) => s.splitLayerAt);
 
   // Essential keyboard shortcuts.
   useEffect(() => {
@@ -60,6 +61,12 @@ export default function MotionLabV1() {
       if (e.code === 'Space') {
         e.preventDefault();
         setIsPlaying(!isPlaying);
+      } else if (!mod && e.key.toLowerCase() === 'k') {
+        // Avid/Premiere Pro convention: K splits at the playhead.
+        if (selectedLayerId) {
+          e.preventDefault();
+          splitLayerAt(selectedLayerId, currentTime);
+        }
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedLayerId) {
           e.preventDefault();
@@ -82,7 +89,7 @@ export default function MotionLabV1() {
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
-  }, [isPlaying, selectedLayerId, duration, currentTime, fps, setIsPlaying, removeLayer, duplicate, setCurrentTime, undo, redo, saveToStorage, newProject]);
+  }, [isPlaying, selectedLayerId, duration, currentTime, fps, setIsPlaying, removeLayer, duplicate, setCurrentTime, undo, redo, saveToStorage, newProject, splitLayerAt]);
 
   return (
     <div className="motionlab-v1">

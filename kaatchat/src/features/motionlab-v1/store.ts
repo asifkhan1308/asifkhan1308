@@ -70,6 +70,12 @@ interface MotionLabV1State extends UIState {
   enableEffects: (layerId: string) => void;
   setEffectTintColor: (layerId: string, color: string) => void;
 
+  /* Timeline clip editing (move, trim, split) */
+  moveLayerInTime: (id: string, newStartTime: number) => void;
+  trimLayerIn: (id: string, newStartTime: number) => void;   // drag the left edge
+  trimLayerOut: (id: string, newEndTime: number) => void;    // drag the right edge
+  splitLayerAt: (id: string, time: number) => void;
+
   /* Assets */
   addAsset: (a: Asset) => void;
 
@@ -353,6 +359,132 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
         }),
       }),
     })),
+
+  /* ───── Timeline clip editing ──────────────────────────────────────────
+   * Three operations drive timeline interaction:
+   *   moveLayerInTime  — slide the clip left/right, duration unchanged.
+   *                      For media, sourceIn/sourceOut stay as-is (source
+   *                      playback window follows the clip, not real time).
+   *   trimLayerIn      — pull the left edge; startTime moves right, duration
+   *                      shrinks. For media, sourceIn advances by the same
+   *                      delta so the frame visible at the new start matches
+   *                      what was previously visible at that composition
+   *                      time (Avid/Premiere "ripple-less trim-in" feel).
+   *   trimLayerOut     — pull the right edge; duration shrinks. For media,
+   *                      sourceOut moves back by the same delta.
+   *   splitLayerAt     — produce two layers at `time`: left keeps the
+   *                      original id, right is a fresh id. For media,
+   *                      sourceIn/Out split proportionally so continuous
+   *                      playback is preserved.
+   *
+   * All four stay within [0, composition.duration] and never allow a clip
+   * shorter than 1/fps so there's always at least one frame to render.
+   */
+  moveLayerInTime: (id, newStartTime) =>
+    set((s) => {
+      const compDur = s.project.composition.duration;
+      return {
+        project: touch({
+          ...s.project,
+          layers: s.project.layers.map((l) => {
+            if (l.id !== id) return l;
+            const maxStart = Math.max(0, compDur - l.duration);
+            const start = Math.max(0, Math.min(maxStart, newStartTime));
+            return { ...l, startTime: start } as Layer;
+          }),
+        }),
+      };
+    }),
+
+  trimLayerIn: (id, newStartTime) =>
+    set((s) => {
+      const comp = s.project.composition;
+      const minClip = Math.max(0.01, 1 / comp.fps);
+      return {
+        project: touch({
+          ...s.project,
+          layers: s.project.layers.map((l) => {
+            if (l.id !== id) return l;
+            const oldStart = l.startTime;
+            const oldEnd = l.startTime + l.duration;
+            // New start can't go earlier than 0, nor past (oldEnd - minClip).
+            const start = Math.max(0, Math.min(oldEnd - minClip, newStartTime));
+            const delta = start - oldStart;
+            const dur = l.duration - delta;
+            if (l.type === 'media') {
+              // Advance sourceIn by the trimmed amount so the frame visible
+              // at the new start is the same frame that WAS visible at that
+              // composition time before the trim.
+              const sourceIn = Math.max(0, l.sourceIn + delta);
+              const sourceOut = Math.max(sourceIn + minClip, l.sourceOut);
+              return { ...l, startTime: start, duration: dur, sourceIn, sourceOut } as Layer;
+            }
+            return { ...l, startTime: start, duration: dur } as Layer;
+          }),
+        }),
+      };
+    }),
+
+  trimLayerOut: (id, newEndTime) =>
+    set((s) => {
+      const comp = s.project.composition;
+      const minClip = Math.max(0.01, 1 / comp.fps);
+      return {
+        project: touch({
+          ...s.project,
+          layers: s.project.layers.map((l) => {
+            if (l.id !== id) return l;
+            const start = l.startTime;
+            const end = Math.max(start + minClip, Math.min(comp.duration, newEndTime));
+            const dur = end - start;
+            if (l.type === 'media') {
+              const delta = dur - l.duration;
+              const sourceOut = Math.max(l.sourceIn + minClip, l.sourceOut + delta);
+              return { ...l, duration: dur, sourceOut } as Layer;
+            }
+            return { ...l, duration: dur } as Layer;
+          }),
+        }),
+      };
+    }),
+
+  splitLayerAt: (id, time) =>
+    set((s) => {
+      const idx = s.project.layers.findIndex((l) => l.id === id);
+      if (idx < 0) return s;
+      const l = s.project.layers[idx];
+      const comp = s.project.composition;
+      const minClip = Math.max(0.01, 1 / comp.fps);
+      // The split time must land strictly inside the clip, with room for
+      // minClip on either side.
+      const splitWithin = time - l.startTime;
+      if (splitWithin <= minClip || splitWithin >= l.duration - minClip) return s;
+
+      // Left half keeps the id (so handles / selection don't jump).
+      const leftDuration = splitWithin;
+      const rightDuration = l.duration - splitWithin;
+
+      const left: Layer = { ...l, duration: leftDuration } as Layer;
+      // Right half is a fresh id + a copy name, placed immediately after the
+      // left in draw order (next in layers[]).
+      const rightCopy = JSON.parse(JSON.stringify(l)) as Layer;
+      rightCopy.id = `l_${Math.random().toString(36).slice(2, 9)}`;
+      rightCopy.name = `${l.name} (split)`;
+      rightCopy.startTime = l.startTime + splitWithin;
+      rightCopy.duration = rightDuration;
+      if (l.type === 'media') {
+        // Divide the source window proportionally so playback stays
+        // seamless across the cut.
+        const sourceSpan = l.sourceOut - l.sourceIn;
+        const sourceMid = l.sourceIn + (sourceSpan * splitWithin) / l.duration;
+        (left as Layer & { sourceOut: number }).sourceOut = sourceMid;
+        (rightCopy as Layer & { sourceIn: number; sourceOut: number }).sourceIn = sourceMid;
+      }
+      const layers = [...s.project.layers];
+      layers.splice(idx, 1, left);
+      layers.splice(idx + 1, 0, rightCopy);
+      return { project: touch({ ...s.project, layers }) };
+    }),
 
   selectLayer: (id) => set({ selectedLayerId: id }),
   setCurrentTime: (t) => {

@@ -2,6 +2,8 @@ import { useRef } from 'react';
 import { useV1 } from '../store';
 import type { AnimatedProperty, Layer } from '../types';
 
+type ClipDrag = 'body' | 'in' | 'out';
+
 export default function V1Timeline() {
   const project = useV1((s) => s.project);
   const currentTime = useV1((s) => s.currentTime);
@@ -15,6 +17,10 @@ export default function V1Timeline() {
   const setSolo = useV1((s) => s.setSolo);
   const removeLayer = useV1((s) => s.removeLayer);
   const duplicate = useV1((s) => s.duplicate);
+  const moveLayerInTime = useV1((s) => s.moveLayerInTime);
+  const trimLayerIn = useV1((s) => s.trimLayerIn);
+  const trimLayerOut = useV1((s) => s.trimLayerOut);
+  const splitLayerAt = useV1((s) => s.splitLayerAt);
 
   const comp = project.composition;
   const trackRef = useRef<HTMLDivElement>(null);
@@ -88,7 +94,13 @@ export default function V1Timeline() {
               onToggleSolo={() => setSolo(layer.id, !layer.solo)}
               onDuplicate={() => duplicate(layer.id)}
               onDelete={() => removeLayer(layer.id)}
+              onSplit={() => splitLayerAt(layer.id, currentTime)}
               onSeek={(t) => setCurrentTime(t)}
+              onClipDrag={(mode, newStart, newEnd) => {
+                if (mode === 'body') moveLayerInTime(layer.id, newStart);
+                else if (mode === 'in') trimLayerIn(layer.id, newStart);
+                else if (mode === 'out') trimLayerOut(layer.id, newEnd);
+              }}
             />
           ))
         )}
@@ -108,7 +120,9 @@ function LayerRow({
   onToggleSolo,
   onDuplicate,
   onDelete,
+  onSplit,
   onSeek,
+  onClipDrag,
 }: {
   layer: Layer;
   duration: number;
@@ -120,8 +134,39 @@ function LayerRow({
   onToggleSolo: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  onSplit: () => void;
   onSeek: (t: number) => void;
+  onClipDrag: (mode: ClipDrag, newStartTime: number, newEndTime: number) => void;
 }) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const beginClipDrag = (mode: ClipDrag) => (e: React.PointerEvent) => {
+    if (layer.locked) return;
+    e.stopPropagation();
+    e.preventDefault();
+    onSelect();
+    (e.target as Element).setPointerCapture(e.pointerId);
+    const track = trackRef.current;
+    if (!track) return;
+    const rect = track.getBoundingClientRect();
+    const toTime = (clientX: number) =>
+      Math.max(0, Math.min(duration, ((clientX - rect.left) / rect.width) * duration));
+    const start0 = layer.startTime;
+    const end0 = layer.startTime + layer.duration;
+    const t0 = toTime(e.clientX);
+    const onMove = (ev: PointerEvent) => {
+      const t = toTime(ev.clientX);
+      const dt = t - t0;
+      if (mode === 'body') onClipDrag('body', start0 + dt, end0 + dt);
+      else if (mode === 'in') onClipDrag('in', start0 + dt, end0);
+      else if (mode === 'out') onClipDrag('out', start0, end0 + dt);
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
   // All keyframes across the layer's transform (and shape/text extras), merged
   // onto one strip so the user sees at a glance where a layer animates.
   const kfTimes: number[] = [];
@@ -155,6 +200,7 @@ function LayerRow({
           <div className="v1-tl-layer-type">{layer.type}</div>
         </div>
         <div className="v1-tl-row-actions">
+          <button className="btn-icon xs" onClick={(e) => { e.stopPropagation(); onSplit(); }} title="Split at playhead (K)">⫲</button>
           <button className="btn-icon xs" onClick={(e) => { e.stopPropagation(); onDuplicate(); }} title="Duplicate">⎘</button>
           <button className="btn-icon xs" onClick={(e) => { e.stopPropagation(); onDelete(); }} title="Delete">×</button>
         </div>
@@ -162,11 +208,26 @@ function LayerRow({
       <div
         className={`v1-tl-layer-row-track${selected ? ' selected' : ''}`}
         onClick={onSelect}
+        ref={trackRef}
       >
         <div
           className="v1-tl-clip"
           style={{ left: `${left}%`, width: `${width}%` }}
-        />
+          onPointerDown={beginClipDrag('body')}
+          title={`${layer.startTime.toFixed(2)}s – ${(layer.startTime + layer.duration).toFixed(2)}s`}
+        >
+          <div
+            className="v1-tl-clip-trim v1-tl-clip-trim-in"
+            onPointerDown={beginClipDrag('in')}
+            title="Trim in"
+          />
+          <div className="v1-tl-clip-label">{layer.name}</div>
+          <div
+            className="v1-tl-clip-trim v1-tl-clip-trim-out"
+            onPointerDown={beginClipDrag('out')}
+            title="Trim out"
+          />
+        </div>
         {kfTimes.map((t, i) => (
           <button
             key={`${t}-${i}`}
