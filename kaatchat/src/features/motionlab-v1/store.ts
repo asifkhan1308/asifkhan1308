@@ -81,6 +81,10 @@ interface MotionLabV1State extends UIState {
   copyKeyframesAt: (layerId: string, time: number) => number;
   pasteKeyframesAt: (layerId: string, time: number) => number;
   hasKeyframeClipboard: () => boolean;
+  /** Easing INTO the keyframe at `time` (how the segment arriving there moves). */
+  setKeyframeEasing: (layerId: string, path: string, time: number, easing: Easing) => void;
+  /** Insert-or-replace a keyframe with an explicit value (never toggles). */
+  setKeyframeAt: (layerId: string, path: string, time: number, value: unknown) => boolean;
 
   /* Assets */
   addAsset: (a: Asset) => void;
@@ -246,7 +250,7 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
     return l.id;
   },
   addMediaLayer: (asset) => {
-    const l = newMediaLayer(get().project.composition, asset.id, asset.name, asset.duration);
+    const l = newMediaLayer(get().project.composition, asset.id, asset.name, asset.duration, asset.width, asset.height);
     set((s) => ({
       project: touch({ ...s.project, layers: [...s.project.layers, l] }),
       selectedLayerId: l.id,
@@ -254,7 +258,7 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
     return l.id;
   },
   addImageLayer: (asset) => {
-    const l = newImageLayer(get().project.composition, asset.id, asset.name);
+    const l = newImageLayer(get().project.composition, asset.id, asset.name, asset.width, asset.height);
     set((s) => ({
       project: touch({ ...s.project, layers: [...s.project.layers, l] }),
       selectedLayerId: l.id,
@@ -325,8 +329,29 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
           if (l.id !== layerId) return l;
           const ap = getAnimated(l, path);
           if (!ap) return l;
+          // After Effects semantics: once a property is animated, editing it
+          // writes a keyframe at the playhead (keeping that key's easing).
+          // Unanimated properties just change their static value.
+          if (ap.keyframes?.length) {
+            const at = ap.keyframes.find((k) => Math.abs(k.time - s.currentTime) < KF_EPS);
+            return setAnimated(l, path, upsertKeyframe(ap, at ? at.time : s.currentTime, value, at?.easing));
+          }
           const next: AnimatedProperty<unknown> = { ...ap, default: value };
           return setAnimated(l, path, next);
+        }),
+      }),
+    })),
+
+  setKeyframeEasing: (layerId, path, time, easing) =>
+    set((s) => ({
+      project: touch({
+        ...s.project,
+        layers: s.project.layers.map((l) => {
+          if (l.id !== layerId) return l;
+          const ap = getAnimated(l, path);
+          if (!ap?.keyframes?.length) return l;
+          const kfs = ap.keyframes.map((k) => (Math.abs(k.time - time) < KF_EPS ? { ...k, easing } : k));
+          return setAnimated(l, path, { ...ap, keyframes: kfs });
         }),
       }),
     })),
@@ -570,6 +595,28 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
   },
 
   hasKeyframeClipboard: () => !!kfClipboard?.length,
+
+  setKeyframeAt: (layerId, path, time, value) => {
+    let ok = false;
+    const t = Math.max(0, Math.min(get().project.composition.duration, time));
+    set((s) => ({
+      project: touch({
+        ...s.project,
+        layers: s.project.layers.map((l) => {
+          if (l.id !== layerId) return l;
+          let next = l;
+          if (!getAnimated(next, path) && EFFECT_KEYS.includes(path as EffectProp)) {
+            next = { ...next, effects: next.effects ?? neutralEffects() } as Layer;
+          }
+          const ap = getAnimated(next, path);
+          if (!ap) return l;
+          ok = true;
+          return setAnimated(next, path, upsertKeyframe(ap, t, value));
+        }),
+      }),
+    }));
+    return ok;
+  },
 
   selectLayer: (id) => set({ selectedLayerId: id }),
   setCurrentTime: (t) => {

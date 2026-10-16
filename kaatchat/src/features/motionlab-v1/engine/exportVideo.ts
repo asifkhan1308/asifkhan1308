@@ -12,6 +12,7 @@ import {
 } from 'mediabunny';
 import type { Project } from '../types';
 import { composeFrame } from './compose';
+import { seekMediaForExport } from './mediaSync';
 
 export interface V1ExportOptions {
   project: Project;
@@ -75,6 +76,7 @@ export async function exportProjectToVideo(opts: V1ExportOptions): Promise<V1Exp
     for (let k = 0; k < totalFrames; k++) {
       throwIfAborted();
       const time = k / fps;
+      await seekMediaForExport(opts.project, time, opts.mediaBy);
       composeFrame(ctx, opts.project, time, { mediaBy: opts.mediaBy });
       await videoSource.add(time, 1 / fps);
       opts.onProgress?.((k + 1) / totalFrames, `Frame ${k + 1} of ${totalFrames} · ${videoCodec.toUpperCase()}`);

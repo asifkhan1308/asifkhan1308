@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { useV1 } from '../store';
-import { importFileToMotion } from '../../motionlab/engine/bridge';
+import { importFile } from '../../../engine/media';
 import type { Asset } from '../types';
 
 export default function V1Toolbar() {
@@ -17,16 +17,19 @@ export default function V1Toolbar() {
 
   const importMedia = async (file: File) => {
     try {
-      const m = await importFileToMotion(file);
+      // Engine import: probes real duration/dimensions and persists the bytes
+      // in the shared media store, so the clip survives reload (rehydrateMedia).
+      const m = await importFile(file);
+      if (m.kind === 'audio') throw new Error('Studio layers are visual. Audio tracks arrive in a later version.');
       const asset: Asset = {
         id: m.id,
-        kind: m.type === 'video' ? 'video' : 'image',
+        kind: m.kind === 'video' ? 'video' : 'image',
         name: m.name,
-        mime: m.data?.type ?? 'application/octet-stream',
+        mime: m.mime,
         width: m.width,
         height: m.height,
-        duration: 5,
-        url: m.url,
+        duration: m.kind === 'video' ? m.duration : 0,
+        url: URL.createObjectURL(file),
       };
       addAsset(asset);
       if (asset.kind === 'video') addMediaLayer(asset);

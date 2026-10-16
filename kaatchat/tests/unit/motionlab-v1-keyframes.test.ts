@@ -60,4 +60,35 @@ describe('MOTIONLAB V1 timeline keyframe ops', () => {
     expect(useV1.getState().copyKeyframesAt(id, 5)).toBe(0);
     expect(useV1.getState().hasKeyframeClipboard()).toBe(true);
   });
+
+  it('editing an animated property writes a keyframe at the playhead (AE auto-key)', () => {
+    const s = useV1.getState();
+    s.setCurrentTime(0);
+    s.setPropertyBase(id, 'opacity', 0);
+    s.toggleKeyframe(id, 'opacity');
+    s.setCurrentTime(2);
+    useV1.getState().setPropertyBase(id, 'opacity', 1);
+    const kfs = opacityKfs(id);
+    expect(kfs.map((k) => [k.time, k.value])).toEqual([[0, 0], [2, 1]]);
+  });
+
+  it('sets easing on the keyframe at a time and the toggle keeps it removable', () => {
+    keyAt(id, 0);
+    useV1.getState().setCurrentTime(2);
+    useV1.getState().setPropertyBase(id, 'opacity', 0.5);
+    useV1.getState().setKeyframeEasing(id, 'opacity', 2, 'linear');
+    expect(opacityKfs(id).find((k) => k.time === 2)?.easing).toBe('linear');
+    useV1.getState().setPropertyBase(id, 'opacity', 0.75);
+    expect(opacityKfs(id).find((k) => k.time === 2)?.easing).toBe('linear');
+  });
+
+  it('setKeyframeAt upserts an explicit value without toggling', () => {
+    keyAt(id, 1);
+    const s = useV1.getState();
+    expect(s.setKeyframeAt(id, 'opacity', 1, 0.3)).toBe(true);
+    expect(useV1.getState().setKeyframeAt(id, 'opacity', 1, 0.4)).toBe(true);
+    expect(opacityKfs(id)).toHaveLength(1);
+    expect(opacityKfs(id)[0].value).toBe(0.4);
+    expect(useV1.getState().setKeyframeAt(id, 'fontSize', 1, 10)).toBe(false);
+  });
 });

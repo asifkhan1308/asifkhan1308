@@ -336,7 +336,8 @@
   display: grid;
   grid-template-columns: 220px 1fr;
   grid-auto-rows: var(--v1-row-h);
-  grid-template-rows: 24px auto;
+  grid-template-rows: 24px;
+  align-content: start;
   background: var(--v1-surface);
 }
 .v1-tl-layers-header {
@@ -821,4 +822,17 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+/* Easing picker shown beside a property when the playhead sits on one of its keyframes. */
+.v1-easing {
+  margin-left: auto;
+  margin-right: 6px;
+  background: var(--v1-surface-2);
+  border: 1px solid var(--v1-line);
+  color: var(--v1-text);
+  font-size: 10.5px;
+  font-family: inherit;
+  padding: 2px 4px;
+  border-radius: 4px;
 }

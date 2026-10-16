@@ -1,6 +1,6 @@
 import { useV1 } from '../store';
 import { resolveAnimated } from '../engine/interp';
-import type { AnimatedProperty, Layer, V2 } from '../types';
+import type { AnimatedProperty, Easing, Layer, V2 } from '../types';
 
 type AnimPath =
   | 'position' | 'scale' | 'rotation' | 'anchor' | 'opacity'
@@ -14,7 +14,6 @@ export default function V1Inspector() {
   const selectedId = useV1((s) => s.selectedLayerId);
   const currentTime = useV1((s) => s.currentTime);
   const setPropertyBase = useV1((s) => s.setPropertyBase);
-  const toggleKeyframe = useV1((s) => s.toggleKeyframe);
   const patchLayer = useV1((s) => s.patchLayer);
   const enableEffects = useV1((s) => s.enableEffects);
   const setEffectTintColor = useV1((s) => s.setEffectTintColor);
@@ -34,39 +33,6 @@ export default function V1Inspector() {
   }
 
   const resolve = <T,>(ap: AnimatedProperty<T> | undefined) => (ap ? resolveAnimated(ap, currentTime) : undefined);
-  const diamondState = (ap: AnimatedProperty<unknown> | undefined) => {
-    if (!ap?.keyframes || ap.keyframes.length === 0) return 'off';
-    const atNow = ap.keyframes.some((k) => Math.abs(k.time - currentTime) < 0.05);
-    return atNow ? 'on' : 'has';
-  };
-
-  const Row = ({
-    label,
-    path,
-    children,
-  }: {
-    label: string;
-    path: AnimPath;
-    children: React.ReactNode;
-  }) => {
-    const ap = animatedPropertyFor(layer, path);
-    const state = diamondState(ap);
-    return (
-      <div className="v1-prop">
-        <div className="v1-prop-head">
-          <span className="v1-prop-label">{label}</span>
-          <button
-            type="button"
-            className={`v1-diamond v1-diamond-${state}`}
-            onClick={() => toggleKeyframe(layer.id, path)}
-            title={state === 'on' ? 'Remove keyframe at playhead' : 'Add keyframe at playhead'}
-          >◆</button>
-        </div>
-        <div className="v1-prop-body">{children}</div>
-      </div>
-    );
-  };
-
   return (
     <div className="v1-inspector">
       <div className="v1-inspector-header">
@@ -81,41 +47,41 @@ export default function V1Inspector() {
       <section className="v1-section">
         <div className="v1-section-head">Transform</div>
 
-        <Row label="Position" path="position">
+        <PropRow layer={layer} currentTime={currentTime} label="Position" path="position">
           <NumberPair
             value={resolve(layer.transform.position) as V2}
             onChange={(v) => setPropertyBase<V2>(layer.id, 'position', v)}
             step={1}
           />
-        </Row>
+        </PropRow>
 
-        <Row label="Scale" path="scale">
+        <PropRow layer={layer} currentTime={currentTime} label="Scale" path="scale">
           <NumberPair
             value={resolve(layer.transform.scale) as V2}
             onChange={(v) => setPropertyBase<V2>(layer.id, 'scale', v)}
             step={0.01}
             suffix="×"
           />
-        </Row>
+        </PropRow>
 
-        <Row label="Rotation" path="rotation">
+        <PropRow layer={layer} currentTime={currentTime} label="Rotation" path="rotation">
           <NumberField
             value={resolve(layer.transform.rotation) as number}
             onChange={(v) => setPropertyBase<number>(layer.id, 'rotation', v)}
             step={1}
             suffix="°"
           />
-        </Row>
+        </PropRow>
 
-        <Row label="Anchor" path="anchor">
+        <PropRow layer={layer} currentTime={currentTime} label="Anchor" path="anchor">
           <NumberPair
             value={resolve(layer.transform.anchor) as V2}
             onChange={(v) => setPropertyBase<V2>(layer.id, 'anchor', v)}
             step={1}
           />
-        </Row>
+        </PropRow>
 
-        <Row label="Opacity" path="opacity">
+        <PropRow layer={layer} currentTime={currentTime} label="Opacity" path="opacity">
           <SliderField
             value={resolve(layer.transform.opacity) as number}
             onChange={(v) => setPropertyBase<number>(layer.id, 'opacity', v)}
@@ -125,27 +91,27 @@ export default function V1Inspector() {
             suffix="%"
             display={(v) => `${Math.round(v * 100)}`}
           />
-        </Row>
+        </PropRow>
       </section>
 
       {(layer.type === 'rectangle' || layer.type === 'ellipse') && (
         <section className="v1-section">
           <div className="v1-section-head">Shape</div>
-          <Row label="Size" path="size">
+          <PropRow layer={layer} currentTime={currentTime} label="Size" path="size">
             <NumberPair
               value={resolve(layer.size) as V2}
               onChange={(v) => setPropertyBase<V2>(layer.id, 'size', v)}
               step={1}
             />
-          </Row>
+          </PropRow>
           {layer.type === 'rectangle' && (
-            <Row label="Radius" path="cornerRadius">
+            <PropRow layer={layer} currentTime={currentTime} label="Radius" path="cornerRadius">
               <NumberField
                 value={resolve(layer.cornerRadius) as number}
                 onChange={(v) => setPropertyBase<number>(layer.id, 'cornerRadius', v)}
                 step={1}
               />
-            </Row>
+            </PropRow>
           )}
           <div className="v1-prop">
             <div className="v1-prop-head">
@@ -180,7 +146,7 @@ export default function V1Inspector() {
           {layer.effects ? (
             <>
               {EFFECT_PATHS.map((p) => (
-                <Row
+                <PropRow layer={layer} currentTime={currentTime}
                   key={p}
                   label={p === 'tintAmount' ? 'Tint' : p[0].toUpperCase() + p.slice(1)}
                   path={p}
@@ -195,7 +161,7 @@ export default function V1Inspector() {
                       ? v.toFixed(2)
                       : `${Math.round(v * 100)}%`)}
                   />
-                </Row>
+                </PropRow>
               ))}
               <div className="v1-prop">
                 <div className="v1-prop-head"><span className="v1-prop-label">Tint colour</span></div>
@@ -227,14 +193,14 @@ export default function V1Inspector() {
               onChange={(e) => patchLayer(layer.id, { text: e.target.value })}
             />
           </div>
-          <Row label="Font size" path="fontSize">
+          <PropRow layer={layer} currentTime={currentTime} label="Font size" path="fontSize">
             <NumberField
               value={resolve(layer.fontSize) as number}
               onChange={(v) => setPropertyBase<number>(layer.id, 'fontSize', v)}
               step={1}
               suffix="px"
             />
-          </Row>
+          </PropRow>
           <div className="v1-prop">
             <div className="v1-prop-head"><span className="v1-prop-label">Weight</span></div>
             <select
@@ -363,6 +329,63 @@ function SliderField({
         {display ? display(value) : value.toFixed(2)}
         {suffix}
       </span>
+    </div>
+  );
+}
+
+/* Module-level (stable identity) so fields inside don't remount on every
+ * render — a component declared inside Inspector lost input focus per key. */
+const EASINGS: Array<{ value: Easing; label: string }> = [
+  { value: 'linear', label: 'Linear' },
+  { value: 'ease-in', label: 'Ease in' },
+  { value: 'ease-out', label: 'Ease out' },
+  { value: 'ease-in-out', label: 'Ease in/out' },
+];
+
+function PropRow({
+  layer,
+  currentTime,
+  label,
+  path,
+  children,
+}: {
+  layer: Layer;
+  currentTime: number;
+  label: string;
+  path: AnimPath;
+  children: React.ReactNode;
+}) {
+  const toggleKeyframe = useV1((s) => s.toggleKeyframe);
+  const setKeyframeEasing = useV1((s) => s.setKeyframeEasing);
+  const ap = animatedPropertyFor(layer, path);
+  const kfs = ap?.keyframes ?? [];
+  // Same 10 ms window the store uses, so "on" always means toggle removes it.
+  const atNow = kfs.find((k) => Math.abs(k.time - currentTime) < 0.01);
+  const state = kfs.length === 0 ? 'off' : atNow ? 'on' : 'has';
+  return (
+    <div className="v1-prop">
+      <div className="v1-prop-head">
+        <span className="v1-prop-label">{label}</span>
+        {atNow && kfs[0] !== atNow && (
+          <select
+            className="v1-easing"
+            value={atNow.easing ?? 'ease-in-out'}
+            onChange={(e) => setKeyframeEasing(layer.id, path, atNow.time, e.target.value as Easing)}
+            title="Easing into this keyframe"
+          >
+            {EASINGS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        )}
+        <button
+          type="button"
+          className={`v1-diamond v1-diamond-${state}`}
+          onClick={() => toggleKeyframe(layer.id, path)}
+          title={state === 'on' ? 'Remove keyframe at playhead' : 'Add keyframe at playhead'}
+        >◆</button>
+      </div>
+      <div className="v1-prop-body">{children}</div>
     </div>
   );
 }

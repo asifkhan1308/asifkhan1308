@@ -55,6 +55,13 @@ export function intrinsicSize(layer: Layer, time: number, assets: Asset[]): V2 {
   }
 }
 
+/* Text is drawn with ctx.textAlign at the local origin, so centre-aligned
+ * glyphs span [-w/2, w/2] and right-aligned span [-w, 0]. */
+function textLeft(layer: Layer, w: number): number {
+  if (layer.type !== 'text') return 0;
+  return layer.align === 'center' ? -w / 2 : layer.align === 'right' ? -w : 0;
+}
+
 export interface WorldBox {
   /** Four corners of the layer's local rect, in composition coordinates.
    *  Order: TL, TR, BR, BL. */
@@ -84,6 +91,7 @@ export function worldCorners(layer: Layer, time: number, assets: Asset[]): World
   // Text draws with the baseline at local origin; shift the local rect up
   // one line so the selection box wraps the glyphs, not the baseline.
   const localTop = layer.type === 'text' ? -resolveAnimated(layer.fontSize, time) * 0.8 : 0;
+  const localLeft = textLeft(layer, lw);
 
   const toWorld = (lx: number, ly: number): V2 => {
     // local → anchor-shift → scale → rotate → translate
@@ -94,10 +102,10 @@ export function worldCorners(layer: Layer, time: number, assets: Asset[]): World
     return [t.position[0] + rx, t.position[1] + ry];
   };
 
-  const tl = toWorld(0, localTop);
-  const tr = toWorld(lw, localTop);
-  const br = toWorld(lw, localTop + lh);
-  const bl = toWorld(0, localTop + lh);
+  const tl = toWorld(localLeft, localTop);
+  const tr = toWorld(localLeft + lw, localTop);
+  const br = toWorld(localLeft + lw, localTop + lh);
+  const bl = toWorld(localLeft, localTop + lh);
   const center: V2 = [(tl[0] + br[0]) / 2, (tl[1] + br[1]) / 2];
 
   return {
@@ -152,7 +160,8 @@ export function pickLayerAt(project: Project, time: number, point: V2): string |
       : 0;
     const local = toLocal(layer, time, point);
     if (!local) continue;
-    if (local[0] >= 0 && local[0] <= lw && local[1] >= localTop && local[1] <= localTop + lh) {
+    const left = textLeft(layer, lw);
+    if (local[0] >= left && local[0] <= left + lw && local[1] >= localTop && local[1] <= localTop + lh) {
       return layer.id;
     }
   }

@@ -80,8 +80,15 @@ export const newTextLayer = (comp: Composition, text = 'TEXT'): TextLayer => ({
   strokeWidth: 0,
 });
 
+/* Anchor at the layer's centre so it lands centred on the composition and
+ * rotates/scales around its middle — what users expect from Figma/AE. */
+const centredBase = (comp: Composition, name: string, w: number, h: number) => {
+  const b = baseLayer(comp, name);
+  return { ...b, transform: { ...b.transform, anchor: anim<[number, number]>([w / 2, h / 2]) } };
+};
+
 export const newRectangleLayer = (comp: Composition): RectangleLayer => ({
-  ...baseLayer(comp, 'Rectangle'),
+  ...centredBase(comp, 'Rectangle', comp.width * 0.3, comp.height * 0.3),
   type: 'rectangle',
   size: anim<[number, number]>([comp.width * 0.3, comp.height * 0.3]),
   cornerRadius: anim<number>(0),
@@ -91,7 +98,7 @@ export const newRectangleLayer = (comp: Composition): RectangleLayer => ({
 });
 
 export const newEllipseLayer = (comp: Composition): EllipseLayer => ({
-  ...baseLayer(comp, 'Ellipse'),
+  ...centredBase(comp, 'Ellipse', comp.height * 0.3, comp.height * 0.3),
   type: 'ellipse',
   size: anim<[number, number]>([comp.height * 0.3, comp.height * 0.3]),
   fill: '#FFFFFF',
@@ -104,17 +111,34 @@ export const newNullLayer = (comp: Composition): NullLayer => ({
   type: 'null',
 });
 
+/* Media lands centred and scaled to fit inside the composition. */
+const fittedBase = (comp: Composition, name: string, w?: number, h?: number) => {
+  const b = baseLayer(comp, name);
+  if (!w || !h) return b;
+  const fit = Math.min(comp.width / w, comp.height / h);
+  return {
+    ...b,
+    transform: {
+      ...b.transform,
+      anchor: anim<[number, number]>([w / 2, h / 2]),
+      scale: anim<[number, number]>([fit, fit]),
+    },
+  };
+};
+
 export const newMediaLayer = (
   comp: Composition,
   assetId: string,
   name: string,
   sourceDuration: number,
+  width?: number,
+  height?: number,
 ): MediaLayer => ({
-  ...baseLayer(comp, name),
+  ...fittedBase(comp, name, width, height),
   type: 'media',
   assetId,
   sourceIn: 0,
-  sourceOut: sourceDuration,
+  sourceOut: sourceDuration || comp.duration,
   duration: Math.min(comp.duration, sourceDuration || comp.duration),
 });
 
@@ -122,8 +146,10 @@ export const newImageLayer = (
   comp: Composition,
   assetId: string,
   name: string,
+  width?: number,
+  height?: number,
 ): ImageLayer => ({
-  ...baseLayer(comp, name),
+  ...fittedBase(comp, name, width, height),
   type: 'image',
   assetId,
 });

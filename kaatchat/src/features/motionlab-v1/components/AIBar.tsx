@@ -45,7 +45,6 @@ export default function AIBar({ onOpenGenerate }: Props) {
   const project = useV1((s) => s.project);
   const selectedId = useV1((s) => s.selectedLayerId);
   const setPropertyBase = useV1((s) => s.setPropertyBase);
-  const addKeyframeAt = useV1((s) => s.toggleKeyframe);
 
   const [prompt, setPrompt] = useState('');
   const [status, setStatus] = useState<string>('');
@@ -63,12 +62,9 @@ export default function AIBar({ onOpenGenerate }: Props) {
         setPropertyBase(selected.id, path, a.value as unknown as number);
         applied++;
       } else if (a.op === 'keyframe') {
-        // Minimal: set the base to the requested value at the kf time, then
-        // toggle a keyframe there. Full-fidelity jump happens next session.
-        setPropertyBase(selected.id, path, a.value as unknown as number);
-        useV1.getState().setCurrentTime(a.time);
-        addKeyframeAt(selected.id, path);
-        applied++;
+        // Upsert with the model's exact value — never toggles, so an AI
+        // edit can't accidentally delete an existing keyframe.
+        if (useV1.getState().setKeyframeAt(selected.id, a.path, Number(a.time) || 0, a.value)) applied++;
       }
     }
     setStatus(`Applied ${applied} action${applied === 1 ? '' : 's'}.`);

@@ -6,6 +6,9 @@ import { exportProjectToVideo } from '../engine/exportVideo';
 export default function V1ExportDialog({ onClose }: { onClose: () => void }) {
   const project = useV1((s) => s.project);
   const mediaBy = useMediaElements(project.assets);
+  // Render only once every linked asset has decoded; otherwise early frames
+  // would bake placeholder tiles into the file.
+  const mediaReady = project.assets.filter((a) => a.url).every((a) => mediaBy.has(a.id));
   const [format, setFormat] = useState<'mp4' | 'webm'>('mp4');
   const [quality, setQuality] = useState<'low' | 'medium' | 'high' | 'ultra'>('high');
   const [state, setState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
@@ -85,8 +88,8 @@ export default function V1ExportDialog({ onClose }: { onClose: () => void }) {
         </div>
         <div className="modal-footer">
           <button className="btn-secondary" onClick={onClose} disabled={state === 'running'}>Close</button>
-          <button className="btn-primary" onClick={run} disabled={state === 'running' || project.layers.length === 0}>
-            {state === 'running' ? 'Rendering…' : state === 'done' ? 'Done ✓' : 'Render'}
+          <button className="btn-primary" onClick={run} disabled={state === 'running' || project.layers.length === 0 || !mediaReady}>
+            {!mediaReady ? 'Loading media…' : state === 'running' ? 'Rendering…' : state === 'done' ? 'Done ✓' : 'Render'}
           </button>
         </div>
       </div>
