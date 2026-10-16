@@ -44,10 +44,14 @@ export function syncPreviewMedia(
     }
     const target = sourceTimeAt(layer, time);
     if (playing) {
+      // Elements load muted (autoplay policy); unmute once the user has
+      // pressed play so clip audio is heard in preview.
+      el.muted = false;
       if (Math.abs(el.currentTime - target) > 0.25) el.currentTime = target;
       if (el.paused) void el.play().catch(() => undefined);
     } else {
       if (!el.paused) el.pause();
+      el.muted = true;
       if (Math.abs(el.currentTime - target) > 0.01) el.currentTime = target;
     }
   }

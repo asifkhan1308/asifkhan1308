@@ -1,6 +1,8 @@
 import {
+  AudioBufferSource,
   BufferTarget,
   CanvasSource,
+  getFirstEncodableAudioCodec,
   getFirstEncodableVideoCodec,
   Mp4OutputFormat,
   Output,
@@ -8,8 +10,11 @@ import {
   QUALITY_MEDIUM,
   QUALITY_VERY_HIGH,
   WebMOutputFormat,
+  type AudioCodec,
   type VideoCodec,
 } from 'mediabunny';
+import { ensureAacEncoder } from '../../../engine/export';
+import { AUDIO_RATE, mixProjectAudio, sliceAudio } from './audioMix';
 import type { Project } from '../types';
 import { composeFrame } from './compose';
 import { seekMediaForExport } from './mediaSync';
@@ -66,6 +71,34 @@ export async function exportProjectToVideo(opts: V1ExportOptions): Promise<V1Exp
     keyFrameInterval: 2,
   });
   output.addVideoTrack(videoSource, { frameRate: fps });
+
+  // Audio from video clips. Mixed up front (offline, fast), then fed to the
+  // muxer roughly in step with the video so the interleave stays tight.
+  opts.onProgress?.(0, 'Mixing audio');
+  const mix = await mixProjectAudio(opts.project, opts.signal);
+  let audioSource: AudioBufferSource | null = null;
+  if (mix) {
+    // MP4 audio is AAC everywhere; open-source Chromium needs the WASM encoder.
+    if (opts.format === 'mp4') await ensureAacEncoder();
+    const aCandidates: AudioCodec[] = opts.format === 'mp4' ? ['aac', 'opus'] : ['opus', 'vorbis'];
+    const audioCodec = await getFirstEncodableAudioCodec(aCandidates, { numberOfChannels: 2, sampleRate: AUDIO_RATE });
+    if (audioCodec) {
+      const bitrate = opts.quality === 'ultra' ? 256_000 : opts.quality === 'high' ? 192_000 : 128_000;
+      audioSource = new AudioBufferSource({ codec: audioCodec, bitrate });
+      output.addAudioTrack(audioSource);
+    }
+  }
+  let samplesDone = 0;
+  const flushAudio = async (untilSeconds: number) => {
+    if (!audioSource || !mix) return;
+    const until = Math.min(mix.length, Math.round(untilSeconds * AUDIO_RATE));
+    while (samplesDone < until) {
+      const next = Math.min(until, samplesDone + AUDIO_RATE);
+      await audioSource.add(sliceAudio(mix, samplesDone, next));
+      samplesDone = next;
+    }
+  };
+
   await output.start();
 
   const throwIfAborted = () => {
@@ -80,7 +113,9 @@ export async function exportProjectToVideo(opts: V1ExportOptions): Promise<V1Exp
       composeFrame(ctx, opts.project, time, { mediaBy: opts.mediaBy });
       await videoSource.add(time, 1 / fps);
       opts.onProgress?.((k + 1) / totalFrames, `Frame ${k + 1} of ${totalFrames} · ${videoCodec.toUpperCase()}`);
+      if (k % fps === fps - 1) await flushAudio((k + 1) / fps);
     }
+    await flushAudio(duration);
     opts.onProgress?.(1, 'Finishing file');
     await output.finalize();
   } catch (e) {
