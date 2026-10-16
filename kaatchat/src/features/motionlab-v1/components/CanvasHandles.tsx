@@ -1,6 +1,8 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useV1 } from '../store';
 import { pickLayerAt, worldCorners } from '../engine/bbox';
+import ContextMenu from './ContextMenu';
+import { addLayerMenu, layerMenu } from './menuBuilders';
 import type { V2 } from '../types';
 
 /* SVG overlay drawn on top of the composition canvas. Renders the selection
@@ -37,6 +39,15 @@ export default function V1CanvasHandles() {
   const comp = project.composition;
   const box = layer ? worldCorners(layer, time, project.assets) : null;
   const selectLayer = useV1((s) => s.selectLayer);
+  const [menu, setMenu] = useState<{ x: number; y: number; layerId: string | null } | null>(null);
+
+  const onContext = (ev: React.MouseEvent) => {
+    ev.preventDefault();
+    const p = toComp(ev as unknown as React.PointerEvent);
+    const hit = pickLayerAt(project, time, p);
+    if (hit) selectLayer(hit);
+    setMenu({ x: ev.clientX, y: ev.clientY, layerId: hit });
+  };
 
   /** Convert a pointer event to composition pixels, so dragging keeps feel at
    *  any CSS zoom. */
@@ -170,21 +181,29 @@ export default function V1CanvasHandles() {
     // Still render the picker so clicks on the canvas can pick a layer even
     // when nothing is selected (or a locked / null layer is selected).
     return (
-      <svg
-        ref={svgRef}
-        className="v1-canvas-handles"
-        viewBox={`0 0 ${comp.width} ${comp.height}`}
-        preserveAspectRatio="none"
-      >
-        <rect
-          x={0}
-          y={0}
-          width={comp.width}
-          height={comp.height}
-          className="v1-sel-picker"
-          onPointerDown={onBackdropDown}
+      <>
+        <svg
+          ref={svgRef}
+          className="v1-canvas-handles"
+          viewBox={`0 0 ${comp.width} ${comp.height}`}
+          preserveAspectRatio="none"
+          onContextMenu={onContext}
+        >
+          <rect
+            x={0}
+            y={0}
+            width={comp.width}
+            height={comp.height}
+            className="v1-sel-picker"
+            onPointerDown={onBackdropDown}
+          />
+        </svg>
+        <ContextMenu
+          anchor={menu ? { x: menu.x, y: menu.y } : null}
+          onClose={() => setMenu(null)}
+          items={menu ? (menu.layerId ? layerMenu(menu.layerId) : addLayerMenu()) : []}
         />
-      </svg>
+      </>
     );
   }
 
@@ -199,11 +218,13 @@ export default function V1CanvasHandles() {
   const hs = Math.max(8, Math.min(comp.width, comp.height) * 0.012);
 
   return (
+    <>
     <svg
       ref={svgRef}
       className="v1-canvas-handles"
       viewBox={`0 0 ${comp.width} ${comp.height}`}
       preserveAspectRatio="none"
+      onContextMenu={onContext}
     >
       {/* Backdrop: picks a different layer or deselects on click outside the
           selected layer's body / handles. Placed FIRST so SVG hit-testing
@@ -270,6 +291,12 @@ export default function V1CanvasHandles() {
         onPointerDown={beginDrag('rot')}
       />
     </svg>
+    <ContextMenu
+      anchor={menu ? { x: menu.x, y: menu.y } : null}
+      onClose={() => setMenu(null)}
+      items={menu ? (menu.layerId ? layerMenu(menu.layerId) : addLayerMenu()) : []}
+    />
+    </>
   );
 }
 

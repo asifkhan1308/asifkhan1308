@@ -1,8 +1,11 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useV1 } from '../store';
+import ContextMenu from './ContextMenu';
+import { clipExtras, layerMenu } from './menuBuilders';
 import type { AnimatedProperty, Layer } from '../types';
 
 type ClipDrag = 'body' | 'in' | 'out';
+interface MenuState { x: number; y: number; layerId: string; onTrack: boolean }
 
 export default function V1Timeline() {
   const project = useV1((s) => s.project);
@@ -24,6 +27,12 @@ export default function V1Timeline() {
 
   const comp = project.composition;
   const trackRef = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const openMenu = (layerId: string, onTrack: boolean) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    selectLayer(layerId);
+    setMenu({ x: e.clientX, y: e.clientY, layerId, onTrack });
+  };
 
   const scrubTo = (clientX: number) => {
     const el = trackRef.current;
@@ -80,7 +89,8 @@ export default function V1Timeline() {
 
         {project.layers.length === 0 ? (
           <div className="v1-tl-empty">Your timeline is empty. Add a layer from the left toolbar.</div>
-        ) : (
+        ) : null}
+        {project.layers.length > 0 && (
           project.layers.map((layer) => (
             <LayerRow
               key={layer.id}
@@ -101,10 +111,24 @@ export default function V1Timeline() {
                 else if (mode === 'in') trimLayerIn(layer.id, newStart);
                 else if (mode === 'out') trimLayerOut(layer.id, newEnd);
               }}
+              onContextHead={openMenu(layer.id, false)}
+              onContextTrack={openMenu(layer.id, true)}
             />
           ))
         )}
       </div>
+      <ContextMenu
+        anchor={menu ? { x: menu.x, y: menu.y } : null}
+        onClose={() => setMenu(null)}
+        items={
+          menu
+            ? [
+                ...(menu.onTrack ? clipExtras(menu.layerId) : []),
+                ...layerMenu(menu.layerId),
+              ]
+            : []
+        }
+      />
     </div>
   );
 }
@@ -123,6 +147,8 @@ function LayerRow({
   onSplit,
   onSeek,
   onClipDrag,
+  onContextHead,
+  onContextTrack,
 }: {
   layer: Layer;
   duration: number;
@@ -137,6 +163,8 @@ function LayerRow({
   onSplit: () => void;
   onSeek: (t: number) => void;
   onClipDrag: (mode: ClipDrag, newStartTime: number, newEndTime: number) => void;
+  onContextHead: (e: React.MouseEvent) => void;
+  onContextTrack: (e: React.MouseEvent) => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const beginClipDrag = (mode: ClipDrag) => (e: React.PointerEvent) => {
@@ -189,6 +217,7 @@ function LayerRow({
       <div
         className={`v1-tl-layer-row-head${selected ? ' selected' : ''}`}
         onClick={onSelect}
+        onContextMenu={onContextHead}
       >
         <div className="v1-tl-flags">
           <button className={`flag ${layer.visible ? 'on' : ''}`} onClick={(e) => { e.stopPropagation(); onToggleVisible(); }} title="Visible">👁</button>
@@ -208,6 +237,7 @@ function LayerRow({
       <div
         className={`v1-tl-layer-row-track${selected ? ' selected' : ''}`}
         onClick={onSelect}
+        onContextMenu={onContextTrack}
         ref={trackRef}
       >
         <div
