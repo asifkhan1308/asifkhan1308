@@ -1,5 +1,6 @@
 import type { MediaLayer, Project } from '../types';
 import { isLayerActive } from './compose';
+import { clipGainAt } from './audioMix';
 
 /* Keeps <video> elements on the frame their layer should show.
  *
@@ -46,7 +47,11 @@ export function syncPreviewMedia(
     if (playing) {
       // Elements load muted (autoplay policy); unmute once the user has
       // pressed play so clip audio is heard in preview.
-      el.muted = false;
+      // Per-clip volume/fades. HTMLMediaElement volume caps at 1, so >100%
+      // boosts are heard in the export only.
+      const gain = clipGainAt(layer, time);
+      el.muted = gain <= 0;
+      el.volume = Math.max(0, Math.min(1, gain));
       if (Math.abs(el.currentTime - target) > 0.25) el.currentTime = target;
       if (el.paused) void el.play().catch(() => undefined);
     } else {

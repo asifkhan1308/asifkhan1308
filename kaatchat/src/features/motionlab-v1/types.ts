@@ -83,6 +83,11 @@ export interface MediaLayer extends LayerBase {
   assetId: string;
   sourceIn: number;    // offset into the source media (trim-in)
   sourceOut: number;   // end offset into source (trim-out)
+  /* Clip audio — all optional; absent = full volume, no fades. */
+  volume?: number;     // linear gain, 0..2 (1 = unchanged)
+  muted?: boolean;
+  fadeIn?: number;     // seconds from clip start
+  fadeOut?: number;    // seconds before clip end
 }
 
 export interface ImageLayer extends LayerBase {

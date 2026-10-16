@@ -47,6 +47,9 @@ export function layerMenu(layerId: string, extra?: { onRename?: () => void }): M
     },
     { divider: true, label: '' },
     { label: layer.visible ? 'Hide' : 'Show', run: () => setVisible(layer.id, !layer.visible) },
+    ...(layer.type === 'media'
+      ? [{ label: layer.muted ? 'Unmute audio' : 'Mute audio', run: () => patchLayer(layer.id, { muted: !layer.muted } as Partial<Layer>) }]
+      : []),
     { label: layer.locked ? 'Unlock' : 'Lock', run: () => setLocked(layer.id, !layer.locked) },
     { divider: true, label: '' },
     {

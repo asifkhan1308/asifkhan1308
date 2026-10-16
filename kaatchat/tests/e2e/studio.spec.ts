@@ -105,3 +105,34 @@ test('Studio: import, animate, ease, save, export with clip audio, reopen', asyn
 
   expect(errors).toEqual([]);
 });
+
+test('Studio: clip fade-out lowers the tail, mute removes the audio track', async ({ page }) => {
+  await page.goto('/#/studio');
+  await setValue(page.locator('.duration-field input'), 4);
+  await page.locator('.v1-toolbar input[type=file]').setInputFiles(fx.talk);
+  await expect(page.locator('.v1-tl-layer-row-head').first()).toContainText('talk.webm');
+
+  const audio = page.locator('.v1-section', { hasText: 'Fade out' });
+  await setValue(audio.locator('.v1-field input').nth(1), 1.5); // fade out over 2.5–4 s
+
+  const exportOnce = async (name: string) => {
+    await page.locator('.btn-export').click();
+    const render = page.locator('.modal .btn-primary');
+    await expect(render).toHaveText('Render', { timeout: 30_000 });
+    const dl = page.waitForEvent('download', { timeout: 150_000 });
+    await render.click();
+    const path = test.info().outputPath(name);
+    await (await dl).saveAs(path);
+    await expect(page.locator('.modal')).toHaveCount(0, { timeout: 5_000 });
+    return path;
+  };
+
+  const faded = await exportOnce('faded.mp4');
+  // Tone runs 1–4 s; the last 0.3 s sits at ≤ 20 % gain → well over 10 dB quieter.
+  expect(meanVolume(faded, 3.65, 0.3)).toBeLessThan(meanVolume(faded, 1.5, 0.9) - 10);
+
+  await audio.getByRole('button', { name: 'Mute' }).click();
+  await expect(audio.getByRole('button', { name: 'Muted' })).toHaveAttribute('aria-pressed', 'true');
+  const muted = await exportOnce('muted.mp4');
+  expect(probe(muted).audio).toBe('');
+});

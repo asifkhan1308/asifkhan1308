@@ -836,3 +836,6 @@
   padding: 2px 4px;
   border-radius: 4px;
 }
+
+/* Clip mute toggle in the Audio section. */
+.v1-mute.on { background: var(--v1-accent); color: var(--v1-accent-ink); border-color: var(--v1-accent); }

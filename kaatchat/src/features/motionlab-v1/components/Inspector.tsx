@@ -181,6 +181,55 @@ export default function V1Inspector() {
         </section>
       )}
 
+      {layer.type === 'media' && (
+        <section className="v1-section">
+          <div className="v1-section-head">
+            <span>Audio</span>
+            <button
+              type="button"
+              className={`btn-icon xs v1-mute${layer.muted ? ' on' : ''}`}
+              style={{ marginLeft: 10 }}
+              onClick={() => patchLayer(layer.id, { muted: !layer.muted })}
+              aria-pressed={!!layer.muted}
+            >
+              {layer.muted ? 'Muted' : 'Mute'}
+            </button>
+          </div>
+          <div className="v1-prop">
+            <div className="v1-prop-head"><span className="v1-prop-label">Volume</span></div>
+            <SliderField
+              value={layer.volume ?? 1}
+              onChange={(v) => patchLayer(layer.id, { volume: v })}
+              min={0}
+              max={2}
+              step={0.01}
+              suffix="%"
+              display={(v) => `${Math.round(v * 100)}`}
+            />
+          </div>
+          <div className="v1-pair">
+            <div className="v1-prop">
+              <div className="v1-prop-head"><span className="v1-prop-label">Fade in</span></div>
+              <NumberField
+                value={layer.fadeIn ?? 0}
+                onChange={(v) => patchLayer(layer.id, { fadeIn: Math.max(0, Math.min(layer.duration / 2, v)) })}
+                step={0.1}
+                suffix="s"
+              />
+            </div>
+            <div className="v1-prop">
+              <div className="v1-prop-head"><span className="v1-prop-label">Fade out</span></div>
+              <NumberField
+                value={layer.fadeOut ?? 0}
+                onChange={(v) => patchLayer(layer.id, { fadeOut: Math.max(0, Math.min(layer.duration / 2, v)) })}
+                step={0.1}
+                suffix="s"
+              />
+            </div>
+          </div>
+        </section>
+      )}
+
       {layer.type === 'text' && (
         <section className="v1-section">
           <div className="v1-section-head">Text</div>
