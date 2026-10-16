@@ -53,6 +53,15 @@ export default function MotionLabV1() {
         void saveToStorage();
         return;
       }
+      // Copy/paste keyframes — only outside text fields so normal text
+      // copy/paste keeps working while typing.
+      if (mod && !inField && selectedLayerId && (e.key.toLowerCase() === 'c' || e.key.toLowerCase() === 'v')) {
+        e.preventDefault();
+        const st = useV1.getState();
+        if (e.key.toLowerCase() === 'c') st.copyKeyframesAt(selectedLayerId, currentTime);
+        else st.pasteKeyframesAt(selectedLayerId, currentTime);
+        return;
+      }
       if (mod && e.key.toLowerCase() === 'n') {
         e.preventDefault();
         newProject();

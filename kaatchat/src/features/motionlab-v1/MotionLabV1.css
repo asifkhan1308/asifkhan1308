@@ -468,6 +468,7 @@
   z-index: 1;
 }
 .v1-tl-kf:hover { transform: rotate(45deg) scale(1.3); }
+.v1-tl-kf { cursor: ew-resize; touch-action: none; z-index: 2; }
 .v1-tl-kf.now { background: var(--v1-accent); box-shadow: 0 0 0 2px var(--v1-accent-wash); }
 
 /* ─── Modal (reuses .modal etc. from motionlab, but add minimal shim here) ─── */

@@ -143,7 +143,7 @@ export default function V1CanvasHandles() {
       } else if (kind === 'rot') {
         const a0 = Math.atan2(start[1] - center[1], start[0] - center[0]);
         const a1 = Math.atan2(cur[1] - center[1], cur[0] - center[0]);
-        let delta = ((a1 - a0) * 180) / Math.PI;
+        const delta = ((a1 - a0) * 180) / Math.PI;
         const next = startRot + delta;
         setPropertyBase<number>(layer.id, 'rotation', Math.round(next * 10) / 10);
       } else if (pivot) {

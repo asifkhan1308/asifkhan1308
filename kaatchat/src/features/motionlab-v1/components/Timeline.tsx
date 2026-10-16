@@ -167,6 +167,41 @@ function LayerRow({
   onContextTrack: (e: React.MouseEvent) => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
+
+  /* Drag a keyframe diamond: moves every prop keyed at that time, snapped
+   * to whole frames. A press without movement is a click → seek. */
+  const beginKfDrag = (e: React.PointerEvent, t0: number) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (layer.locked) { onSeek(t0); return; }
+    onSelect();
+    const track = trackRef.current;
+    if (!track) return;
+    (e.target as Element).setPointerCapture(e.pointerId);
+    const rect = track.getBoundingClientRect();
+    const fps = useV1.getState().project.composition.fps;
+    const x0 = e.clientX;
+    let cur = t0;
+    let dragged = false;
+    const onMove = (ev: PointerEvent) => {
+      if (!dragged && Math.abs(ev.clientX - x0) < 3) return;
+      dragged = true;
+      const raw = t0 + ((ev.clientX - x0) / rect.width) * duration;
+      const snapped = Math.max(0, Math.min(duration, Math.round(raw * fps) / fps));
+      if (Math.abs(snapped - cur) < 1e-6) return;
+      useV1.getState().moveKeyframesAt(layer.id, cur, snapped);
+      cur = snapped;
+      onSeek(snapped);
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      if (!dragged) onSeek(t0);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
   const beginClipDrag = (mode: ClipDrag) => (e: React.PointerEvent) => {
     if (layer.locked) return;
     e.stopPropagation();
@@ -258,16 +293,26 @@ function LayerRow({
             title="Trim out"
           />
         </div>
-        {kfTimes.map((t, i) => (
+        {uniqueTimes(kfTimes).map((t) => (
           <button
-            key={`${t}-${i}`}
+            key={t.toFixed(4)}
             className={`v1-tl-kf${Math.abs(t - currentTime) < 0.05 ? ' now' : ''}`}
             style={{ left: `${(t / duration) * 100}%` }}
-            onClick={(e) => { e.stopPropagation(); onSeek(t); }}
-            title={`${t.toFixed(2)}s`}
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => beginKfDrag(e, t)}
+            title={`${t.toFixed(2)}s — drag to move, click to jump`}
           />
         ))}
       </div>
     </>
   );
+}
+
+/* Diamonds from different props at the same time collapse into one marker. */
+function uniqueTimes(times: number[]): number[] {
+  const out: number[] = [];
+  for (const t of [...times].sort((a, b) => a - b)) {
+    if (!out.length || Math.abs(out[out.length - 1] - t) >= 0.01) out.push(t);
+  }
+  return out;
 }

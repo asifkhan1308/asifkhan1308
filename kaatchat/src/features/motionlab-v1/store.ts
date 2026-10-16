@@ -76,6 +76,12 @@ interface MotionLabV1State extends UIState {
   trimLayerOut: (id: string, newEndTime: number) => void;    // drag the right edge
   splitLayerAt: (id: string, time: number) => void;
 
+  /* Keyframe editing on the timeline (all animated props of a layer at once) */
+  moveKeyframesAt: (layerId: string, fromTime: number, toTime: number) => void;
+  copyKeyframesAt: (layerId: string, time: number) => number;
+  pasteKeyframesAt: (layerId: string, time: number) => number;
+  hasKeyframeClipboard: () => boolean;
+
   /* Assets */
   addAsset: (a: Asset) => void;
 
@@ -119,6 +125,17 @@ const scheduleAutosave = (project: Project) => {
 };
 
 const EFFECT_KEYS: EffectProp[] = ['brightness', 'contrast', 'saturation', 'blur', 'vignette', 'grain', 'tintAmount'];
+
+/* Every animatable path a layer may carry. Timeline keyframe ops walk this
+ * list so a diamond on the track moves/copies all props keyed at that time. */
+const ALL_ANIM_PATHS: string[] = [
+  'position', 'scale', 'rotation', 'anchor', 'opacity',
+  'size', 'cornerRadius', 'fontSize',
+  ...EFFECT_KEYS,
+];
+const KF_EPS = 0.01;
+type KfClip = { path: string; value: unknown; easing?: Easing }[];
+let kfClipboard: KfClip | null = null;
 
 /* Locate the AnimatedProperty that a path name refers to on a layer. */
 function getAnimated(layer: Layer, path: string): AnimatedProperty<unknown> | null {
@@ -485,6 +502,74 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
       layers.splice(idx + 1, 0, rightCopy);
       return { project: touch({ ...s.project, layers }) };
     }),
+
+  moveKeyframesAt: (layerId, fromTime, toTime) =>
+    set((s) => {
+      const to = Math.max(0, Math.min(s.project.composition.duration, toTime));
+      if (Math.abs(to - fromTime) < 1e-6) return s;
+      let changed = false;
+      const layers = s.project.layers.map((l) => {
+        if (l.id !== layerId) return l;
+        let next = l;
+        for (const path of ALL_ANIM_PATHS) {
+          const ap = getAnimated(next, path);
+          if (!ap?.keyframes?.length) continue;
+          const moving = ap.keyframes.filter((k) => Math.abs(k.time - fromTime) < KF_EPS);
+          if (!moving.length) continue;
+          // Moved keys overwrite any key already sitting at the destination.
+          const rest = ap.keyframes.filter(
+            (k) => Math.abs(k.time - fromTime) >= KF_EPS && Math.abs(k.time - to) >= KF_EPS,
+          );
+          const kfs = [...rest, ...moving.map((k) => ({ ...k, time: to }))].sort((a, b) => a.time - b.time);
+          next = setAnimated(next, path, { ...ap, keyframes: kfs });
+          changed = true;
+        }
+        return next;
+      });
+      return changed ? { project: touch({ ...s.project, layers }) } : s;
+    }),
+
+  copyKeyframesAt: (layerId, time) => {
+    const l = get().project.layers.find((x) => x.id === layerId);
+    if (!l) return 0;
+    const clip: KfClip = [];
+    for (const path of ALL_ANIM_PATHS) {
+      const k = getAnimated(l, path)?.keyframes?.find((x) => Math.abs(x.time - time) < KF_EPS);
+      if (k) clip.push({ path, value: JSON.parse(JSON.stringify(k.value)), easing: k.easing });
+    }
+    if (clip.length) kfClipboard = clip;
+    return clip.length;
+  },
+
+  pasteKeyframesAt: (layerId, time) => {
+    const clip = kfClipboard;
+    if (!clip?.length) return 0;
+    let pasted = 0;
+    set((s) => ({
+      project: touch({
+        ...s.project,
+        layers: s.project.layers.map((l) => {
+          if (l.id !== layerId) return l;
+          let next = l;
+          for (const c of clip) {
+            // Skip props this layer type doesn't have (e.g. fontSize onto a rect).
+            let ap = getAnimated(next, c.path);
+            if (!ap && EFFECT_KEYS.includes(c.path as EffectProp)) {
+              next = { ...next, effects: next.effects ?? neutralEffects() } as Layer;
+              ap = getAnimated(next, c.path);
+            }
+            if (!ap) continue;
+            next = setAnimated(next, c.path, upsertKeyframe(ap, time, c.value, c.easing));
+            pasted++;
+          }
+          return next;
+        }),
+      }),
+    }));
+    return pasted;
+  },
+
+  hasKeyframeClipboard: () => !!kfClipboard?.length,
 
   selectLayer: (id) => set({ selectedLayerId: id }),
   setCurrentTime: (t) => {
