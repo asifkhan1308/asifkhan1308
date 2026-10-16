@@ -1,11 +1,21 @@
-import { useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useV1 } from '../store';
 import ContextMenu from './ContextMenu';
 import { clipExtras, layerMenu } from './menuBuilders';
+import { snapSpan, snapTargets, snapTime } from '../engine/snap';
 import type { AnimatedProperty, Layer } from '../types';
 
 type ClipDrag = 'body' | 'in' | 'out';
 interface MenuState { x: number; y: number; layerId: string; onTrack: boolean }
+
+const HEAD_W = 220;
+const ZOOM_MIN = 1;
+const ZOOM_MAX = 40;
+const SNAP_PX = 8;
+const TICK_STEPS = [0.1, 0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300];
+
+/** Shared by rows: snapping on/off and the guide line shown while snapped. */
+export interface SnapCtx { enabled: boolean; show: (t: number | null) => void }
 
 export default function V1Timeline() {
   const project = useV1((s) => s.project);
@@ -44,7 +54,74 @@ export default function V1Timeline() {
 
   const fmt = (t: number) => `${Math.floor(t).toString().padStart(2, '0')}:${Math.floor((t * 100) % 100).toString().padStart(2, '0')}`;
 
-  const marks = Array.from({ length: Math.floor(comp.duration) + 1 }).map((_, i) => i);
+  /* Zoom: the track column is `zoom ×` the visible width; the grid scrolls
+   * horizontally and the layer-name column stays sticky. */
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom] = useState(1);
+  const [snapOn, setSnapOn] = useState(true);
+  const [snapLine, setSnapLine] = useState<number | null>(null);
+  const [trackW, setTrackW] = useState(800);
+  const pendingScroll = useRef<number | null>(null);
+
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setTrackW(el.clientWidth || 800));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  /** Zoom about a time that stays under the same screen x (cursor or playhead). */
+  const zoomTo = (next: number, anchorT = useV1.getState().currentTime, anchorX?: number) => {
+    const grid = gridRef.current;
+    const z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, next));
+    if (!grid || z === zoom) return;
+    const viewW = grid.clientWidth - HEAD_W;
+    const screenX = anchorX ?? HEAD_W + Math.max(0, Math.min(viewW, (anchorT / comp.duration) * viewW * zoom - grid.scrollLeft));
+    pendingScroll.current = HEAD_W + (anchorT / comp.duration) * viewW * z - screenX;
+    setZoom(z);
+  };
+  useLayoutEffect(() => {
+    if (pendingScroll.current !== null && gridRef.current) {
+      gridRef.current.scrollLeft = Math.max(0, pendingScroll.current);
+      pendingScroll.current = null;
+    }
+  }, [zoom]);
+
+  // ⌘/Ctrl + wheel (and trackpad pinch) zooms around the cursor.
+  const zoomRef = useRef({ zoom, zoomTo });
+  zoomRef.current = { zoom, zoomTo };
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const track = trackRef.current;
+      if (!track) return;
+      const r = track.getBoundingClientRect();
+      const t = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * useV1.getState().project.composition.duration;
+      const { zoom: z, zoomTo: zt } = zoomRef.current;
+      zt(z * Math.exp(-e.deltaY * 0.01), t, e.clientX - grid.getBoundingClientRect().left);
+    };
+    grid.addEventListener('wheel', onWheel, { passive: false });
+    return () => grid.removeEventListener('wheel', onWheel);
+  }, []);
+
+  // While playing zoomed in, page the view so the playhead stays visible.
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!isPlaying || zoom === 1 || !grid) return;
+    const x = (currentTime / comp.duration) * trackW;
+    const viewW = grid.clientWidth - HEAD_W;
+    if (x < grid.scrollLeft || x > grid.scrollLeft + viewW - 20) grid.scrollLeft = Math.max(0, x - 40);
+  }, [currentTime, isPlaying, zoom, trackW, comp.duration]);
+
+  const pxPerSec = trackW / comp.duration;
+  const step = TICK_STEPS.find((s) => s * pxPerSec >= 60) ?? TICK_STEPS[TICK_STEPS.length - 1];
+  const marks = Array.from({ length: Math.floor(comp.duration / step + 1e-9) + 1 }).map((_, i) => +(i * step).toFixed(3));
+  const tickLabel = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}` : `${step < 1 ? s.toFixed(step < 0.5 ? 2 : 1) : s}s`);
+  const snap: SnapCtx = { enabled: snapOn, show: setSnapLine };
 
   return (
     <div className="v1-timeline">
@@ -57,9 +134,34 @@ export default function V1Timeline() {
         <button className="btn-icon" onClick={() => setCurrentTime(Math.min(comp.duration, currentTime + 1 / comp.fps))} title="Next frame">▶</button>
         <button className="btn-icon" onClick={() => setCurrentTime(comp.duration)} title="Jump to end">⏭</button>
         <div className="v1-tl-time">{fmt(currentTime)} / {fmt(comp.duration)}</div>
+        <div className="v1-tl-view">
+          <button
+            className={`v1-tl-snap${snapOn ? ' on' : ''}`}
+            aria-pressed={snapOn}
+            onClick={() => setSnapOn(!snapOn)}
+            title="Snap to playhead, clip edges and keyframes (hold Alt to bypass)"
+          >Snap</button>
+          <button className="btn-icon xs" onClick={() => zoomTo(zoom / 1.5)} disabled={zoom <= ZOOM_MIN} title="Zoom out (⌘/Ctrl + scroll)">−</button>
+          <input
+            className="v1-tl-zoom"
+            type="range"
+            min={0}
+            max={1}
+            step={0.001}
+            aria-label="Timeline zoom"
+            value={Math.log(zoom) / Math.log(ZOOM_MAX)}
+            onChange={(e) => zoomTo(Math.exp(Number(e.target.value) * Math.log(ZOOM_MAX)))}
+          />
+          <button className="btn-icon xs" onClick={() => zoomTo(zoom * 1.5)} disabled={zoom >= ZOOM_MAX} title="Zoom in (⌘/Ctrl + scroll)">+</button>
+          <button className="btn-icon xs v1-tl-fit" onClick={() => zoomTo(1)} disabled={zoom === 1} title="Fit timeline">Fit</button>
+        </div>
       </div>
 
-      <div className="v1-tl-grid">
+      <div
+        className="v1-tl-grid"
+        ref={gridRef}
+        style={{ gridTemplateColumns: `${HEAD_W}px calc((100% - ${HEAD_W}px) * ${zoom})` }}
+      >
         <div className="v1-tl-layers-header">Layers</div>
         <div
           className="v1-tl-ruler"
@@ -77,9 +179,12 @@ export default function V1Timeline() {
         >
           {marks.map((s) => (
             <div key={s} className="v1-tl-tick" style={{ left: `${(s / comp.duration) * 100}%` }}>
-              <span>{s}s</span>
+              <span>{tickLabel(s)}</span>
             </div>
           ))}
+          {snapLine !== null && (
+            <div className="v1-tl-snapline" style={{ left: `${(snapLine / comp.duration) * 100}%` }} aria-hidden />
+          )}
           <div
             className="v1-tl-playhead"
             style={{ left: `${(currentTime / comp.duration) * 100}%` }}
@@ -97,6 +202,7 @@ export default function V1Timeline() {
               layer={layer}
               duration={comp.duration}
               currentTime={currentTime}
+              snap={snap}
               selected={layer.id === selectedId}
               onSelect={() => selectLayer(layer.id)}
               onToggleVisible={() => setVisible(layer.id, !layer.visible)}
@@ -137,6 +243,7 @@ function LayerRow({
   layer,
   duration,
   currentTime,
+  snap,
   selected,
   onSelect,
   onToggleVisible,
@@ -153,6 +260,7 @@ function LayerRow({
   layer: Layer;
   duration: number;
   currentTime: number;
+  snap: SnapCtx;
   selected: boolean;
   onSelect: () => void;
   onToggleVisible: () => void;
@@ -183,11 +291,16 @@ function LayerRow({
     const x0 = e.clientX;
     let cur = t0;
     let dragged = false;
+    // Snap to other layers and this layer's clip edges (not the playhead: it follows the key).
+    const targets = snapTargets(useV1.getState().project.layers, duration, layer.id, [layer.startTime, layer.startTime + layer.duration]);
+    const thr = (SNAP_PX / rect.width) * duration;
     const onMove = (ev: PointerEvent) => {
       if (!dragged && Math.abs(ev.clientX - x0) < 3) return;
       dragged = true;
       const raw = t0 + ((ev.clientX - x0) / rect.width) * duration;
-      const snapped = Math.max(0, Math.min(duration, Math.round(raw * fps) / fps));
+      const sn = snap.enabled && !ev.altKey ? snapTime(raw, targets, thr) : { t: raw, hit: null };
+      snap.show(sn.hit);
+      const snapped = Math.max(0, Math.min(duration, sn.hit !== null ? sn.t : Math.round(raw * fps) / fps));
       if (Math.abs(snapped - cur) < 1e-6) return;
       useV1.getState().moveKeyframesAt(layer.id, cur, snapped);
       cur = snapped;
@@ -196,6 +309,7 @@ function LayerRow({
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      snap.show(null);
       if (!dragged) onSeek(t0);
     };
     window.addEventListener('pointermove', onMove);
@@ -216,16 +330,29 @@ function LayerRow({
     const start0 = layer.startTime;
     const end0 = layer.startTime + layer.duration;
     const t0 = toTime(e.clientX);
+    const st = useV1.getState();
+    const targets = snapTargets(st.project.layers, duration, layer.id, [st.currentTime]);
+    const thr = (SNAP_PX / rect.width) * duration;
     const onMove = (ev: PointerEvent) => {
       const t = toTime(ev.clientX);
       const dt = t - t0;
-      if (mode === 'body') onClipDrag('body', start0 + dt, end0 + dt);
-      else if (mode === 'in') onClipDrag('in', start0 + dt, end0);
-      else if (mode === 'out') onClipDrag('out', start0, end0 + dt);
+      const on = snap.enabled && !ev.altKey;
+      if (mode === 'body') {
+        const sn = on ? snapSpan(start0 + dt, end0 + dt, targets, thr) : { start: start0 + dt, hit: null };
+        snap.show(sn.hit);
+        onClipDrag('body', sn.start, sn.start + (end0 - start0));
+      } else {
+        const edge = mode === 'in' ? start0 + dt : end0 + dt;
+        const sn = on ? snapTime(edge, targets, thr) : { t: edge, hit: null };
+        snap.show(sn.hit);
+        if (mode === 'in') onClipDrag('in', sn.t, end0);
+        else onClipDrag('out', start0, sn.t);
+      }
     };
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      snap.show(null);
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);

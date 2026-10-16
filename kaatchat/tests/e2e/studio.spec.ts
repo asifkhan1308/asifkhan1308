@@ -136,3 +136,47 @@ test('Studio: clip fade-out lowers the tail, mute removes the audio track', asyn
   const muted = await exportOnce('muted.mp4');
   expect(probe(muted).audio).toBe('');
 });
+
+test('Studio: timeline zooms and clip trims snap to the playhead', async ({ page }) => {
+  await page.goto('/#/studio');
+  await page.locator('.v1-tool', { hasText: 'Rect' }).click();
+  await seek(page, 0.5);
+
+  const pct = async (loc: Locator, prop: 'left' | 'right') =>
+    loc.evaluate((el, p) => {
+      const s = (el as HTMLElement).style;
+      return p === 'left' ? parseFloat(s.left) : parseFloat(s.left) + parseFloat(s.width);
+    }, prop);
+  const playhead = page.locator('.v1-tl-playhead');
+  const clip = page.locator('.v1-tl-clip').first();
+  const handle = page.locator('.v1-tl-clip-trim-out').first();
+  const drag = async (toX: number, alt = false) => {
+    const h = (await handle.boundingBox())!;
+    await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+    if (alt) await page.keyboard.down('Alt');
+    await page.mouse.down();
+    await page.mouse.move(toX, h.y + h.height / 2, { steps: 6 });
+    await page.mouse.up();
+    if (alt) await page.keyboard.up('Alt');
+  };
+  const phX = async () => { const b = (await playhead.boundingBox())!; return b.x + b.width / 2; };
+
+  // Edge lands a few px past the playhead (the handle is grabbed ~3 px inside the edge) → snaps onto it.
+  await drag((await phX()) + 2);
+  expect(await pct(clip, 'right')).toBeCloseTo(await pct(playhead, 'left'), 4);
+  // Alt bypasses snapping.
+  await drag((await phX()) - 15, true);
+  expect(Math.abs((await pct(clip, 'right')) - (await pct(playhead, 'left')))).toBeGreaterThan(0.1);
+
+  // Zoom in → the track overflows and scrolls; Fit restores it.
+  const grid = page.locator('.v1-tl-grid');
+  const overflows = () => grid.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
+  expect(await overflows()).toBe(false);
+  await page.getByTitle('Zoom in (⌘/Ctrl + scroll)').click();
+  await page.getByTitle('Zoom in (⌘/Ctrl + scroll)').click();
+  expect(await overflows()).toBe(true);
+  // Finer ruler ticks when zoomed.
+  expect(await page.locator('.v1-tl-tick').count()).toBeGreaterThan(11);
+  await page.getByTitle('Fit timeline').click();
+  expect(await overflows()).toBe(false);
+});

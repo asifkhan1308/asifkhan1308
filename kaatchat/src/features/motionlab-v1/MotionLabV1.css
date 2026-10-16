@@ -839,3 +839,23 @@
 
 /* Clip mute toggle in the Audio section. */
 .v1-mute.on { background: var(--v1-accent); color: var(--v1-accent-ink); border-color: var(--v1-accent); }
+
+/* Timeline zoom + snapping */
+.v1-tl-view { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.v1-tl-zoom { width: 96px; accent-color: var(--v1-text); }
+.v1-tl-fit { width: auto; padding: 0 6px; font-size: 10.5px; }
+.v1-tl-snap {
+  background: transparent; border: 1px solid var(--v1-line); color: var(--v1-text-3);
+  border-radius: 4px; padding: 2px 8px; font-size: 10.5px; cursor: pointer; margin-right: 6px;
+}
+.v1-tl-snap.on { color: var(--v1-text); border-color: var(--v1-text); }
+.v1-tl-grid { overflow-x: auto; }
+.v1-tl-layers-header, .v1-tl-layer-row-head { position: sticky; left: 0; z-index: 3; background-color: var(--v1-surface); }
+.v1-tl-layers-header { background-color: var(--v1-surface-2); }
+.v1-tl-layer-row-head.selected { background: linear-gradient(var(--v1-accent-wash), var(--v1-accent-wash)), var(--v1-surface); }
+.v1-tl-layer-row-head:hover { background: var(--v1-surface-2); }
+.v1-tl-snapline {
+  position: absolute; top: 0; bottom: -1000px; width: 0;
+  border-left: 1px dashed var(--v1-text); pointer-events: none; z-index: 2;
+}
+.v1-tl-ruler { overflow-x: clip; }
