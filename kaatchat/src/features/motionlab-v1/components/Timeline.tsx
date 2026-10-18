@@ -38,6 +38,10 @@ export default function V1Timeline() {
   const comp = project.composition;
   const trackRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [dropAt, setDropAt] = useState<{ id: string; to: number } | null>(null);
+  const reorderLayer = useV1((s) => s.reorderLayer);
+  const renameLayer = useV1((s) => s.renameLayer);
   const openMenu = (layerId: string, onTrack: boolean) => (e: React.MouseEvent) => {
     e.preventDefault();
     selectLayer(layerId);
@@ -196,10 +200,26 @@ export default function V1Timeline() {
           <div className="v1-tl-empty">Your timeline is empty. Add a layer from the left toolbar.</div>
         ) : null}
         {project.layers.length > 0 && (
-          project.layers.map((layer) => (
+          project.layers.map((layer, i) => (
             <LayerRow
               key={layer.id}
               layer={layer}
+              index={i}
+              count={project.layers.length}
+              dropMark={
+                dropAt && dropAt.to === i && project.layers[i].id !== dropAt.id
+                  ? (dropAt.to > project.layers.findIndex((l) => l.id === dropAt.id) ? 'after' : 'before')
+                  : null
+              }
+              dragging={dropAt?.id === layer.id}
+              onReorderPreview={(to) => setDropAt(to === null ? null : { id: layer.id, to })}
+              onReorder={(to) => { setDropAt(null); reorderLayer(layer.id, to); }}
+              renaming={renamingId === layer.id}
+              onStartRename={() => setRenamingId(layer.id)}
+              onRenameDone={(name) => {
+                setRenamingId(null);
+                if (name !== null && name.trim() && name.trim() !== layer.name) renameLayer(layer.id, name.trim());
+              }}
               duration={comp.duration}
               currentTime={currentTime}
               snap={snap}
@@ -230,7 +250,7 @@ export default function V1Timeline() {
           menu
             ? [
                 ...(menu.onTrack ? clipExtras(menu.layerId) : []),
-                ...layerMenu(menu.layerId),
+                ...layerMenu(menu.layerId, { onRename: () => setRenamingId(menu.layerId) }),
               ]
             : []
         }
@@ -241,6 +261,15 @@ export default function V1Timeline() {
 
 function LayerRow({
   layer,
+  index,
+  count,
+  dropMark,
+  dragging,
+  onReorderPreview,
+  onReorder,
+  renaming,
+  onStartRename,
+  onRenameDone,
   duration,
   currentTime,
   snap,
@@ -258,6 +287,15 @@ function LayerRow({
   onContextTrack,
 }: {
   layer: Layer;
+  index: number;
+  count: number;
+  dropMark: 'before' | 'after' | null;
+  dragging: boolean;
+  onReorderPreview: (to: number | null) => void;
+  onReorder: (to: number) => void;
+  renaming: boolean;
+  onStartRename: () => void;
+  onRenameDone: (name: string | null) => void;
   duration: number;
   currentTime: number;
   snap: SnapCtx;
@@ -275,6 +313,32 @@ function LayerRow({
   onContextTrack: (e: React.MouseEvent) => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
+
+  /* Drag the layer's name cell up/down to restack it. Starts after 4 px of
+   * vertical travel so plain clicks still select. */
+  const beginReorder = (e: React.PointerEvent) => {
+    if (e.button !== 0 || renaming) return;
+    if ((e.target as Element).closest('button, input')) return;
+    const head = e.currentTarget as HTMLElement;
+    const rowH = head.getBoundingClientRect().height || 32;
+    const y0 = e.clientY;
+    let to: number | null = null;
+    const onMove = (ev: PointerEvent) => {
+      const dy = ev.clientY - y0;
+      if (to === null && Math.abs(dy) < 4) return;
+      const next = Math.max(0, Math.min(count - 1, index + Math.round(dy / rowH)));
+      if (next !== to) { to = next; onReorderPreview(next); }
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      if (to === null) return;
+      if (to !== index) onReorder(to);
+      else onReorderPreview(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
 
   /* Drag a keyframe diamond: moves every prop keyed at that time, snapped
    * to whole frames. A press without movement is a click → seek. */
@@ -377,8 +441,9 @@ function LayerRow({
   return (
     <>
       <div
-        className={`v1-tl-layer-row-head${selected ? ' selected' : ''}`}
+        className={`v1-tl-layer-row-head${selected ? ' selected' : ''}${dragging ? ' dragging' : ''}${dropMark ? ` drop-${dropMark}` : ''}`}
         onClick={onSelect}
+        onPointerDown={beginReorder}
         onContextMenu={onContextHead}
       >
         <div className="v1-tl-flags">
@@ -387,7 +452,28 @@ function LayerRow({
           <button className={`flag ${layer.solo ? 'on' : ''}`} onClick={(e) => { e.stopPropagation(); onToggleSolo(); }} title="Solo">S</button>
         </div>
         <div className="v1-tl-layer-meta">
-          <div className="v1-tl-layer-name">{layer.name}</div>
+          {renaming ? (
+            <input
+              className="v1-tl-rename"
+              defaultValue={layer.name}
+              autoFocus
+              aria-label="Layer name"
+              onFocus={(e) => e.currentTarget.select()}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') onRenameDone(e.currentTarget.value);
+                else if (e.key === 'Escape') onRenameDone(null);
+              }}
+              onBlur={(e) => onRenameDone(e.currentTarget.value)}
+            />
+          ) : (
+            <div
+              className="v1-tl-layer-name"
+              title="Double-click to rename"
+              onDoubleClick={(e) => { e.stopPropagation(); onStartRename(); }}
+            >{layer.name}</div>
+          )}
           <div className="v1-tl-layer-type">{layer.type}</div>
         </div>
         <div className="v1-tl-row-actions">

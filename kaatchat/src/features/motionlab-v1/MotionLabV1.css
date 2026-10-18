@@ -859,3 +859,13 @@
   border-left: 1px dashed var(--v1-text); pointer-events: none; z-index: 2;
 }
 .v1-tl-ruler { overflow-x: clip; }
+
+/* Layer reorder + rename */
+.v1-tl-layer-row-head { touch-action: none; }
+.v1-tl-layer-row-head.dragging { opacity: 0.55; }
+.v1-tl-layer-row-head.drop-before { box-shadow: inset 0 2px 0 var(--v1-text); }
+.v1-tl-layer-row-head.drop-after { box-shadow: inset 0 -2px 0 var(--v1-text); }
+.v1-tl-rename {
+  width: 100%; font: inherit; font-size: 11.5px; font-weight: 500; color: var(--v1-text);
+  background: var(--v1-surface); border: 1px solid var(--v1-text); border-radius: 3px; padding: 1px 4px; outline: none;
+}

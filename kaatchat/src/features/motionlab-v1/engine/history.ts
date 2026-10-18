@@ -19,6 +19,23 @@ interface Entry {
   project: Project;
   at: number;
   label: string;
+  /** What this entry changed, so only repeats of the same edit coalesce. */
+  key?: string;
+}
+
+/** Signature of the change prev → next: which layers / comp settings it
+ *  touched. Structural changes (add, delete, reorder) get a unique key so
+ *  they never merge with neighbours. Relies on the store's immutable
+ *  updates: untouched layers keep their object identity. */
+let uniq = 0;
+export function changeKey(prev: Project, next: Project): string {
+  const a = prev.layers, b = next.layers;
+  if (a.length !== b.length || a.some((l, i) => l.id !== b[i].id)) return `struct#${++uniq}`;
+  const parts: string[] = [];
+  if (prev.composition !== next.composition) parts.push('comp');
+  b.forEach((l, i) => { if (l !== a[i]) parts.push(l.id); });
+  if (prev.assets !== next.assets) parts.push('assets');
+  return parts.join(',') || 'meta';
 }
 
 export interface HistoryHandle {
@@ -46,14 +63,16 @@ export function createHistory(initial: Project): HistoryHandle {
     const prev = entries[index];
     // Reference-equal projects (no real change) are ignored.
     if (prev && prev.project === project) return;
-    // Coalesce rapid edits with the same label — "Move Layer" x200 → one entry.
-    if (prev && now - prev.at < COALESCE_MS && prev.label === label) {
-      entries[index] = { project, at: now, label };
+    const key = prev ? changeKey(prev.project, project) : undefined;
+    // Coalesce rapid repeats of the same edit — a slider drag on one layer
+    // → one entry — but never chain different edits into one undo step.
+    if (prev && index > 0 && now - prev.at < COALESCE_MS && prev.label === label && prev.key === key) {
+      entries[index] = { project, at: now, label, key };
       return;
     }
     // Drop redo stack; append.
     entries = entries.slice(0, index + 1);
-    entries.push({ project, at: now, label });
+    entries.push({ project, at: now, label, key });
     if (entries.length > MAX_ENTRIES) {
       entries = entries.slice(entries.length - MAX_ENTRIES);
     }

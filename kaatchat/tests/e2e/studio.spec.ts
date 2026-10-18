@@ -180,3 +180,42 @@ test('Studio: timeline zooms and clip trims snap to the playhead', async ({ page
   await page.getByTitle('Fit timeline').click();
   expect(await overflows()).toBe(false);
 });
+
+test('Studio: drag layers to restack them and rename inline', async ({ page }) => {
+  await page.goto('/#/studio');
+  for (const t of ['Text', 'Rect', 'Ellipse']) await page.locator('.v1-tool', { hasText: t }).click();
+  const heads = page.locator('.v1-tl-layer-row-head');
+  const names = () => page.locator('.v1-tl-layer-row-head .v1-tl-layer-type').allInnerTexts();
+  expect((await names()).map((s) => s.toLowerCase())).toEqual(['text', 'rectangle', 'ellipse']);
+
+  // Drag the ellipse row up two rows.
+  const b = (await heads.nth(2).locator('.v1-tl-layer-meta').boundingBox())!;
+  await page.mouse.move(b.x + 10, b.y + b.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(b.x + 10, b.y + b.height / 2 - 2 * b.height - 40, { steps: 8 });
+  await expect(heads.first()).toHaveClass(/drop-before/);
+  await page.mouse.up();
+  expect((await names()).map((s) => s.toLowerCase())).toEqual(['ellipse', 'text', 'rectangle']);
+
+  // Double-click → rename, Enter commits; Escape cancels.
+  await heads.nth(1).locator('.v1-tl-layer-name').dblclick();
+  await page.locator('.v1-tl-rename').fill('Hero title');
+  await page.keyboard.press('Enter');
+  await expect(heads.nth(1).locator('.v1-tl-layer-name')).toHaveText('Hero title');
+  await heads.nth(1).locator('.v1-tl-layer-name').dblclick();
+  await page.locator('.v1-tl-rename').fill('nope');
+  await page.keyboard.press('Escape');
+  await expect(heads.nth(1).locator('.v1-tl-layer-name')).toHaveText('Hero title');
+
+  // Right-click → Rename… opens the same inline field.
+  await heads.nth(2).click({ button: 'right' });
+  await page.locator('.v1-ctx-item, [role=menuitem]', { hasText: 'Rename' }).first().click();
+  await page.locator('.v1-tl-rename').fill('Box');
+  await page.keyboard.press('Enter');
+  await expect(heads.nth(2).locator('.v1-tl-layer-name')).toHaveText('Box');
+
+  // Undo restores the previous name.
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(heads).toHaveCount(3);
+  await expect(heads.nth(2).locator('.v1-tl-layer-name')).not.toHaveText('Box');
+});
