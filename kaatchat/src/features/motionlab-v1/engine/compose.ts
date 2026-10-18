@@ -3,7 +3,7 @@ import { resolveAnimated } from './interp';
 
 /* Resolve effects into a CSS filter string + the two overlay amounts
  * (vignette, grain) that are drawn separately in composition space. */
-function resolveEffectsFilter(e: Effects | undefined, time: number): {
+function resolveEffectsFilter(e: Effects | undefined, time: number, pixelScale = 1): {
   filter: string;
   vignette: number;
   grain: number;
@@ -19,7 +19,7 @@ function resolveEffectsFilter(e: Effects | undefined, time: number): {
   if (b) parts.push(`brightness(${1 + b})`);
   if (c) parts.push(`contrast(${1 + c})`);
   if (s) parts.push(`saturate(${Math.max(0, 1 + s)})`);
-  if (bl > 0) parts.push(`blur(${bl * 20}px)`);
+  if (bl > 0) parts.push(`blur(${bl * 20 * pixelScale}px)`); // filters ignore the ctx transform
   return {
     filter: parts.length ? parts.join(' ') : 'none',
     vignette: resolveAnimated(e.vignette, time),
@@ -54,6 +54,9 @@ export const isLayerActive = (layer: Layer, time: number) =>
 export interface ComposeOptions {
   /** Pre-resolved HTMLImageElement / HTMLVideoElement for each asset id. */
   mediaBy?: Map<string, HTMLImageElement | HTMLVideoElement>;
+  /** Backing pixels per composition pixel when the caller has scaled the
+   *  context (reduced-resolution preview). Keeps blur radii consistent. */
+  pixelScale?: number;
 }
 
 /**
@@ -82,7 +85,7 @@ export function composeFrame(
     const t = resolveTransform(layer.transform, time);
     if (t.opacity <= 0) continue;
 
-    const fx = resolveEffectsFilter(layer.effects, time);
+    const fx = resolveEffectsFilter(layer.effects, time, opts.pixelScale ?? 1);
 
     ctx.save();
     ctx.globalAlpha = Math.max(0, Math.min(1, t.opacity));

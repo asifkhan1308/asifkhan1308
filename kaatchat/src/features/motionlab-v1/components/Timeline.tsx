@@ -1,9 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useV1 } from '../store';
 import ContextMenu from './ContextMenu';
 import { clipExtras, layerMenu } from './menuBuilders';
-import { snapSpan, snapTargets, snapTime } from '../engine/snap';
-import type { AnimatedProperty, Layer } from '../types';
+import { layerKeyTimes, snapSpan, snapTargets, snapTime } from '../engine/snap';
+import type { Layer } from '../types';
 
 type ClipDrag = 'body' | 'in' | 'out';
 interface MenuState { x: number; y: number; layerId: string; onTrack: boolean }
@@ -230,7 +230,7 @@ export default function V1Timeline() {
               onToggleSolo={() => setSolo(layer.id, !layer.solo)}
               onDuplicate={() => duplicate(layer.id)}
               onDelete={() => removeLayer(layer.id)}
-              onSplit={() => splitLayerAt(layer.id, currentTime)}
+              onSplit={() => splitLayerAt(layer.id, useV1.getState().currentTime)}
               onSeek={(t) => setCurrentTime(t)}
               onClipDrag={(mode, newStart, newEnd) => {
                 if (mode === 'body') moveLayerInTime(layer.id, newStart);
@@ -259,7 +259,7 @@ export default function V1Timeline() {
   );
 }
 
-function LayerRow({
+function LayerRowImpl({
   layer,
   index,
   count,
@@ -423,17 +423,7 @@ function LayerRow({
   };
   // All keyframes across the layer's transform (and shape/text extras), merged
   // onto one strip so the user sees at a glance where a layer animates.
-  const kfTimes: number[] = [];
-  const bucket = (ap: AnimatedProperty<unknown> | undefined) =>
-    ap?.keyframes?.forEach((k) => kfTimes.push(k.time));
-  bucket(layer.transform.position as unknown as AnimatedProperty<unknown>);
-  bucket(layer.transform.scale as unknown as AnimatedProperty<unknown>);
-  bucket(layer.transform.rotation as unknown as AnimatedProperty<unknown>);
-  bucket(layer.transform.anchor as unknown as AnimatedProperty<unknown>);
-  bucket(layer.transform.opacity as unknown as AnimatedProperty<unknown>);
-  if (layer.type === 'rectangle' || layer.type === 'ellipse') bucket(layer.size as unknown as AnimatedProperty<unknown>);
-  if (layer.type === 'rectangle') bucket(layer.cornerRadius as unknown as AnimatedProperty<unknown>);
-  if (layer.type === 'text') bucket(layer.fontSize as unknown as AnimatedProperty<unknown>);
+  const kfTimes = keyTimesOf(layer);
 
   const left = (layer.startTime / duration) * 100;
   const width = (layer.duration / duration) * 100;
@@ -506,7 +496,7 @@ function LayerRow({
             title="Trim out"
           />
         </div>
-        {uniqueTimes(kfTimes).map((t) => (
+        {kfTimes.map((t) => (
           <button
             key={t.toFixed(4)}
             className={`v1-tl-kf${Math.abs(t - currentTime) < 0.05 ? ' now' : ''}`}
@@ -519,6 +509,33 @@ function LayerRow({
       </div>
     </>
   );
+}
+
+/* Rows are the bulk of the timeline: during playback only the playhead
+ * moves, so a row re-renders only when its own data changes or the playhead
+ * enters/leaves one of its keyframes (the "now" highlight). Handler props
+ * are fresh closures every render but read live state (or the layer, which
+ * is compared), so they are ignored here. */
+type RowProps = Parameters<typeof LayerRowImpl>[0];
+const nowKey = (p: RowProps) => keyTimesOf(p.layer).find((t) => Math.abs(t - p.currentTime) < 0.05) ?? -1;
+const LayerRow = memo(LayerRowImpl, (a, b) =>
+  a.layer === b.layer &&
+  a.index === b.index &&
+  a.count === b.count &&
+  a.duration === b.duration &&
+  a.selected === b.selected &&
+  a.dropMark === b.dropMark &&
+  a.dragging === b.dragging &&
+  a.renaming === b.renaming &&
+  a.snap.enabled === b.snap.enabled &&
+  nowKey(a) === nowKey(b));
+
+/** Sorted, de-duplicated keyframe times per layer object (cached: layers are immutable). */
+const keyTimesCache = new WeakMap<Layer, number[]>();
+function keyTimesOf(layer: Layer): number[] {
+  let t = keyTimesCache.get(layer);
+  if (!t) { t = uniqueTimes(layerKeyTimes(layer)); keyTimesCache.set(layer, t); }
+  return t;
 }
 
 /* Diamonds from different props at the same time collapse into one marker. */
