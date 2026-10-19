@@ -82,6 +82,26 @@ export default function V1TopBar({ onExport, onShare, onKeys }: Props) {
           />
           <span>s</span>
         </label>
+        {/* Motion blur: export always; canvas shows it on paused frames. */}
+        <button
+          type="button"
+          className={`v1-mb-btn${comp.motionBlur?.enabled ? ' on' : ''}`}
+          aria-pressed={!!comp.motionBlur?.enabled}
+          title="Motion blur — averages sub-frames across the shutter (shown when paused and in exports)"
+          onClick={() => useV1.getState().setMotionBlur({ enabled: !comp.motionBlur?.enabled })}
+        >
+          Motion blur
+        </button>
+        {comp.motionBlur?.enabled && (
+          <select
+            className="v1-mb-shutter"
+            aria-label="Shutter angle"
+            value={Math.round((comp.motionBlur.shutter ?? 0.5) * 360)}
+            onChange={(e) => useV1.getState().setMotionBlur({ enabled: true, shutter: Number(e.target.value) / 360 })}
+          >
+            {[90, 180, 270, 360].map((a) => <option key={a} value={a}>{a}°</option>)}
+          </select>
+        )}
       </div>
 
       <div className="v1-topbar-right">

@@ -55,6 +55,8 @@ interface MotionLabV1State extends UIState {
   setCompositionSize: (w: number, h: number) => void;
   setCompositionFps: (fps: Project['composition']['fps']) => void;
   setCompositionDuration: (seconds: number) => void;
+  /** Motion blur on/off and shutter (fraction of a frame, 0.5 = 180°). */
+  setMotionBlur: (mb: { enabled: boolean; shutter?: number; samples?: number }) => void;
 
   /* Layer CRUD */
   addTextLayer: () => string;
@@ -319,6 +321,13 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
 
   setCompositionSize: (width, height) =>
     set((s) => ({ project: touch({ ...s.project, composition: { ...s.project.composition, width, height } }) })),
+  setMotionBlur: (mb) =>
+    set((s) => {
+      const cur = s.project.composition.motionBlur;
+      const shutter = Math.max(0.05, Math.min(1, mb.shutter ?? cur?.shutter ?? 0.5));
+      const samples = Math.max(2, Math.min(32, Math.round(mb.samples ?? cur?.samples ?? 8)));
+      return { project: touch({ ...s.project, composition: { ...s.project.composition, motionBlur: { enabled: mb.enabled, shutter, samples } } }) };
+    }),
   setCompositionFps: (fps) =>
     set((s) => ({ project: touch({ ...s.project, composition: { ...s.project.composition, fps } }) })),
   setCompositionDuration: (duration) =>

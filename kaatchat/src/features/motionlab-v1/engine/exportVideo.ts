@@ -16,7 +16,7 @@ import {
 import { ensureAacEncoder } from '../../../engine/export';
 import { AUDIO_RATE, mixProjectAudio, sliceAudio } from './audioMix';
 import type { Project } from '../types';
-import { composeFrame } from './compose';
+import { composeFrameBlurred } from './compose';
 import { seekMediaForExport } from './mediaSync';
 
 export interface V1ExportOptions {
@@ -110,7 +110,7 @@ export async function exportProjectToVideo(opts: V1ExportOptions): Promise<V1Exp
       throwIfAborted();
       const time = k / fps;
       await seekMediaForExport(opts.project, time, opts.mediaBy);
-      composeFrame(ctx, opts.project, time, { mediaBy: opts.mediaBy });
+      composeFrameBlurred(ctx, opts.project, time, { mediaBy: opts.mediaBy });
       await videoSource.add(time, 1 / fps);
       opts.onProgress?.((k + 1) / totalFrames, `Frame ${k + 1} of ${totalFrames} · ${videoCodec.toUpperCase()}`);
       if (k % fps === fps - 1) await flushAudio((k + 1) / fps);

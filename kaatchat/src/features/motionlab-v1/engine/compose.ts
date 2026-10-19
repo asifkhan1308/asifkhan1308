@@ -201,6 +201,43 @@ export function composeFrame(
   }
 }
 
+/** Motion blur: average `samples` renders spread across the shutter,
+ * centred on `time` (like After Effects). A running average keeps memory flat:
+ * sub-frame i is laid over the accumulation with alpha 1 / (i + 1). Falls
+ * back to a plain frame when blur is off. Imported video frames aren't
+ * sub-sampled (that would need a seek per sub-frame). */
+export function composeFrameBlurred(
+  ctx: CanvasRenderingContext2D,
+  project: Project,
+  time: number,
+  opts: ComposeOptions = {},
+): void {
+  const mb = project.composition.motionBlur;
+  const n = Math.max(2, Math.min(32, Math.round(mb?.samples ?? 8)));
+  const shutter = Math.max(0, Math.min(1, mb?.shutter ?? 0.5));
+  if (!mb?.enabled || shutter === 0) {
+    composeFrame(ctx, project, time, opts);
+    return;
+  }
+  const span = shutter / project.composition.fps;
+  const cw = ctx.canvas.width, ch = ctx.canvas.height;
+  const base = ctx.getTransform();
+  const sub = layerBuffer(2, cw, ch);
+  for (let i = 0; i < n; i++) {
+    const t = Math.max(0, time + (i / (n - 1) - 0.5) * span);
+    sub.setTransform(1, 0, 0, 1, 0, 0);
+    sub.clearRect(0, 0, cw, ch);
+    sub.setTransform(base);
+    composeFrame(sub, project, t, opts);
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1 / (i + 1);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(sub.canvas, 0, 0);
+    ctx.restore();
+  }
+}
+
 /** '#rrggbb' / '#rgb' + alpha → rgba(); other CSS colours pass through. */
 function withAlpha(color: string, a: number): string {
   const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());

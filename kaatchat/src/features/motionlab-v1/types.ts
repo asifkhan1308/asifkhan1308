@@ -31,6 +31,9 @@ export interface Composition {
   fps: 24 | 25 | 30 | 60;
   duration: number;      // seconds
   background: RGBA;      // includes alpha for transparent compositions
+  /** Motion blur: each frame averages sub-frames across the shutter.
+   *  shutter = fraction of a frame (0.5 = 180°). Absent = off. */
+  motionBlur?: { enabled: boolean; shutter: number; samples: number };
 }
 
 /* ───── Transform (every visual layer has one) ───── */

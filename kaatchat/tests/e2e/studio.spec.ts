@@ -808,3 +808,50 @@ test('Studio: gradient fill runs along its angle', async ({ page }) => {
   await page.getByRole('button', { name: 'Solid' }).click();             // back to the solid colour
   await expect.poll(() => lum(960, 390)).toBeGreaterThan(200);
 });
+
+test('Studio: motion blur streaks fast motion — paused canvas and export', async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.goto('/#/studio');
+  await setValue(page.locator('.duration-field input'), 1);
+  await page.locator('.v1-tool', { hasText: 'Rect' }).click();          // white 576 px wide
+  const pos = transform(page).locator('.v1-field input');
+  await seek(page, 0);
+  await setValue(pos.nth(0), 200);
+  await transform(page).locator('.v1-diamond').nth(0).click();
+  await seek(page, 0.999);
+  await setValue(pos.nth(0), 1700);                                      // 1,500 px/s
+  await page.locator('.v1-easing').first().selectOption('linear');
+  await seek(page, 0.5);                                                 // right edge ≈ 1238
+
+  // Grey (in-between) pixels along y = 540 around the moving right edge.
+  const greyOnCanvas = () => page.evaluate(() => {
+    const c = document.querySelector('.v1-canvas') as HTMLCanvasElement;
+    const k = c.width / 1920;
+    const d = c.getContext('2d')!.getImageData(Math.round(1150 * k), Math.round(540 * k), Math.round(180 * k), 1).data;
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i] > 30 && d[i] < 225) n++;
+    return n / k;                                                        // in comp pixels
+  });
+  expect(await greyOnCanvas()).toBeLessThan(4);                          // sharp edge
+  await page.getByRole('button', { name: 'Motion blur' }).click();
+  await expect.poll(greyOnCanvas).toBeGreaterThan(12);                   // streaked edge (paused preview)
+
+  const exportGrey = async (name: string) => {
+    await page.locator('.btn-export').click();
+    const render = page.locator('.modal .btn-primary');
+    await expect(render).toHaveText('Render', { timeout: 30_000 });
+    const dl = page.waitForEvent('download', { timeout: 120_000 });
+    await render.click();
+    const path = test.info().outputPath(name);
+    await (await dl).saveAs(path);
+    await expect(page.locator('.modal')).toHaveCount(0, { timeout: 5_000 });
+    // yuv420 can't crop a 1-px strip (chroma rounds to 0): take 2 rows, use one.
+    const r = spawnSync(ffmpeg, ['-v', 'error', '-i', path, '-vf', `select='eq(n\\,15)',crop=180:2:1150:540`, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'gray', '-']);
+    expect(r.stdout.length).toBe(360);
+    return [...r.stdout.subarray(0, 180)].filter((v) => v > 30 && v < 225).length;
+  };
+  const blurred = await exportGrey('blur.mp4');
+  await page.getByRole('button', { name: 'Motion blur' }).click();       // off
+  const sharp = await exportGrey('sharp.mp4');
+  expect(blurred).toBeGreaterThan(sharp + 8);
+});

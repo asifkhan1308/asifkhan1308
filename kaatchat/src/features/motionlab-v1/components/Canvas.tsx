@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useV1 } from '../store';
-import { composeFrame } from '../engine/compose';
+import { composeFrame, composeFrameBlurred } from '../engine/compose';
 import { useMediaElements } from '../engine/useMedia';
 import { usePlaybackClock } from '../engine/playback';
 import V1CanvasHandles from './CanvasHandles';
@@ -43,7 +43,9 @@ export default function V1Canvas() {
     if (!ctx) return;
     syncPreviewMedia(project, currentTime, mediaBy, isPlaying);
     ctx.setTransform(w / comp.width, 0, 0, h / comp.height, 0, 0);
-    composeFrame(ctx, project, currentTime, { mediaBy, pixelScale: w / comp.width });
+    // Motion blur costs N renders per frame: show it on paused frames only.
+    const render = isPlaying ? composeFrame : composeFrameBlurred;
+    render(ctx, project, currentTime, { mediaBy, pixelScale: w / comp.width });
   }, [project, comp, scale, currentTime, mediaBy, isPlaying]);
 
   // A paused seek decodes asynchronously; redraw once the frame is ready so
@@ -58,7 +60,7 @@ export default function V1Canvas() {
       const s = useV1.getState();
       const k = c!.width / s.project.composition.width;
       ctx.setTransform(k, 0, 0, c!.height / s.project.composition.height, 0, 0);
-      composeFrame(ctx, s.project, s.currentTime, { mediaBy, pixelScale: k });
+      (s.isPlaying ? composeFrame : composeFrameBlurred)(ctx, s.project, s.currentTime, { mediaBy, pixelScale: k });
     };
     const els = [...mediaBy.values()];
     const events = ['seeked', 'loadeddata', 'load'];
