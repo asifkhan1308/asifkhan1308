@@ -4,9 +4,10 @@ import ProjectMenu from './ProjectMenu';
 
 interface Props {
   onExport: () => void;
+  onShare?: () => void;
 }
 
-export default function V1TopBar({ onExport }: Props) {
+export default function V1TopBar({ onExport, onShare }: Props) {
   const projectName = useV1((s) => s.project.name);
   const renameProject = useV1((s) => s.renameProject);
   const comp = useV1((s) => s.project.composition);
@@ -97,6 +98,7 @@ export default function V1TopBar({ onExport }: Props) {
           title="Redo (⌘⇧Z)"
           aria-label="Redo"
         >↷</button>
+        {onShare && <button className="btn-share" onClick={onShare} title="Share a review link">Share</button>}
         <button className="btn-export" onClick={onExport}>Export</button>
       </div>
     </div>

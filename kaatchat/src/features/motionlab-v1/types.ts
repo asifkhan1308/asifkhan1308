@@ -163,6 +163,19 @@ export interface Project {
   layers: Layer[];
   createdAt: number;
   updatedAt: number;
+  /** Review feedback received via a feedback link (V1.5). Optional: older
+   *  projects simply have none. */
+  comments?: ReviewComment[];
+}
+
+/* ───── Review (V1.5) ───── */
+export interface ReviewComment {
+  id: string;
+  time: number;      // seconds on the composition timeline
+  text: string;
+  author: string;
+  createdAt: number;
+  resolved?: boolean;
 }
 
 /* ───── Transform-property keys that the inspector + keyframe UI iterate over ───── */

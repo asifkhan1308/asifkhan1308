@@ -63,6 +63,10 @@ export default function V1Timeline() {
   const gridRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
   const [snapOn, setSnapOn] = useState(true);
+  // V1.5 review feedback: markers on the ruler + a list to work through.
+  const comments = useV1((s) => s.project.comments);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const openComments = (comments ?? []).filter((c) => !c.resolved);
   const [snapLine, setSnapLine] = useState<number | null>(null);
   const [trackW, setTrackW] = useState(800);
   const pendingScroll = useRef<number | null>(null);
@@ -138,6 +142,38 @@ export default function V1Timeline() {
         <button className="btn-icon" onClick={() => setCurrentTime(Math.min(comp.duration, currentTime + 1 / comp.fps))} title="Next frame">▶</button>
         <button className="btn-icon" onClick={() => setCurrentTime(comp.duration)} title="Jump to end">⏭</button>
         <div className="v1-tl-time">{fmt(currentTime)} / {fmt(comp.duration)}</div>
+        {comments && comments.length > 0 && (
+          <div className="v1-tl-feedback-wrap">
+            <button
+              className={`v1-tl-feedback-btn${showFeedback ? ' on' : ''}`}
+              aria-expanded={showFeedback}
+              onClick={() => setShowFeedback(!showFeedback)}
+              title="Review feedback"
+            >
+              Feedback {openComments.length}/{comments.length}
+            </button>
+            {showFeedback && (
+              <div className="v1-tl-feedback" role="dialog" aria-label="Review feedback">
+                {comments.map((c) => (
+                  <div key={c.id} className={`v1-tl-fb-item${c.resolved ? ' resolved' : ''}`}>
+                    <button className="v1-tl-fb-at" onClick={() => setCurrentTime(c.time)} title="Jump to this moment">
+                      {`${Math.floor(c.time / 60)}:${(c.time % 60).toFixed(1).padStart(4, '0')}`}
+                    </button>
+                    <span className="v1-tl-fb-text"><b>{c.author}</b> {c.text}</span>
+                    <label className="v1-tl-fb-done" title="Mark resolved">
+                      <input
+                        type="checkbox"
+                        checked={!!c.resolved}
+                        onChange={(e) => useV1.getState().setCommentResolved(c.id, e.target.checked)}
+                      />
+                    </label>
+                    <button className="btn-icon xs" title="Delete comment" onClick={() => useV1.getState().removeComment(c.id)}>×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div className="v1-tl-view">
           <button
             className={`v1-tl-snap${snapOn ? ' on' : ''}`}
@@ -185,6 +221,16 @@ export default function V1Timeline() {
             <div key={s} className="v1-tl-tick" style={{ left: `${(s / comp.duration) * 100}%` }}>
               <span>{tickLabel(s)}</span>
             </div>
+          ))}
+          {openComments.map((c) => (
+            <button
+              key={c.id}
+              className="v1-tl-comment"
+              style={{ left: `${(c.time / comp.duration) * 100}%` }}
+              title={`${c.author}: ${c.text}`}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => { setCurrentTime(c.time); setShowFeedback(true); }}
+            />
           ))}
           {snapLine !== null && (
             <div className="v1-tl-snapline" style={{ left: `${(snapLine / comp.duration) * 100}%` }} aria-hidden />

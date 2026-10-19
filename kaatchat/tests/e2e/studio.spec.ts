@@ -342,3 +342,78 @@ test('Studio: Generate builds an editable video offline, and through a local mod
   await expect(page.locator('.v1-gen-err')).toContainText('JSON');
   await expect(heads).toHaveCount(2);
 });
+
+test('Studio V1.5: share a review link, comment as a reviewer, pin feedback to the timeline', async ({ page, context }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/#/studio');
+
+  // Creator: generate a piece, save it, open Share.
+  await page.getByRole('button', { name: 'Generate ▸' }).click();
+  await page.locator('.v1-gen-input').fill('a 6 second intro for "Launch Day" with "Join us live"');
+  await page.locator('.v1-gen-go').click();
+  await page.locator('.v1-menu-trigger').click();
+  await page.locator('.v1-menu-item', { hasText: 'Save' }).first().click();
+  await expect(page.locator('.v1-save-badge')).toContainText('Saved');
+  await page.locator('.btn-share').click();
+  await expect(page.locator('.v1-share-link')).toHaveValue(/#\/review\/1\./);
+  const link = await page.locator('.v1-share-link').inputValue();
+  await expect(page.locator('.v1-share-warn')).toHaveCount(0); // no imported media
+  await page.keyboard.press('Escape');
+
+  // Reviewer: open the link in another tab, play, comment at two moments, send.
+  const rev = await context.newPage();
+  rev.on('pageerror', (e) => errors.push(e.message));
+  await rev.goto('/' + link.slice(link.indexOf('#')));
+  await expect(rev.locator('.v1-review-title')).toHaveText('Untitled Project');
+  const frame = () => rev.evaluate(() => {
+    const c = document.querySelector('.v1-review-canvas') as HTMLCanvasElement;
+    return [...c.getContext('2d')!.getImageData(c.width >> 1, (c.height >> 1) - 10, 1, 1).data];
+  });
+  const scrub = rev.locator('.v1-review-scrub input');
+  const seekTo = (t: number) => scrub.evaluate((el, v) => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, String(v));
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }, t);
+  await seekTo(0);
+  const blank = await frame();
+  await seekTo(1.5);
+  await expect.poll(frame).not.toEqual(blank); // the title has popped in — real rendering
+  await rev.locator('.v1-review-name').fill('Sam');
+  await rev.locator('.v1-review-input').fill('Make the title bigger');
+  await rev.locator('.v1-review-input').press('Enter');
+  await seekTo(4);
+  await rev.locator('.v1-review-input').fill('Hold the end a bit longer');
+  await rev.locator('.v1-review-add').click();
+  await expect(rev.locator('.v1-review-list li')).toHaveCount(2);
+  await expect(rev.locator('.v1-review-marker')).toHaveCount(2);
+  await rev.locator('.v1-review-send-btn').click();
+  await expect(rev.locator('.v1-review-reply')).toHaveValue(/#\/studio\/feedback\/1\./);
+  const replyLink = await rev.locator('.v1-review-reply').inputValue();
+
+  // Creator: open the feedback link → project reopens with markers + list.
+  await page.goto('/#/');
+  await page.goto('/' + replyLink.slice(replyLink.indexOf('#')));
+  await expect(page.locator('.v1-banner')).toContainText('2 new comments from Sam');
+  await expect(page.locator('.v1-tl-layer-row-head')).toHaveCount(4); // the reviewed project, not a blank one
+  await expect(page.locator('.v1-tl-comment')).toHaveCount(2);
+  await expect(page).toHaveURL(/#\/studio$/);
+  await page.locator('.v1-tl-feedback-btn').click();
+  await expect(page.locator('.v1-tl-fb-item')).toHaveCount(2);
+  await page.locator('.v1-tl-fb-at').first().click();
+  await expect(page.locator('.v1-tl-time')).toHaveText(/^01:50 \//);
+  await page.locator('.v1-tl-fb-done input').first().check();
+  await expect(page.locator('.v1-tl-comment')).toHaveCount(1);
+  await expect(page.locator('.v1-tl-feedback-btn')).toHaveText('Feedback 1/2');
+
+  // Opening the same feedback link again doesn't duplicate comments.
+  await page.goto('/#/');
+  await page.goto('/' + replyLink.slice(replyLink.indexOf('#')));
+  await expect(page.locator('.v1-banner')).toContainText('0 new comments');
+  await expect(page.locator('.v1-tl-feedback-btn')).toHaveText('Feedback 1/2');
+
+  // A damaged link explains itself.
+  await rev.goto('/' + link.slice(link.indexOf('#'), link.length - 40));
+  await expect(rev.locator('.v1-review-empty')).toContainText('incomplete or damaged');
+  expect(errors).toEqual([]);
+});

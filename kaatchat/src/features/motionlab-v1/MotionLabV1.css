@@ -898,3 +898,91 @@
 .v1-gen-engine { font-size: 11.5px; color: var(--v1-text-2); }
 .v1-gen-err { font-size: 12px; color: var(--v1-danger); }
 .v1-gen-note { font-size: 11px; color: var(--v1-text-3); margin: 0; }
+
+/* Share for review (V1.5) */
+.v1-share-lead { font-size: 12.5px; line-height: 1.5; color: var(--v1-text-2); margin: 0 0 12px; }
+.v1-share-link {
+  width: 100%; box-sizing: border-box; resize: none; font: 11px/1.4 ui-monospace, Menlo, monospace; word-break: break-all;
+  padding: 8px 10px; border-radius: 8px; border: 1px solid var(--v1-line); background: var(--v1-surface-2); color: var(--v1-text);
+}
+.v1-share-meta { font-size: 11px; color: var(--v1-text-3); margin-top: 6px; }
+.v1-share-warn { font-size: 11.5px; line-height: 1.45; color: var(--v1-text-2); margin-top: 10px; padding: 8px 10px; border-radius: 8px; border: 1px dashed var(--v1-line); }
+.v1-topbar .btn-share {
+  background: transparent; color: var(--v1-text); border: 1px solid var(--v1-line); border-radius: 6px;
+  padding: 6px 14px; font: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer;
+}
+.v1-topbar .btn-share:hover { background: var(--v1-surface-2); }
+.v1-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 16px;
+  font-size: 12px; color: var(--v1-surface); background: var(--v1-text);
+}
+.v1-banner.err { background: var(--v1-danger); color: #fff; }
+.v1-banner .btn-icon { color: inherit; background: transparent; border-color: transparent; }
+
+/* ─── Review player (V1.5) ─── */
+.motionlab-v1.v1-review { height: auto; min-height: 100vh; overflow: auto; background: var(--v1-bg); }
+.v1-review-head { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--v1-line); background: var(--v1-surface); }
+.v1-review-head .logo { font-weight: 600; letter-spacing: 1px; font-size: 11px; color: var(--v1-text); }
+.v1-review-title { font-size: 13px; font-weight: 600; color: var(--v1-text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.v1-review-tag { margin-left: auto; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--v1-text-3); border: 1px solid var(--v1-line); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+.v1-review-main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; padding: 20px; max-width: 1400px; margin: 0 auto; box-sizing: border-box; width: 100%; }
+.v1-review-stage { min-width: 0; }
+.v1-review-canvas { display: block; width: 100%; height: auto; background: #000; border-radius: 8px; cursor: pointer; }
+.v1-review-note { font-size: 11.5px; color: var(--v1-text-2); margin: 8px 0 0; }
+.v1-review-controls { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.v1-review-scrub { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; }
+.v1-review-scrub input { width: 100%; accent-color: var(--v1-text); }
+.v1-review-marker {
+  position: absolute; top: -10px; width: 9px; height: 9px; margin-left: -4px; padding: 0; border: none; cursor: pointer;
+  background: var(--v1-text); transform: rotate(45deg); border-radius: 1px;
+}
+.v1-review-time { font: 11.5px ui-monospace, Menlo, monospace; color: var(--v1-text-2); white-space: nowrap; }
+.v1-review-side { display: flex; flex-direction: column; gap: 8px; background: var(--v1-surface); border: 1px solid var(--v1-line); border-radius: 10px; padding: 14px; align-self: start; }
+.v1-review-side h2 { margin: 0 0 2px; font-size: 13px; color: var(--v1-text); }
+.v1-review-name, .v1-review-input, .v1-review-reply {
+  width: 100%; box-sizing: border-box; font: inherit; font-size: 12.5px; padding: 8px 10px; border-radius: 7px;
+  border: 1px solid var(--v1-line); background: var(--v1-surface); color: var(--v1-text); resize: vertical;
+}
+.v1-review-reply { font: 11px/1.4 ui-monospace, Menlo, monospace; word-break: break-all; background: var(--v1-surface-2); resize: none; }
+.v1-review-name:focus, .v1-review-input:focus { outline: none; border-color: var(--v1-text); }
+.v1-review-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow: auto; }
+.v1-review-list li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: start; font-size: 12.5px; color: var(--v1-text); line-height: 1.4; }
+.v1-review-list .v1-review-none { display: block; color: var(--v1-text-3); font-size: 12px; }
+.v1-review-at { font: 11px ui-monospace, Menlo, monospace; background: var(--v1-surface-2); border: 1px solid var(--v1-line); border-radius: 4px; padding: 1px 6px; cursor: pointer; color: var(--v1-text); }
+.v1-review-text { word-break: break-word; }
+.v1-review-send { border-top: 1px solid var(--v1-line); padding-top: 10px; margin-top: 4px; display: flex; flex-direction: column; gap: 8px; }
+.v1-review-send p { margin: 0; font-size: 11.5px; color: var(--v1-text-2); }
+.v1-review-empty { max-width: 420px; margin: 18vh auto; padding: 0 16px; text-align: center; color: var(--v1-text); }
+.v1-review-empty h1 { font-size: 18px; }
+.v1-review-empty p { color: var(--v1-text-2); font-size: 13px; }
+.v1-review-empty a { color: var(--v1-text); }
+@media (max-width: 860px) {
+  .v1-review-main { grid-template-columns: 1fr; padding: 12px 16px; }
+}
+
+/* Review feedback in the editor (V1.5) */
+.v1-tl-feedback-wrap { position: relative; margin-left: 12px; }
+.v1-tl-feedback-btn {
+  background: var(--v1-text); color: var(--v1-surface); border: 1px solid var(--v1-text); border-radius: 4px;
+  padding: 2px 9px; font: inherit; font-size: 10.5px; font-weight: 600; cursor: pointer;
+}
+.v1-tl-feedback-btn.on { background: transparent; color: var(--v1-text); }
+.v1-tl-feedback {
+  position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 20; width: min(380px, 80vw); max-height: 260px; overflow: auto;
+  background: var(--v1-surface); border: 1px solid var(--v1-line); border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,.18); padding: 6px;
+}
+.v1-tl-fb-item { display: grid; grid-template-columns: auto 1fr auto auto; gap: 8px; align-items: start; padding: 6px; border-radius: 6px; font-size: 12px; color: var(--v1-text); line-height: 1.4; }
+.v1-tl-fb-item:hover { background: var(--v1-surface-2); }
+.v1-tl-fb-item.resolved .v1-tl-fb-text { color: var(--v1-text-3); text-decoration: line-through; }
+.v1-tl-fb-at { font: 10.5px ui-monospace, Menlo, monospace; background: var(--v1-surface-2); border: 1px solid var(--v1-line); border-radius: 4px; padding: 1px 5px; cursor: pointer; color: var(--v1-text); }
+.v1-tl-fb-text { word-break: break-word; }
+.v1-tl-fb-done input { accent-color: var(--v1-text); margin: 2px 0 0; }
+.v1-tl-comment {
+  position: absolute; bottom: 1px; width: 9px; height: 9px; margin-left: -4px; padding: 0; border: 1.5px solid var(--v1-surface);
+  background: var(--v1-text); border-radius: 50% 50% 50% 0; transform: rotate(-45deg); cursor: pointer; z-index: 3;
+}
+
+/* Primary buttons: text follows the theme (was hard-coded #fff, which made
+   Render / Generate / Send feedback white-on-white in dark mode). */
+.motionlab-v1 .btn-primary { color: var(--v1-bg); }
+.motionlab-v1 .btn-primary:disabled { opacity: .45; cursor: not-allowed; }

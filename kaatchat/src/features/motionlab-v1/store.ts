@@ -3,6 +3,7 @@ import type {
   AnimatedProperty,
   Asset,
   Easing,
+  ReviewComment,
   EffectProp,
   Layer,
   Project,
@@ -96,6 +97,11 @@ interface MotionLabV1State extends UIState {
   setActiveTool: (t: UIState['activeTool']) => void;
 
   /* History */
+  /* Review feedback (V1.5) */
+  addComments: (list: ReviewComment[]) => number;   // returns how many were new
+  setCommentResolved: (id: string, resolved: boolean) => void;
+  removeComment: (id: string) => void;
+
   /** Run several edits as ONE undo step (e.g. a whole ✦ Ask command). */
   batch: (fn: () => void, label?: string) => void;
   undo: () => void;
@@ -637,6 +643,23 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
   },
   setIsPlaying: (b) => set({ isPlaying: b }),
   setActiveTool: (t) => set({ activeTool: t }),
+
+  addComments: (list) => {
+    const have = new Set((get().project.comments ?? []).map((c) => c.id));
+    const fresh = list.filter((c) => !have.has(c.id));
+    if (fresh.length) {
+      set((s) => ({
+        project: touch({ ...s.project, comments: [...(s.project.comments ?? []), ...fresh].sort((a, b) => a.time - b.time) }),
+      }));
+    }
+    return fresh.length;
+  },
+  setCommentResolved: (id, resolved) =>
+    set((s) => ({
+      project: touch({ ...s.project, comments: (s.project.comments ?? []).map((c) => (c.id === id ? { ...c, resolved } : c)) }),
+    })),
+  removeComment: (id) =>
+    set((s) => ({ project: touch({ ...s.project, comments: (s.project.comments ?? []).filter((c) => c.id !== id) }) })),
 
   batch: (fn, label = 'Edit') => {
     const before = get().project;

@@ -10,8 +10,9 @@ const Settings = lazy(() => import('../ui/Settings').then((m) => ({ default: m.S
 const Privacy = lazy(() => import('../ui/Privacy').then((m) => ({ default: m.Privacy })));
 const MotionLab = lazy(() => import('../features/motionlab/MotionLabFeature'));
 const MotionLabV1 = lazy(() => import('../features/motionlab-v1/MotionLabV1'));
+const ReviewPage = lazy(() => import('../features/motionlab-v1/review/ReviewPage'));
 
-type Route = { name: 'home' } | { name: 'editor'; id: string } | { name: 'settings' } | { name: 'privacy' } | { name: 'motionlab' } | { name: 'motionlab-v1' };
+type Route = { name: 'home' } | { name: 'editor'; id: string } | { name: 'settings' } | { name: 'privacy' } | { name: 'motionlab' } | { name: 'motionlab-v1'; feedback?: string } | { name: 'review'; code: string };
 
 function parse(hash: string): Route {
   const h = hash.replace(/^#/, '');
@@ -21,6 +22,11 @@ function parse(hash: string): Route {
   if (h === '/privacy') return { name: 'privacy' };
   if (h === '/motionlab') return { name: 'motionlab' };
   if (h === '/motionlab-v1' || h === '/studio') return { name: 'motionlab-v1' };
+  // V1.5 review links carry their data in the hash (nothing is uploaded).
+  const fb = /^\/studio\/feedback\/([A-Za-z0-9._%-]+)$/.exec(h);
+  if (fb) return { name: 'motionlab-v1', feedback: fb[1] };
+  const rv = /^\/review\/([A-Za-z0-9._%-]+)$/.exec(h);
+  if (rv) return { name: 'review', code: rv[1] };
   return { name: 'home' };
 }
 
@@ -50,7 +56,8 @@ export function App() {
         {route.name === 'settings' && <Settings />}
         {route.name === 'privacy' && <Privacy />}
         {route.name === 'motionlab' && <MotionLab />}
-        {route.name === 'motionlab-v1' && <MotionLabV1 />}
+        {route.name === 'motionlab-v1' && <MotionLabV1 feedback={route.feedback} />}
+        {route.name === 'review' && <ReviewPage key={route.code} code={route.code} />}
       </Suspense>
       <Toasts />
     </>
