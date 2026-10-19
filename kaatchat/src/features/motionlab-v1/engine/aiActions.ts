@@ -43,7 +43,8 @@ Actions:
   { "op": "delete" }
   { "op": "rename", "name": string }
   { "op": "set_text", "text": string }                                      // text layers
-  { "op": "set_color", "color": "#rrggbb" }                                 // text / shape fill
+  { "op": "set_color", "color": "#rrggbb" }                                 // text / shape fill (solid)
+  { "op": "set_gradient", "from": "#rrggbb", "to": "#rrggbb", "angle"?: <deg> } // linear gradient fill; 0° = left→right
   { "op": "comp", "duration": <sec> }
   { "op": "parent", "to": "<layer id or name>" | null }
   { "op": "matte", "to": "<layer id or name>" | null, "inverted"?: boolean }
@@ -239,7 +240,18 @@ export function applyAIActions(actions: unknown): AIResult {
           const c = typeof raw.color === 'string' ? raw.color.trim() : '';
           if (!/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(c)) { skip('color must be #rrggbb'); break; }
           if (layer.type !== 'text' && layer.type !== 'rectangle' && layer.type !== 'ellipse') { skip(`${layer.type} layers have no fill`); break; }
-          s.patchLayer(layer.id, { fill: c } as Partial<Layer>);
+          s.patchLayer(layer.id, { fill: c, gradient: undefined } as Partial<Layer>);
+          res.applied++;
+          break;
+        }
+        case 'set_gradient': {
+          const hex = /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+          const from = typeof raw.from === 'string' ? raw.from.trim() : '';
+          const to = typeof raw.to === 'string' ? raw.to.trim() : '';
+          if (!hex.test(from) || !hex.test(to)) { skip('gradient colours must be #rrggbb'); break; }
+          if (layer.type !== 'text' && layer.type !== 'rectangle' && layer.type !== 'ellipse') { skip(`${layer.type} layers have no fill`); break; }
+          const angle = ((num(raw.angle) ?? 90) % 360 + 360) % 360;
+          s.patchLayer(layer.id, { gradient: { from, to, angle } } as Partial<Layer>);
           res.applied++;
           break;
         }

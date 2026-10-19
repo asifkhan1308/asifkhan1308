@@ -124,6 +124,8 @@ export interface TextLayer extends LayerBase {
   lineHeight: number;
   align: 'left' | 'center' | 'right';
   fill: RGBA;
+  /** Optional linear gradient; when set it replaces the solid fill. */
+  gradient?: Gradient;
   stroke: RGBA | null;
   strokeWidth: number;
   /** Text animator: how much of the text is revealed (0..1, keyframable)
@@ -134,11 +136,17 @@ export interface TextLayer extends LayerBase {
 
 export type RevealMode = 'typewriter' | 'letters' | 'words';
 
+/** Linear gradient across the layer's own box; angle 0° = left → right,
+ *  90° = top → bottom. */
+export interface Gradient { from: RGBA; to: RGBA; angle: number }
+
 export interface RectangleLayer extends LayerBase {
   type: 'rectangle';
   size: AnimatedProperty<V2>;
   cornerRadius: AnimatedProperty<number>;
   fill: RGBA;
+  /** Optional linear gradient; when set it replaces the solid fill. */
+  gradient?: Gradient;
   stroke: RGBA | null;
   strokeWidth: number;
 }
@@ -147,6 +155,8 @@ export interface EllipseLayer extends LayerBase {
   type: 'ellipse';
   size: AnimatedProperty<V2>;
   fill: RGBA;
+  /** Optional linear gradient; when set it replaces the solid fill. */
+  gradient?: Gradient;
   stroke: RGBA | null;
   strokeWidth: number;
 }

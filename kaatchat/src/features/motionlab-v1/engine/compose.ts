@@ -282,9 +282,16 @@ function drawText(ctx: CanvasRenderingContext2D, layer: import('../types').TextL
   ctx.font = `${layer.fontWeight} ${size}px ${layer.fontFamily}`;
   ctx.textAlign = layer.align;
   ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = layer.fill;
   const lines = layer.text.split('\n');
   const lineH = size * layer.lineHeight;
+  if (layer.gradient) {
+    // Gradient across the whole text block (same box the selection uses).
+    const w = Math.max(1, ...lines.map((l) => ctx.measureText(l).width));
+    const x = layer.align === 'center' ? -w / 2 : layer.align === 'right' ? -w : 0;
+    ctx.fillStyle = paintFor(ctx, layer, x, -size * 0.8, w, size * 0.8 + (lines.length - 1) * lineH + size * 0.2);
+  } else {
+    ctx.fillStyle = layer.fill;
+  }
   const p = layer.revealMode && layer.reveal ? Math.max(0, Math.min(1, resolveAnimated(layer.reveal, time))) : 1;
   if (p < 1) {
     drawTextReveal(ctx, layer, lines, lineH, p);
@@ -358,13 +365,31 @@ function drawRectangle(
     ctx.beginPath();
     ctx.rect(0, 0, w, h);
   }
-  ctx.fillStyle = layer.fill;
+  ctx.fillStyle = paintFor(ctx, layer, 0, 0, w, h);
   ctx.fill();
   if (layer.stroke && layer.strokeWidth > 0) {
     ctx.lineWidth = layer.strokeWidth;
     ctx.strokeStyle = layer.stroke;
     ctx.stroke();
   }
+}
+
+/** Solid fill, or a linear gradient spanning the box at the layer's angle. */
+function paintFor(
+  ctx: CanvasRenderingContext2D,
+  layer: { fill: string; gradient?: import('../types').Gradient },
+  x: number, y: number, w: number, h: number,
+): string | CanvasGradient {
+  const g = layer.gradient;
+  if (!g) return layer.fill;
+  const a = (g.angle * Math.PI) / 180;
+  const dx = Math.cos(a), dy = Math.sin(a);
+  const half = (Math.abs(w * dx) + Math.abs(h * dy)) / 2;
+  const cx = x + w / 2, cy = y + h / 2;
+  const grad = ctx.createLinearGradient(cx - dx * half, cy - dy * half, cx + dx * half, cy + dy * half);
+  grad.addColorStop(0, g.from);
+  grad.addColorStop(1, g.to);
+  return grad;
 }
 
 function drawEllipse(
@@ -375,7 +400,7 @@ function drawEllipse(
   const [w, h] = resolveAnimated(layer.size, time);
   ctx.beginPath();
   ctx.ellipse(w / 2, h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
-  ctx.fillStyle = layer.fill;
+  ctx.fillStyle = paintFor(ctx, layer, 0, 0, w, h);
   ctx.fill();
   if (layer.stroke && layer.strokeWidth > 0) {
     ctx.lineWidth = layer.strokeWidth;

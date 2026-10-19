@@ -782,3 +782,29 @@ test('Studio: ? opens the shortcuts sheet (not while typing); Esc closes it', as
   await page.getByRole('button', { name: 'Shortcuts and gestures' }).click();
   await expect(sheet).toBeVisible();
 });
+
+test('Studio: gradient fill runs along its angle', async ({ page }) => {
+  await page.goto('/#/studio');
+  await page.locator('.v1-tool', { hasText: 'Rect' }).click();          // 576×324 at the centre: x 672–1248, y 378–702
+  await page.getByRole('button', { name: 'Gradient' }).click();
+  const setColor = (label: string, v: string) => page.getByLabel(label).evaluate((el, val) => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, val);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }, v);
+  await setColor('Gradient start', '#000000');
+  await setColor('Gradient end', '#ffffff');
+  await setValue(page.getByLabel('Gradient angle'), 0);                 // left → right
+  const lum = (x: number, y: number) => page.evaluate(([cx, cy]) => {
+    const c = document.querySelector('.v1-canvas') as HTMLCanvasElement;
+    const k = c.width / 1920;
+    return c.getContext('2d')!.getImageData(Math.round(cx * k), Math.round(cy * k), 1, 1).data[0];
+  }, [x, y]);
+  await expect.poll(() => lum(1230, 540)).toBeGreaterThan(200);
+  expect(await lum(690, 540)).toBeLessThan(40);
+  expect(Math.abs((await lum(960, 540)) - 128)).toBeLessThan(40);       // mid-grey in the middle
+  await setValue(page.getByLabel('Gradient angle'), 90);                // top → bottom
+  await expect.poll(() => lum(960, 690)).toBeGreaterThan(200);
+  expect(await lum(960, 390)).toBeLessThan(40);
+  await page.getByRole('button', { name: 'Solid' }).click();             // back to the solid colour
+  await expect.poll(() => lum(960, 390)).toBeGreaterThan(200);
+});

@@ -30,7 +30,7 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
   // placeholders, split, then restore.
   const saved: string[] = [];
   const masked = prompt.replace(/"[^"]*"|“[^”]*”/g, (q) => `\uE000${saved.push(q) - 1}\uE000`);
-  const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent|mask|matte|use|align|center|centre|typewriter|type|reveal|letter|word)))\s*/i);
+  const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent|mask|matte|use|align|center|centre|typewriter|type|reveal|letter|word|gradient)))\s*/i);
 
   for (const part of clauses) {
     const c = part.replace(/\uE000(\d+)\uE000/g, (_, i) => saved[Number(i)]).trim();
@@ -65,6 +65,12 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
     if (/\b(?:pop|bounce)\b/.test(l)) { preset('pop'); continue; }
     if (/\bspin\b|\brotate\s+(?:it\s+)?(?:a\s+)?full\b|\b360\b/.test(l)) { preset('spin'); continue; }
 
+    // gradient: "gradient from red to blue (at 45°)"
+    if ((m = l.match(/\bgradient\s+(?:from\s+)?(#[0-9a-f]{3,8}|[a-z]+)\s+(?:to|into)\s+(#[0-9a-f]{3,8}|[a-z]+)(?:\s+(?:at\s+)?(-?\d+)\s*(?:°|deg|degrees)?)?/))) {
+      const c1 = m[1].startsWith('#') ? m[1] : COLORS[m[1]];
+      const c2 = m[2].startsWith('#') ? m[2] : COLORS[m[2]];
+      if (c1 && c2) { out.push({ op: 'set_gradient', from: c1, to: c2, ...(m[3] ? { angle: Number(m[3]) } : {}) }); continue; }
+    }
     // colour
     if ((m = l.match(/\b(?:make\s+(?:it|this)|colou?r(?:\s+it)?|fill)\s+(?:to\s+)?(#[0-9a-f]{3,8}|[a-z]+)\b/))) {
       const col = m[1].startsWith('#') ? m[1] : COLORS[m[1]];

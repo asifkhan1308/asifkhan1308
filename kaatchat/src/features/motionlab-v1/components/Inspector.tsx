@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { selectionOf, useV1 } from '../store';
 import { cubicBezier, resolveAnimated } from '../engine/interp';
-import type { AnimatedProperty, Bezier, Easing, Layer, MatteMode, RevealMode, V2 } from '../types';
+import type { AnimatedProperty, Bezier, Easing, Gradient, Layer, MatteMode, RevealMode, V2 } from '../types';
 import { wouldCycle } from '../engine/matrix';
 import type { AlignEdge } from '../engine/guides';
 
@@ -203,17 +203,7 @@ export default function V1Inspector() {
               />
             </PropRow>
           )}
-          <div className="v1-prop">
-            <div className="v1-prop-head">
-              <span className="v1-prop-label">Fill</span>
-            </div>
-            <input
-              type="color"
-              className="color-input"
-              value={layer.fill}
-              onChange={(e) => patchLayer(layer.id, { fill: e.target.value })}
-            />
-          </div>
+          <FillField layer={layer} />
         </section>
       )}
 
@@ -406,15 +396,7 @@ export default function V1Inspector() {
               <option value="right">Right</option>
             </select>
           </div>
-          <div className="v1-prop">
-            <div className="v1-prop-head"><span className="v1-prop-label">Fill</span></div>
-            <input
-              type="color"
-              className="color-input"
-              value={layer.fill}
-              onChange={(e) => patchLayer(layer.id, { fill: e.target.value })}
-            />
-          </div>
+          <FillField layer={layer} />
         </section>
       )}
     </div>
@@ -456,6 +438,38 @@ function animatedPropertyFor(layer: Layer, path: AnimPath): AnimatedProperty<unk
 }
 
 /* ───── small controls ───── */
+
+/** Fill: solid colour (as before) or a two-colour linear gradient + angle. */
+function FillField({ layer }: { layer: Layer & { fill: string; gradient?: Gradient } }) {
+  const patch = (p: Partial<{ fill: string; gradient: Gradient | undefined }>) => useV1.getState().patchLayer(layer.id, p as Partial<Layer>);
+  const g = layer.gradient;
+  return (
+    <div className="v1-prop">
+      <div className="v1-prop-head">
+        <span className="v1-prop-label">Fill</span>
+        <div className="v1-seg" role="group" aria-label="Fill type">
+          <button type="button" className={!g ? 'on' : ''} aria-pressed={!g} onClick={() => patch({ gradient: undefined })}>Solid</button>
+          <button type="button" className={g ? 'on' : ''} aria-pressed={!!g}
+            onClick={() => !g && patch({ gradient: { from: layer.fill, to: '#000000', angle: 90 } })}>Gradient</button>
+        </div>
+      </div>
+      {!g ? (
+        <input type="color" className="color-input" aria-label="Fill colour" value={layer.fill} onChange={(e) => patch({ fill: e.target.value })} />
+      ) : (
+        <div className="v1-grad">
+          <span className="v1-grad-preview" style={{ background: `linear-gradient(${g.angle + 90}deg, ${g.from}, ${g.to})` }} aria-hidden />
+          <input type="color" className="color-input" aria-label="Gradient start" value={g.from} onChange={(e) => patch({ gradient: { ...g, from: e.target.value } })} />
+          <input type="color" className="color-input" aria-label="Gradient end" value={g.to} onChange={(e) => patch({ gradient: { ...g, to: e.target.value } })} />
+          <div className="v1-field v1-grad-angle">
+            <input type="number" aria-label="Gradient angle" value={g.angle} step={15}
+              onChange={(e) => patch({ gradient: { ...g, angle: ((Number(e.target.value) || 0) % 360 + 360) % 360 } })} />
+            <span className="v1-field-suffix">°</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function NumberField({ value, onChange, step = 1, suffix }: { value: number; onChange: (v: number) => void; step?: number; suffix?: string }) {
   return (
