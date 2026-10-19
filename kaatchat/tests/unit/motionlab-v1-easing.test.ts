@@ -56,3 +56,22 @@ describe('MOTIONLAB V1 easing via store and ✦ Ask', () => {
     expect(kf()[1].bezier).toBeUndefined();
   });
 });
+
+describe('MOTIONLAB V1 curves survive edits and copy/paste', () => {
+  it('editing a keyed value keeps its custom curve; copy/paste carries it', () => {
+    const st = useV1.getState;
+    st().replaceProject(defaultProject());
+    const id = st().addRectangle();
+    st().setCurrentTime(0); st().toggleKeyframe(id, 'rotation');
+    st().setCurrentTime(1); st().setPropertyBase(id, 'rotation', 90);
+    st().setKeyframeEasing(id, 'rotation', 1, 'bezier', [0.34, 1.56, 0.64, 1]);
+    st().setPropertyBase(id, 'rotation', 120);                         // auto-key edit at the same time
+    const k = () => st().project.layers[0].transform.rotation.keyframes!.find((x) => x.time === 1)!;
+    expect(k()).toMatchObject({ value: 120, easing: 'bezier', bezier: [0.34, 1.56, 0.64, 1] });
+    st().copyKeyframesAt(id, 1);
+    const other = st().addRectangle();
+    st().pasteKeyframesAt(other, 2);
+    const pasted = st().project.layers.find((l) => l.id === other)!.transform.rotation.keyframes![0];
+    expect(pasted).toMatchObject({ time: 2, value: 120, easing: 'bezier', bezier: [0.34, 1.56, 0.64, 1] });
+  });
+});

@@ -88,8 +88,13 @@ export function resolveAnimated<T>(prop: AnimatedProperty<T>, time: number): T {
 /** Insert or replace the keyframe at the given time (within a 10ms window). */
 export function upsertKeyframe<T>(prop: AnimatedProperty<T>, time: number, value: T, easing?: Easing): AnimatedProperty<T> {
   const existing = prop.keyframes ?? [];
+  const prev = existing.find((k) => Math.abs(k.time - time) <= 0.01);
   const kept = existing.filter((k) => Math.abs(k.time - time) > 0.01);
-  const next: Keyframe<T>[] = [...kept, { time, value, easing }].sort((a, b) => a.time - b.time);
+  // Replacing a key's value keeps how it eases (incl. a custom curve) unless
+  // the caller chooses a new easing.
+  const e = easing ?? prev?.easing;
+  const key: Keyframe<T> = { time, value, easing: e, ...(e === 'bezier' && prev?.bezier ? { bezier: prev.bezier } : {}) };
+  const next: Keyframe<T>[] = [...kept, key].sort((a, b) => a.time - b.time);
   return { ...prop, keyframes: next };
 }
 

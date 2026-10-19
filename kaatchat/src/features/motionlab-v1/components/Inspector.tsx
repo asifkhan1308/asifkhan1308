@@ -1,13 +1,13 @@
 import { useRef } from 'react';
 import { useV1 } from '../store';
 import { cubicBezier, resolveAnimated } from '../engine/interp';
-import type { AnimatedProperty, Bezier, Easing, Layer, MatteMode, V2 } from '../types';
+import type { AnimatedProperty, Bezier, Easing, Layer, MatteMode, RevealMode, V2 } from '../types';
 import { wouldCycle } from '../engine/matrix';
 import type { AlignEdge } from '../engine/guides';
 
 type AnimPath =
   | 'position' | 'scale' | 'rotation' | 'anchor' | 'opacity'
-  | 'size' | 'cornerRadius' | 'fontSize'
+  | 'size' | 'cornerRadius' | 'fontSize' | 'reveal'
   | 'brightness' | 'contrast' | 'saturation' | 'blur' | 'vignette' | 'grain' | 'tintAmount';
 
 /* Align-to-frame buttons: a frame edge/centre line + the box that snaps to it. */
@@ -310,6 +310,37 @@ export default function V1Inspector() {
               onChange={(e) => patchLayer(layer.id, { text: e.target.value })}
             />
           </div>
+          {/* Text animator: reveal by character / letter fade / word, keyframable. */}
+          <div className="v1-prop">
+            <div className="v1-prop-head"><span className="v1-prop-label">Animator</span></div>
+            <select
+              className="select-full v1-animator-select"
+              aria-label="Text animator"
+              value={layer.revealMode ?? ''}
+              onChange={(e) => useV1.getState().setTextAnimator(layer.id, (e.target.value || null) as RevealMode | null)}
+            >
+              <option value="">None</option>
+              <option value="typewriter">Typewriter</option>
+              <option value="letters">Letters fade in</option>
+              <option value="words">Words fade in</option>
+            </select>
+          </div>
+          {layer.revealMode && (
+            <PropRow layer={layer} currentTime={currentTime} label="Reveal" path="reveal">
+              <div className="v1-slider-row">
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  aria-label="Reveal amount"
+                  value={resolve(layer.reveal ?? { default: 1 }) as number}
+                  onChange={(e) => setPropertyBase<number>(layer.id, 'reveal', Number(e.target.value))}
+                />
+                <span className="v1-slider-value">{Math.round((resolve(layer.reveal ?? { default: 1 }) as number) * 100)}%</span>
+              </div>
+            </PropRow>
+          )}
           <PropRow layer={layer} currentTime={currentTime} label="Font size" path="fontSize">
             <NumberField
               value={resolve(layer.fontSize) as number}
@@ -375,6 +406,9 @@ function animatedPropertyFor(layer: Layer, path: AnimPath): AnimatedProperty<unk
       return;
     case 'fontSize':
       if (layer.type === 'text') return layer.fontSize as unknown as AnimatedProperty<unknown>;
+      return;
+    case 'reveal':
+      if (layer.type === 'text') return (layer.reveal ?? undefined) as unknown as AnimatedProperty<unknown>;
       return;
     case 'brightness':
     case 'contrast':

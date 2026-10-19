@@ -119,7 +119,13 @@ export interface TextLayer extends LayerBase {
   fill: RGBA;
   stroke: RGBA | null;
   strokeWidth: number;
+  /** Text animator: how much of the text is revealed (0..1, keyframable)
+   *  and how. Absent = all text shown. */
+  revealMode?: RevealMode;
+  reveal?: AnimatedProperty<number>;
 }
+
+export type RevealMode = 'typewriter' | 'letters' | 'words';
 
 export interface RectangleLayer extends LayerBase {
   type: 'rectangle';

@@ -238,6 +238,11 @@ function drawText(ctx: CanvasRenderingContext2D, layer: import('../types').TextL
   ctx.fillStyle = layer.fill;
   const lines = layer.text.split('\n');
   const lineH = size * layer.lineHeight;
+  const p = layer.revealMode && layer.reveal ? Math.max(0, Math.min(1, resolveAnimated(layer.reveal, time))) : 1;
+  if (p < 1) {
+    drawTextReveal(ctx, layer, lines, lineH, p);
+    return;
+  }
   lines.forEach((line, i) => {
     if (layer.stroke && layer.strokeWidth > 0) {
       ctx.lineWidth = layer.strokeWidth;
@@ -246,6 +251,50 @@ function drawText(ctx: CanvasRenderingContext2D, layer: import('../types').TextL
     }
     ctx.fillText(line, 0, i * lineH);
   });
+}
+
+/* Text animator. Pieces (characters or words) are placed at their final
+ * positions — measured from the full line — so centred / right-aligned text
+ * doesn't slide while it types on. Each piece gets an alpha from the reveal
+ * progress: typewriter is a hard cut, letters / words fade over a short
+ * window so the front edge looks soft. */
+function drawTextReveal(
+  ctx: CanvasRenderingContext2D,
+  layer: import('../types').TextLayer,
+  lines: string[],
+  lineH: number,
+  p: number,
+) {
+  const mode = layer.revealMode!;
+  const pieces = lines.map((line) => (mode === 'words' ? line.match(/\S+\s*/g) ?? [] : [...line]));
+  const total = pieces.reduce((n, ps) => n + ps.length, 0);
+  if (!total) return;
+  const soft = mode === 'typewriter' ? 0 : mode === 'words' ? 1.5 : 4;
+  const front = p * (total + soft);
+  const baseAlpha = ctx.globalAlpha;
+  ctx.textAlign = 'left';
+  let k = 0;
+  lines.forEach((line, li) => {
+    const lw = ctx.measureText(line).width;
+    const x0 = layer.align === 'center' ? -lw / 2 : layer.align === 'right' ? -lw : 0;
+    let prefix = '';
+    for (const piece of pieces[li]) {
+      const a = soft === 0 ? (k < Math.floor(front + 1e-9) ? 1 : 0) : Math.max(0, Math.min(1, (front - k) / soft));
+      if (a > 0) {
+        const x = x0 + ctx.measureText(prefix).width;
+        ctx.globalAlpha = baseAlpha * a;
+        if (layer.stroke && layer.strokeWidth > 0) {
+          ctx.lineWidth = layer.strokeWidth;
+          ctx.strokeStyle = layer.stroke;
+          ctx.strokeText(piece, x, li * lineH);
+        }
+        ctx.fillText(piece, x, li * lineH);
+      }
+      prefix += piece;
+      k++;
+    }
+  });
+  ctx.globalAlpha = baseAlpha;
 }
 
 function drawRectangle(

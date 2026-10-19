@@ -30,7 +30,7 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
   // placeholders, split, then restore.
   const saved: string[] = [];
   const masked = prompt.replace(/"[^"]*"|“[^”]*”/g, (q) => `\uE000${saved.push(q) - 1}\uE000`);
-  const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent|mask|matte|use|align|center|centre)))\s*/i);
+  const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent|mask|matte|use|align|center|centre|typewriter|type|reveal|letter|word)))\s*/i);
 
   for (const part of clauses) {
     const c = part.replace(/\uE000(\d+)\uE000/g, (_, i) => saved[Number(i)]).trim();
@@ -59,6 +59,9 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
       preset(dir === 'left' ? 'slide_in_left' : dir === 'right' ? 'slide_in_right' : dir === 'top' || dir === 'above' ? 'slide_in_down' : 'slide_in_up');
       continue;
     }
+    if (/\btype(?:writer|\s+(?:it\s+)?(?:on|in|out))\b|\btypewriter\b/.test(l)) { preset('typewriter'); continue; }
+    if (/\b(?:letter\s+by\s+letter|per[-\s]letter|letters?\s+fade)\b/.test(l)) { preset('letters_in'); continue; }
+    if (/\b(?:word\s+by\s+word|per[-\s]word|words?\s+fade)\b/.test(l)) { preset('words_in'); continue; }
     if (/\b(?:pop|bounce)\b/.test(l)) { preset('pop'); continue; }
     if (/\bspin\b|\brotate\s+(?:it\s+)?(?:a\s+)?full\b|\b360\b/.test(l)) { preset('spin'); continue; }
 
@@ -142,4 +145,5 @@ export const LOCAL_EXAMPLES = [
   'start at 2s',
   'rename to Logo',
   'parent it to Null 1',
+  'typewriter over 2s',
 ];

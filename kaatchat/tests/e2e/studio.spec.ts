@@ -579,3 +579,50 @@ test('Studio: align to frame buttons', async ({ page }) => {
   await expect(pos.nth(0)).toHaveValue('960');
   await expect(pos.nth(1)).toHaveValue('540');
 });
+
+test('Studio: text animator — typewriter reveals left to right without the text sliding', async ({ page }) => {
+  // (Also guards: shortcut keys don't fire while a <select> has focus.)
+  await page.goto('/#/studio');
+  await setValue(page.locator('.duration-field input'), 4);
+  await page.locator('.v1-ai-input').fill('add a title "MMMMMMMMMMMM"');
+  await page.locator('.v1-ai-input').press('Enter');
+  await page.getByLabel('Text animator').selectOption('typewriter');
+  await expect(page.getByLabel('Reveal amount')).toBeVisible();
+  // Columns that have lit text pixels in the band just above the baseline (y≈540).
+  const litColumns = () => page.evaluate(() => {
+    const c = document.querySelector('.v1-canvas') as HTMLCanvasElement;
+    const k = c.width / 1920;
+    const y0 = Math.round(470 * k), y1 = Math.round(530 * k);
+    const d = c.getContext('2d')!.getImageData(0, y0, c.width, y1 - y0).data;
+    const cols: number[] = [];
+    for (let x = 0; x < c.width; x++) {
+      for (let y = 0; y < y1 - y0; y++) if (d[(y * c.width + x) * 4] > 128) { cols.push(x / k); break; }
+    }
+    return cols;
+  });
+  await seek(page, 0);
+  expect(await litColumns()).toHaveLength(0);                            // nothing typed yet
+  await seek(page, 0.99);
+  await expect(page.getByLabel('Text animator')).toHaveValue('typewriter');
+  await expect.poll(async () => (await litColumns()).length).toBeGreaterThan(50);
+  const full = await litColumns();
+  const [minX, maxX] = [Math.min(...full), Math.max(...full)];
+  // Halfway through the reveal (keys at 0 s and ~1.5 s).
+  await seek(page, 0.75 / 4);
+  const half = await litColumns();
+  expect(half.length).toBeGreaterThan(5);
+  expect(Math.min(...half)).toBeCloseTo(minX, -1);                       // starts where the full text starts
+  expect(Math.max(...half)).toBeLessThan(minX + (maxX - minX) * 0.7);    // right part not typed yet
+});
+
+test('Studio: keyboard shortcuts leave a focused dropdown alone', async ({ page }) => {
+  await page.goto('/#/studio');
+  await page.locator('.v1-tool', { hasText: 'Text' }).click();
+  const anim = page.getByLabel('Text animator');
+  await anim.focus();
+  const before = await page.locator('.v1-tl-time').innerText();
+  await page.keyboard.press('End');
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('.v1-tl-time')).toHaveText(before);          // playhead didn't move
+  await expect(page.locator('.v1-tl-layer-row-head')).toHaveCount(1);
+});

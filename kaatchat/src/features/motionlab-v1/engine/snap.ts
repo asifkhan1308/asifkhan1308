@@ -32,7 +32,7 @@ export function layerKeyTimes(layer: Layer): number[] {
   [tr.position, tr.scale, tr.rotation, tr.anchor, tr.opacity].forEach(add);
   if (layer.type === 'rectangle' || layer.type === 'ellipse') add(layer.size);
   if (layer.type === 'rectangle') add(layer.cornerRadius);
-  if (layer.type === 'text') add(layer.fontSize);
+  if (layer.type === 'text') { add(layer.fontSize); add(layer.reveal); }
   return out;
 }
 

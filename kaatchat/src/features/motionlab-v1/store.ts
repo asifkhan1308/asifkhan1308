@@ -6,6 +6,7 @@ import type {
   Easing,
   MatteMode,
   ReviewComment,
+  RevealMode,
   EffectProp,
   Layer,
   Project,
@@ -69,8 +70,8 @@ interface MotionLabV1State extends UIState {
   patchLayer: <L extends Layer>(id: string, patch: Partial<L>) => void;
 
   /* Animated-property writes (works for transform, shape, text and effect paths) */
-  setPropertyBase: <T>(layerId: string, path: TransformProp | EffectProp | 'size' | 'cornerRadius' | 'fontSize', value: T) => void;
-  toggleKeyframe: (layerId: string, path: TransformProp | EffectProp | 'size' | 'cornerRadius' | 'fontSize', easing?: Easing) => void;
+  setPropertyBase: <T>(layerId: string, path: TransformProp | EffectProp | 'size' | 'cornerRadius' | 'fontSize' | 'reveal', value: T) => void;
+  toggleKeyframe: (layerId: string, path: TransformProp | EffectProp | 'size' | 'cornerRadius' | 'fontSize' | 'reveal', easing?: Easing) => void;
 
   /* Effects */
   enableEffects: (layerId: string) => void;
@@ -112,6 +113,9 @@ interface MotionLabV1State extends UIState {
   setParent: (id: string, parentId: string | null) => boolean;
   /** Track matte (null = none). Returns false for a missing / self source. */
   setMatte: (id: string, matte: { layerId: string; mode: MatteMode } | null) => boolean;
+  /** Text animator (null = off). Turning it on with no reveal keys adds a
+   *  0 → 100 % reveal over the clip's first ~1.5 s, so it works in one click. */
+  setTextAnimator: (id: string, mode: RevealMode | null) => void;
   /** Align a layer's on-screen box to the composition frame (Figma-style). */
   alignToFrame: (id: string, edge: AlignEdge) => void;
 
@@ -157,11 +161,11 @@ const EFFECT_KEYS: EffectProp[] = ['brightness', 'contrast', 'saturation', 'blur
  * list so a diamond on the track moves/copies all props keyed at that time. */
 const ALL_ANIM_PATHS: string[] = [
   'position', 'scale', 'rotation', 'anchor', 'opacity',
-  'size', 'cornerRadius', 'fontSize',
+  'size', 'cornerRadius', 'fontSize', 'reveal',
   ...EFFECT_KEYS,
 ];
 const KF_EPS = 0.01;
-type KfClip = { path: string; value: unknown; easing?: Easing }[];
+type KfClip = { path: string; value: unknown; easing?: Easing; bezier?: Bezier }[];
 let kfClipboard: KfClip | null = null;
 
 /* Locate the AnimatedProperty that a path name refers to on a layer. */
@@ -181,6 +185,10 @@ function getAnimated(layer: Layer, path: string): AnimatedProperty<unknown> | nu
       return null;
     case 'fontSize':
       if (layer.type === 'text') return layer.fontSize;
+      return null;
+    case 'reveal':
+      // Absent = fully revealed; materialised on first edit.
+      if (layer.type === 'text') return layer.reveal ?? { default: 1 };
       return null;
     default:
       if (EFFECT_KEYS.includes(path as EffectProp)) {
@@ -206,6 +214,9 @@ function setAnimated(layer: Layer, path: string, next: AnimatedProperty<unknown>
   }
   if (path === 'fontSize' && layer.type === 'text') {
     return { ...layer, fontSize: next as AnimatedProperty<number> };
+  }
+  if (path === 'reveal' && layer.type === 'text') {
+    return { ...layer, reveal: next as AnimatedProperty<number> };
   }
   if (EFFECT_KEYS.includes(path as EffectProp)) {
     const effects = layer.effects ?? neutralEffects();
@@ -349,6 +360,26 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
         selectedLayerId: s.selectedLayerId === id ? null : s.selectedLayerId,
       };
     }),
+
+  setTextAnimator: (id, mode) =>
+    set((s) => ({
+      project: touch({
+        ...s.project,
+        layers: s.project.layers.map((l) => {
+          if (l.id !== id || l.type !== 'text') return l;
+          if (!mode) return { ...l, revealMode: undefined, reveal: undefined };
+          if (l.reveal?.keyframes?.length) return { ...l, revealMode: mode };
+          const t0 = l.startTime;
+          const t1 = Math.min(l.startTime + l.duration, t0 + Math.min(1.5, Math.max(0.3, l.duration * 0.5)));
+          const ease: Easing = mode === 'typewriter' ? 'linear' : 'ease-out';
+          return {
+            ...l,
+            revealMode: mode,
+            reveal: { default: 1, keyframes: [{ time: t0, value: 0 }, { time: +t1.toFixed(3), value: 1, easing: ease }] },
+          };
+        }),
+      }),
+    })),
 
   alignToFrame: (id, edge) => {
     const s = get();
@@ -659,7 +690,7 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
     const clip: KfClip = [];
     for (const path of ALL_ANIM_PATHS) {
       const k = getAnimated(l, path)?.keyframes?.find((x) => Math.abs(x.time - time) < KF_EPS);
-      if (k) clip.push({ path, value: JSON.parse(JSON.stringify(k.value)), easing: k.easing });
+      if (k) clip.push({ path, value: JSON.parse(JSON.stringify(k.value)), easing: k.easing, bezier: k.bezier ? [...k.bezier] as Bezier : undefined });
     }
     if (clip.length) kfClipboard = clip;
     return clip.length;
@@ -683,7 +714,12 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
               ap = getAnimated(next, c.path);
             }
             if (!ap) continue;
-            next = setAnimated(next, c.path, upsertKeyframe(ap, time, c.value, c.easing));
+            const withKey = upsertKeyframe(ap, time, c.value, c.easing);
+            // Carry a custom curve along with its easing (not just the name).
+            const keyed = c.bezier
+              ? { ...withKey, keyframes: withKey.keyframes!.map((k) => (Math.abs(k.time - time) < KF_EPS ? { ...k, bezier: c.bezier } : k)) }
+              : withKey;
+            next = setAnimated(next, c.path, keyed);
             pasted++;
           }
           return next;

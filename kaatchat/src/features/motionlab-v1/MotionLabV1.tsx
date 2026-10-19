@@ -72,7 +72,8 @@ export default function MotionLabV1({ feedback }: { feedback?: string } = {}) {
     const h = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       const mod = e.metaKey || e.ctrlKey;
-      const inField = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+      // A focused <select> owns its keys too (arrows / Home / End change it).
+      const inField = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
       // Mod shortcuts always run (users expect Cmd+S/Z to work while typing).
       // Non-mod shortcuts (Space, Delete, arrows) stay out of text fields.
       if (inField && !mod) return;

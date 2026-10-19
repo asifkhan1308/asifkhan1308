@@ -9,7 +9,7 @@ import type { AnimatedProperty, Layer, V2 } from '../types';
  * step. Kept free of React so it is unit-testable without a model.
  * ────────────────────────────────────────────────────────────────────────── */
 
-export const PRESETS = ['fade_in', 'fade_out', 'slide_in_left', 'slide_in_right', 'slide_in_up', 'slide_in_down', 'pop', 'spin'] as const;
+export const PRESETS = ['fade_in', 'fade_out', 'slide_in_left', 'slide_in_right', 'slide_in_up', 'slide_in_down', 'pop', 'spin', 'typewriter', 'letters_in', 'words_in'] as const;
 export type Preset = (typeof PRESETS)[number];
 const LAYER_TYPES = ['text', 'rectangle', 'ellipse', 'null'] as const;
 
@@ -143,6 +143,19 @@ export function applyAIActions(actions: unknown): AIResult {
         case 'preset': {
           const name = String(raw.name ?? '') as Preset;
           if (!PRESETS.includes(name)) { skip(`unknown preset "${name}"`); break; }
+          if (name === 'typewriter' || name === 'letters_in' || name === 'words_in') {
+            // Text animators: reveal 0 → 1 from the clip start (or "at") over "duration".
+            if (layer.type !== 'text') { skip('text animators need a text layer'); break; }
+            const t0 = clampT(num(raw.at) ?? layer.startTime);
+            const dur = Math.max(0.1, num(raw.duration) ?? (name === 'typewriter' ? Math.min(2, layer.text.length * 0.06) : 1.2));
+            s.setTextAnimator(layer.id, name === 'typewriter' ? 'typewriter' : name === 'letters_in' ? 'letters' : 'words');
+            const fresh = useV1.getState().project.layers.find((l) => l.id === layer.id);
+            if (fresh?.type === 'text') {
+              s.patchLayer(layer.id, { reveal: { default: 1, keyframes: [{ time: t0, value: 0 }, { time: clampT(t0 + dur), value: 1, easing: name === 'typewriter' ? 'linear' : 'ease-out' }] } } as Partial<Layer>);
+            }
+            res.applied++;
+            break;
+          }
           const d = Math.max(0.05, Math.min(layer.duration, num(raw.duration) ?? 0.6));
           applyPreset(layer, name, d, num(raw.at), comp.width, comp.height, end, clampT);
           res.applied++;
