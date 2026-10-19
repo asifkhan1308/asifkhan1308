@@ -82,7 +82,13 @@ interface LayerBase {
   /** Parent layer (usually a null): this layer's transform is applied inside
    *  the parent's, like After Effects parenting. Absent = no parent. */
   parentId?: string;
+  /** Track matte (After Effects style): show this layer only through
+   *  ('alpha') or outside ('alpha-inverted') another layer's pixels. The
+   *  matte layer itself is not drawn. Absent = no matte. */
+  matte?: { layerId: string; mode: MatteMode };
 }
+
+export type MatteMode = 'alpha' | 'alpha-inverted';
 
 export interface MediaLayer extends LayerBase {
   type: 'media';

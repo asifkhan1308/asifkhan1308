@@ -80,42 +80,80 @@ export function composeFrame(
 
   const soloLayers = layers.filter((l) => l.solo);
   const draw = soloLayers.length > 0 ? soloLayers : layers;
+  // Layers used as a track matte are not drawn themselves (like AE).
+  const matteSources = new Set(layers.map((l) => l.matte?.layerId).filter((id): id is string => !!id));
 
-  for (const layer of draw) {
-    if (!isLayerActive(layer, time)) continue;
+  /** One layer: opacity, effects filter, world transform, then its pixels. */
+  const paint = (c: CanvasRenderingContext2D, layer: Layer) => {
     const t = resolveTransform(layer.transform, time);
-    if (t.opacity <= 0) continue;
-
+    if (t.opacity <= 0) return;
     const fx = resolveEffectsFilter(layer.effects, time, opts.pixelScale ?? 1);
-
-    ctx.save();
-    ctx.globalAlpha = Math.max(0, Math.min(1, t.opacity));
+    c.save();
+    c.globalAlpha = Math.max(0, Math.min(1, t.opacity));
     // Apply colour/brightness/contrast/blur as a canvas filter for the whole
     // layer draw (cheap compared to per-pixel work; honoured by Chromium/Safari).
-    if (fx.filter !== 'none') ctx.filter = fx.filter;
+    if (fx.filter !== 'none') c.filter = fx.filter;
     // parentWorld · translate(position) · rotate · scale · translate(−anchor):
     // anchor last so rotation + scale pivot around it; parents carry children.
-    ctx.transform(...worldMatrix(layer, layers, time));
-
+    c.transform(...worldMatrix(layer, layers, time));
     switch (layer.type) {
       case 'text':
-        drawText(ctx, layer, time);
+        drawText(c, layer, time);
         break;
       case 'rectangle':
-        drawRectangle(ctx, layer, time);
+        drawRectangle(c, layer, time);
         break;
       case 'ellipse':
-        drawEllipse(ctx, layer, time);
+        drawEllipse(c, layer, time);
         break;
       case 'media':
       case 'image':
-        drawMedia(ctx, layer, assets, opts.mediaBy);
+        drawMedia(c, layer, assets, opts.mediaBy);
         break;
       case 'null':
       default:
         break;
     }
-    ctx.restore();
+    c.restore();
+  };
+
+  for (const layer of draw) {
+    if (!isLayerActive(layer, time)) continue;
+    if (matteSources.has(layer.id)) continue;
+    const t = resolveTransform(layer.transform, time);
+    if (t.opacity <= 0) continue;
+
+    const fx = resolveEffectsFilter(layer.effects, time, opts.pixelScale ?? 1);
+
+    const src = layer.matte ? layers.find((l) => l.id === layer.matte!.layerId && l.id !== layer.id) : undefined;
+    if (layer.matte && src) {
+      // Track matte: render the layer and its matte off-screen at the same
+      // pixel transform, keep the layer only where the matte is (or isn't),
+      // then lay the result down. The matte counts while it is in its time
+      // range, even when hidden (AE hides matte layers automatically).
+      const srcActive = time >= src.startTime && time <= src.startTime + src.duration;
+      if (!srcActive && layer.matte.mode === 'alpha') continue; // nothing to show through
+      const cw = ctx.canvas.width, ch = ctx.canvas.height;
+      const base = ctx.getTransform();
+      const A = layerBuffer(0, cw, ch);
+      A.setTransform(base);
+      paint(A, layer);
+      if (srcActive) {
+        const B = layerBuffer(1, cw, ch);
+        B.setTransform(base);
+        paint(B, src);
+        A.setTransform(1, 0, 0, 1, 0, 0);
+        A.globalCompositeOperation = layer.matte.mode === 'alpha' ? 'destination-in' : 'destination-out';
+        A.drawImage(B.canvas, 0, 0);
+        A.globalCompositeOperation = 'source-over';
+      }
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(A.canvas, 0, 0);
+      ctx.restore();
+    } else {
+      paint(ctx, layer);
+    }
 
     // Tint, grain and vignette compose over the whole composition after the
     // layer draw so transforms don't affect them.
@@ -123,6 +161,27 @@ export function composeFrame(
     if (fx.grain > 0) drawGrain(ctx, fx.grain, w, h, time);
     if (fx.vignette > 0) drawVignette(ctx, fx.vignette, w, h);
   }
+}
+
+/* Two reusable off-screen buffers for track mattes (no per-frame allocation).
+ * Cleared on each use; sized to the target canvas in device pixels. */
+const buffers: CanvasRenderingContext2D[] = [];
+function layerBuffer(i: number, w: number, h: number): CanvasRenderingContext2D {
+  let c = buffers[i];
+  if (!c) {
+    const canvas = typeof OffscreenCanvas !== 'undefined'
+      ? new OffscreenCanvas(w, h)
+      : Object.assign(document.createElement('canvas'), { width: w, height: h });
+    c = buffers[i] = canvas.getContext('2d') as unknown as CanvasRenderingContext2D;
+  }
+  if (c.canvas.width !== w) c.canvas.width = w;
+  if (c.canvas.height !== h) c.canvas.height = h;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.globalAlpha = 1;
+  c.filter = 'none';
+  c.globalCompositeOperation = 'source-over';
+  c.clearRect(0, 0, w, h);
+  return c;
 }
 
 function drawVignette(ctx: CanvasRenderingContext2D, amount: number, w: number, h: number) {

@@ -30,7 +30,7 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
   // placeholders, split, then restore.
   const saved: string[] = [];
   const masked = prompt.replace(/"[^"]*"|“[^”]*”/g, (q) => `\uE000${saved.push(q) - 1}\uE000`);
-  const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent)))\s*/i);
+  const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent|mask|matte|use)))\s*/i);
 
   for (const part of clauses) {
     const c = part.replace(/\uE000(\d+)\uE000/g, (_, i) => saved[Number(i)]).trim();
@@ -86,8 +86,15 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
       out.push({ op: 'split', time: m ? secs(m[1], m[2]) : playhead });
       continue;
     }
+    // Must run before the delete rule: "remove the matte" is not "delete the layer".
+    if (/^(?:remove|clear|no)\s+(?:the\s+)?(?:track\s+)?(?:matte|mask)\b/.test(l)) { out.push({ op: 'matte', to: null }); continue; }
     if (/^(?:delete|remove)\b/.test(l)) { out.push({ op: 'delete' }); continue; }
     if (/^(?:unparent|detach)\b/.test(l)) { out.push({ op: 'parent', to: null }); continue; }
+    if ((m = c.match(/^(?:mask|matte|clip)\s+(?:it\s+|this\s+)?(?:with|by|to|using)\s+(.+?)(\s+inverted)?$/i)) ||
+        (m = c.match(/^use\s+(.+?)\s+as\s+(?:a\s+|the\s+)?(?:track\s+)?(?:matte|mask)(\s+inverted)?$/i))) {
+      out.push({ op: 'matte', to: quoted(m[1]), ...(m[2] ? { inverted: true } : {}) });
+      continue;
+    }
     if ((m = c.match(/^(?:parent|attach|link)\s+(?:it\s+|this\s+)?(?:to|with)\s+(.+)$/i))) { out.push({ op: 'parent', to: quoted(m[1]) }); continue; }
     if ((m = c.match(/^rename\s+(?:it\s+|this\s+)?(?:to\s+)?(.+)$/i))) { out.push({ op: 'rename', name: quoted(m[1]) }); continue; }
     if ((m = c.match(/^(?:(?:change|set)\s+(?:the\s+)?text\s+to|say|make it say)\s+(.+)$/i))) { out.push({ op: 'set_text', text: quoted(m[1]) }); continue; }

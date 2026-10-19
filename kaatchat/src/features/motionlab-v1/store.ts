@@ -4,6 +4,7 @@ import type {
   Asset,
   Bezier,
   Easing,
+  MatteMode,
   ReviewComment,
   EffectProp,
   Layer,
@@ -107,6 +108,8 @@ interface MotionLabV1State extends UIState {
   /** Parent a layer (null = unparent). Keeps it visually in place. Returns
    *  false when the parent would create a loop. */
   setParent: (id: string, parentId: string | null) => boolean;
+  /** Track matte (null = none). Returns false for a missing / self source. */
+  setMatte: (id: string, matte: { layerId: string; mode: MatteMode } | null) => boolean;
 
   /** Run several edits as ONE undo step (e.g. a whole ✦ Ask command). */
   batch: (fn: () => void, label?: string) => void;
@@ -335,11 +338,25 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
       // Children of a deleted parent are released where they currently are.
       let layers = s.project.layers;
       for (const child of layers.filter((l) => l.parentId === id)) layers = reparent(layers, child.id, null, s.currentTime);
+      // …and layers matted by it lose the matte instead of pointing at nothing.
+      layers = layers.map((l) => (l.matte?.layerId === id ? { ...l, matte: undefined } : l));
       return {
         project: touch({ ...s.project, layers: layers.filter((l) => l.id !== id) }),
         selectedLayerId: s.selectedLayerId === id ? null : s.selectedLayerId,
       };
     }),
+
+  setMatte: (id, matte) => {
+    const layers = get().project.layers;
+    if (matte && (matte.layerId === id || !layers.some((l) => l.id === matte.layerId))) return false;
+    set((s) => ({
+      project: touch({
+        ...s.project,
+        layers: s.project.layers.map((l) => (l.id === id ? { ...l, matte: matte ? { ...matte } : undefined } : l)),
+      }),
+    }));
+    return true;
+  },
 
   setParent: (id, parentId) => {
     const layers = get().project.layers;

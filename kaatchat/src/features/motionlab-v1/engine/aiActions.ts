@@ -45,7 +45,8 @@ Actions:
   { "op": "set_text", "text": string }                                      // text layers
   { "op": "set_color", "color": "#rrggbb" }                                 // text / shape fill
   { "op": "comp", "duration": <sec> }
-  { "op": "parent", "to": "<layer id or name>" | null }                    // move/rotate/scale with that layer (usually a null)
+  { "op": "parent", "to": "<layer id or name>" | null }
+  { "op": "matte", "to": "<layer id or name>" | null, "inverted"?: boolean } // show this layer only through (or outside) that layer                    // move/rotate/scale with that layer (usually a null)
 <prop> is one of: ${AI_PATHS.join(', ')}.
 position / scale / anchor / size values are [x, y]; others are numbers. Opacity is 0..1, scale 1 = 100%.
 Positions are in composition pixels (0,0 = top-left). Times are seconds on the composition timeline.
@@ -179,6 +180,21 @@ export function applyAIActions(actions: unknown): AIResult {
           const p = s.project.layers.find((l) => l.id === raw.to) ?? s.project.layers.find((l) => l.name.toLowerCase() === ref);
           if (!p) { skip(`no layer "${String(raw.to)}" to parent to`); break; }
           if (!s.setParent(layer.id, p.id)) { skip('that would make a parenting loop'); break; }
+          res.applied++;
+          break;
+        }
+        case 'matte': {
+          if (raw.to === null || raw.to === '' || raw.to === 'none') {
+            s.setMatte(layer.id, null);
+            res.applied++;
+            break;
+          }
+          const ref = String(raw.to ?? '').trim().toLowerCase();
+          const m = s.project.layers.find((l) => l.id === raw.to) ?? s.project.layers.find((l) => l.name.toLowerCase() === ref);
+          if (!m || !s.setMatte(layer.id, { layerId: m.id, mode: raw.inverted ? 'alpha-inverted' : 'alpha' })) {
+            skip(`no other layer "${String(raw.to)}" to use as a matte`);
+            break;
+          }
           res.applied++;
           break;
         }

@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { useV1 } from '../store';
 import { cubicBezier, resolveAnimated } from '../engine/interp';
-import type { AnimatedProperty, Bezier, Easing, Layer, V2 } from '../types';
+import type { AnimatedProperty, Bezier, Easing, Layer, MatteMode, V2 } from '../types';
 import { wouldCycle } from '../engine/matrix';
 
 type AnimPath =
@@ -64,6 +64,30 @@ export default function V1Inspector() {
               .map((l) => (
                 <option key={l.id} value={l.id}>{l.type === 'null' ? '✦ ' : ''}{l.name}</option>
               ))}
+          </select>
+        </label>
+
+        {/* Track matte: show this layer only through (or outside) another layer. */}
+        <label className="v1-parent-row">
+          <span>Matte</span>
+          <select
+            className="v1-parent-select v1-matte-select"
+            aria-label="Track matte"
+            value={layer.matte ? `${layer.matte.mode}:${layer.matte.layerId}` : ''}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) { useV1.getState().setMatte(layer.id, null); return; }
+              const i = v.indexOf(':');
+              useV1.getState().setMatte(layer.id, { mode: v.slice(0, i) as MatteMode, layerId: v.slice(i + 1) });
+            }}
+          >
+            <option value="">None</option>
+            {project.layers.filter((l) => l.id !== layer.id && l.type !== 'null').map((l) => (
+              <option key={`a-${l.id}`} value={`alpha:${l.id}`}>Alpha · {l.name}</option>
+            ))}
+            {project.layers.filter((l) => l.id !== layer.id && l.type !== 'null').map((l) => (
+              <option key={`i-${l.id}`} value={`alpha-inverted:${l.id}`}>Inverted · {l.name}</option>
+            ))}
           </select>
         </label>
 

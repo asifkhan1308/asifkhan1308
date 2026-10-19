@@ -522,3 +522,46 @@ test('Studio: hold keyframes, named curves with overshoot, and the custom curve 
   await expect(code).not.toHaveText('cubic-bezier(0.34, 1.56, 0.64, 1)');
   await expect(easing).toHaveValue('bezier');                          // now a custom curve
 });
+
+test('Studio: track mattes — alpha and inverted, on canvas and in the export', async ({ page }) => {
+  await page.goto('/#/studio');
+  await setValue(page.locator('.duration-field input'), 2);
+  // White 576×324 rectangle, then a red 324-px circle, both centred.
+  await page.locator('.v1-tool', { hasText: 'Rect' }).click();
+  await page.locator('.v1-ai-input').fill('add a circle, make it red');
+  await page.locator('.v1-ai-input').press('Enter');
+  await expect(page.locator('.v1-ai-status')).toContainText('Applied 2');
+  const rgb = (x: number, y: number) => page.evaluate(([cx, cy]) => {
+    const c = document.querySelector('.v1-canvas') as HTMLCanvasElement;
+    const k = c.width / 1920;
+    return [...c.getContext('2d')!.getImageData(Math.round(cx * k), Math.round(cy * k), 1, 1).data].slice(0, 3);
+  }, [x, y]);
+  expect(await rgb(960, 540)).toEqual([255, 59, 48]);                  // red circle on top
+
+  // Rectangle: Alpha matte = the circle.
+  await page.locator('.v1-tl-layer-row-head').first().click();
+  const matte = page.locator('.v1-matte-select');
+  await matte.selectOption({ index: 1 });                               // "Alpha · <circle>"
+  await expect.poll(() => rgb(960, 540)).toEqual([255, 255, 255]);      // rect shows through; circle itself hidden
+  expect((await rgb(1190, 540))[0]).toBeLessThan(30);                   // rect outside the circle: cut away
+
+  // Inverted.
+  await matte.selectOption({ index: 2 });                               // "Inverted · <circle>"
+  await expect.poll(async () => (await rgb(960, 540))[0]).toBeLessThan(30);
+  expect(await rgb(1190, 540)).toEqual([255, 255, 255]);
+
+  // Export (inverted): same pixels in the MP4.
+  await page.locator('.btn-export').click();
+  const render = page.locator('.modal .btn-primary');
+  await expect(render).toHaveText('Render', { timeout: 30_000 });
+  const dl = page.waitForEvent('download', { timeout: 120_000 });
+  await render.click();
+  const path = test.info().outputPath('matte.mp4');
+  await (await dl).saveAs(path);
+  const lum = (x: number, y: number) => {
+    const r = spawnSync(ffmpeg, ['-v', 'error', '-i', path, '-vf', `select='eq(n\\,5)',crop=4:4:${x}:${y}`, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'gray', '-']);
+    return r.stdout.reduce((a, b) => a + b, 0) / Math.max(1, r.stdout.length);
+  };
+  expect(lum(958, 538)).toBeLessThan(40);
+  expect(lum(1188, 538)).toBeGreaterThan(200);
+});
