@@ -1,6 +1,7 @@
+import { useRef } from 'react';
 import { useV1 } from '../store';
-import { resolveAnimated } from '../engine/interp';
-import type { AnimatedProperty, Easing, Layer, V2 } from '../types';
+import { cubicBezier, resolveAnimated } from '../engine/interp';
+import type { AnimatedProperty, Bezier, Easing, Layer, V2 } from '../types';
 import { wouldCycle } from '../engine/matrix';
 
 type AnimPath =
@@ -408,7 +409,59 @@ const EASINGS: Array<{ value: Easing; label: string }> = [
   { value: 'ease-in', label: 'Ease in' },
   { value: 'ease-out', label: 'Ease out' },
   { value: 'ease-in-out', label: 'Ease in/out' },
+  { value: 'hold', label: 'Hold (jump)' },
 ];
+/* Named cubic-bezier curves (select value "curve:<name>"); "bezier" = custom. */
+const CURVES: Array<{ name: string; label: string; bez: Bezier }> = [
+  { name: 'overshoot', label: 'Overshoot', bez: [0.34, 1.56, 0.64, 1] },
+  { name: 'snappy', label: 'Snappy', bez: [0.2, 0.9, 0.1, 1] },
+  { name: 'gentle', label: 'Gentle', bez: [0.45, 0.05, 0.55, 0.95] },
+  { name: 'anticipate', label: 'Anticipate', bez: [0.6, -0.28, 0.74, 0.05] },
+];
+const sameBez = (a?: Bezier, b?: Bezier) => !!a && !!b && a.every((v, i) => Math.abs(v - b[i]) < 1e-3);
+
+/* Small graph editor for a keyframe's cubic-bezier: drag the two handles.
+ * x is time (0..1), y is progress (may overshoot −0.5..1.5 for bouncy moves). */
+function CurveEditor({ bez, onChange }: { bez: Bezier; onChange: (b: Bezier) => void }) {
+  const W = 168, H = 120, P = 14;
+  const yLo = -0.5, yHi = 1.5;
+  const sx = (x: number) => P + x * (W - 2 * P);
+  const sy = (y: number) => H - P - ((y - yLo) / (yHi - yLo)) * (H - 2 * P);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const drag = (which: 0 | 1) => (e: React.PointerEvent) => {
+    e.preventDefault();
+    (e.target as Element).setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent) => {
+      const r = svgRef.current!.getBoundingClientRect();
+      const x = Math.max(0, Math.min(1, ((ev.clientX - r.left) * (W / r.width) - P) / (W - 2 * P)));
+      const y = Math.max(yLo, Math.min(yHi, yLo + ((H - P - (ev.clientY - r.top) * (H / r.height)) / (H - 2 * P)) * (yHi - yLo)));
+      const r2 = (v: number) => Math.round(v * 100) / 100;
+      const next: Bezier = which === 0 ? [r2(x), r2(y), bez[2], bez[3]] : [bez[0], bez[1], r2(x), r2(y)];
+      onChange(next);
+    };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  const pts = Array.from({ length: 41 }, (_, i) => {
+    const t = i / 40;
+    return `${sx(t)},${sy(cubicBezier(t, bez))}`;
+  }).join(' ');
+  return (
+    <div className="v1-curve">
+      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="v1-curve-svg" aria-label="Easing curve">
+        <line className="v1-curve-guide" x1={sx(0)} y1={sy(0)} x2={sx(1)} y2={sy(0)} />
+        <line className="v1-curve-guide" x1={sx(0)} y1={sy(1)} x2={sx(1)} y2={sy(1)} />
+        <line className="v1-curve-stem" x1={sx(0)} y1={sy(0)} x2={sx(bez[0])} y2={sy(bez[1])} />
+        <line className="v1-curve-stem" x1={sx(1)} y1={sy(1)} x2={sx(bez[2])} y2={sy(bez[3])} />
+        <polyline className="v1-curve-line" points={pts} />
+        <circle className="v1-curve-handle h1" cx={sx(bez[0])} cy={sy(bez[1])} r={5} onPointerDown={drag(0)} />
+        <circle className="v1-curve-handle h2" cx={sx(bez[2])} cy={sy(bez[3])} r={5} onPointerDown={drag(1)} />
+      </svg>
+      <code className="v1-curve-code">cubic-bezier({bez.join(', ')})</code>
+    </div>
+  );
+}
 
 function PropRow({
   layer,
@@ -437,13 +490,26 @@ function PropRow({
         {atNow && kfs[0] !== atNow && (
           <select
             className="v1-easing"
-            value={atNow.easing ?? 'ease-in-out'}
-            onChange={(e) => setKeyframeEasing(layer.id, path, atNow.time, e.target.value as Easing)}
+            value={
+              atNow.easing === 'bezier'
+                ? (CURVES.find((c) => sameBez(c.bez, atNow.bezier)) ? `curve:${CURVES.find((c) => sameBez(c.bez, atNow.bezier))!.name}` : 'bezier')
+                : (atNow.easing ?? 'ease-in-out')
+            }
+            onChange={(e) => {
+              const v = e.target.value;
+              const named = v.startsWith('curve:') ? CURVES.find((c) => `curve:${c.name}` === v) : undefined;
+              if (named) setKeyframeEasing(layer.id, path, atNow.time, 'bezier', named.bez);
+              else setKeyframeEasing(layer.id, path, atNow.time, v as Easing);
+            }}
             title="Easing into this keyframe"
           >
             {EASINGS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
+            {CURVES.map((c) => (
+              <option key={c.name} value={`curve:${c.name}`}>{c.label}</option>
+            ))}
+            <option value="bezier">Custom curve…</option>
           </select>
         )}
         <button
@@ -453,6 +519,12 @@ function PropRow({
           title={state === 'on' ? 'Remove keyframe at playhead' : 'Add keyframe at playhead'}
         >◆</button>
       </div>
+      {atNow && kfs[0] !== atNow && atNow.easing === 'bezier' && (
+        <CurveEditor
+          bez={atNow.bezier ?? [0.42, 0, 0.58, 1]}
+          onChange={(b) => setKeyframeEasing(layer.id, path, atNow.time, 'bezier', b)}
+        />
+      )}
       <div className="v1-prop-body">{children}</div>
     </div>
   );

@@ -488,3 +488,37 @@ test('Studio: smart guides snap canvas drags to the frame centre; Alt drags free
   await page.keyboard.up('Alt');
   expect(Number(await pos.nth(1).inputValue())).toBeGreaterThan(542);
 });
+
+test('Studio: hold keyframes, named curves with overshoot, and the custom curve editor', async ({ page }) => {
+  await page.goto('/#/studio');
+  await setValue(page.locator('.duration-field input'), 4);
+  await page.locator('.v1-tool', { hasText: 'Rect' }).click();
+  const pos = transform(page).locator('.v1-field input');
+  await seek(page, 0);
+  await setValue(pos.nth(0), 400);
+  await transform(page).locator('.v1-diamond').nth(0).click();
+  await seek(page, 0.5);                                               // 2 s
+  await setValue(pos.nth(0), 1500);
+  const easing = page.locator('.v1-easing').first();
+
+  await easing.selectOption('hold');
+  await seek(page, 0.25);                                              // 1 s: still the first value
+  expect(Number(await pos.nth(0).inputValue())).toBe(400);
+
+  await seek(page, 0.5);
+  await easing.selectOption({ label: 'Overshoot' });
+  await expect(page.locator('.v1-curve')).toBeVisible();               // named curves are editable too
+  await seek(page, 0.36);                                              // ~1.45 s: past the target
+  expect(Number(await pos.nth(0).inputValue())).toBeGreaterThan(1500);
+
+  await seek(page, 0.5);
+  const code = page.locator('.v1-curve-code');
+  await expect(code).toHaveText('cubic-bezier(0.34, 1.56, 0.64, 1)');
+  const h = (await page.locator('.v1-curve-handle.h1').boundingBox())!;
+  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(h.x + h.width / 2 + 20, h.y + h.height / 2 + 30, { steps: 4 });
+  await page.mouse.up();
+  await expect(code).not.toHaveText('cubic-bezier(0.34, 1.56, 0.64, 1)');
+  await expect(easing).toHaveValue('bezier');                          // now a custom curve
+});

@@ -35,7 +35,7 @@ Without "layer" it targets the layer added earlier in this reply, else the selec
 Actions:
   { "op": "add_layer", "type": "text"|"rectangle"|"ellipse"|"null", "text"?: string, "name"?: string }
   { "op": "set", "path": <prop>, "value": <number|[x,y]> }                 // base value
-  { "op": "keyframe", "path": <prop>, "time": <sec>, "value": <number|[x,y]> }
+  { "op": "keyframe", "path": <prop>, "time": <sec>, "value": <number|[x,y]>, "easing"?: "linear"|"ease-in"|"ease-out"|"ease-in-out"|"hold", "bezier"?: [x1,y1,x2,y2] }
   { "op": "preset", "name": ${PRESETS.map((p) => `"${p}"`).join('|')}, "duration"?: <sec>, "at"?: <sec> }
   { "op": "trim", "start"?: <sec>, "end"?: <sec>, "length"?: <sec> }       // clip in/out on the comp timeline
   { "op": "move", "start": <sec> }                                          // shift the clip in time
@@ -125,8 +125,16 @@ export function applyAIActions(actions: unknown): AIResult {
           } else {
             const t = num(raw.time);
             if (t === null) { skip('keyframe needs a time'); break; }
-            if (s.setKeyframeAt(layer.id, path, clampT(t), value)) res.applied++;
-            else skip(`${layer.type} layers have no ${path}`);
+            if (s.setKeyframeAt(layer.id, path, clampT(t), value)) {
+              res.applied++;
+              // Optional easing INTO this key; a valid bezier wins (x in 0..1).
+              const bz = Array.isArray(raw.bezier) && raw.bezier.length === 4 && raw.bezier.every((v) => num(v) !== null)
+                ? (raw.bezier.map((v) => num(v)!) as [number, number, number, number]) : null;
+              if (bz && bz[0] >= 0 && bz[0] <= 1 && bz[2] >= 0 && bz[2] <= 1) s.setKeyframeEasing(layer.id, path, clampT(t), 'bezier', bz);
+              else if (typeof raw.easing === 'string' && ['linear', 'ease-in', 'ease-out', 'ease-in-out', 'hold'].includes(raw.easing)) {
+                s.setKeyframeEasing(layer.id, path, clampT(t), raw.easing as 'linear');
+              }
+            } else skip(`${layer.type} layers have no ${path}`);
           }
           break;
         }

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type {
   AnimatedProperty,
   Asset,
+  Bezier,
   Easing,
   ReviewComment,
   EffectProp,
@@ -84,7 +85,7 @@ interface MotionLabV1State extends UIState {
   pasteKeyframesAt: (layerId: string, time: number) => number;
   hasKeyframeClipboard: () => boolean;
   /** Easing INTO the keyframe at `time` (how the segment arriving there moves). */
-  setKeyframeEasing: (layerId: string, path: string, time: number, easing: Easing) => void;
+  setKeyframeEasing: (layerId: string, path: string, time: number, easing: Easing, bezier?: Bezier) => void;
   /** Insert-or-replace a keyframe with an explicit value (never toggles). */
   setKeyframeAt: (layerId: string, path: string, time: number, value: unknown) => boolean;
 
@@ -402,7 +403,7 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
       }),
     })),
 
-  setKeyframeEasing: (layerId, path, time, easing) =>
+  setKeyframeEasing: (layerId, path, time, easing, bezier) =>
     set((s) => ({
       project: touch({
         ...s.project,
@@ -410,7 +411,12 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
           if (l.id !== layerId) return l;
           const ap = getAnimated(l, path);
           if (!ap?.keyframes?.length) return l;
-          const kfs = ap.keyframes.map((k) => (Math.abs(k.time - time) < KF_EPS ? { ...k, easing } : k));
+          // A curve is kept only for 'bezier'; switching away drops it.
+          const kfs = ap.keyframes.map((k) =>
+            Math.abs(k.time - time) < KF_EPS
+              ? { ...k, easing, bezier: easing === 'bezier' ? (bezier ?? k.bezier ?? [0.42, 0, 0.58, 1]) : undefined }
+              : k,
+          );
           return setAnimated(l, path, { ...ap, keyframes: kfs });
         }),
       }),

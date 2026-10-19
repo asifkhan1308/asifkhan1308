@@ -1000,3 +1000,12 @@
 
 /* Smart guides while dragging on canvas */
 .v1-guide { stroke: #fff; stroke-width: 1; vector-effect: non-scaling-stroke; mix-blend-mode: difference; pointer-events: none; }
+
+/* Custom easing curve editor */
+.v1-curve { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 8px; }
+.v1-curve-svg { width: 100%; max-width: 220px; height: auto; background: var(--v1-surface-2); border: 1px solid var(--v1-line); border-radius: 6px; touch-action: none; }
+.v1-curve-guide { stroke: var(--v1-line); stroke-dasharray: 3 3; }
+.v1-curve-stem { stroke: var(--v1-text-3); }
+.v1-curve-line { fill: none; stroke: var(--v1-text); stroke-width: 2; }
+.v1-curve-handle { fill: var(--v1-surface); stroke: var(--v1-text); stroke-width: 2; cursor: grab; }
+.v1-curve-code { font: 10.5px ui-monospace, Menlo, monospace; color: var(--v1-text-2); }

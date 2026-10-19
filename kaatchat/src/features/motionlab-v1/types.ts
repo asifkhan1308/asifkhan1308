@@ -4,12 +4,15 @@
  * marked separately so it never pollutes the saved project file.
  */
 
-export type Easing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out';
+export type Easing = 'linear' | 'ease-in' | 'ease-in-out' | 'ease-out' | 'hold' | 'bezier';
+/** cubic-bezier(x1, y1, x2, y2); x in 0..1, y may overshoot (bouncy moves). */
+export type Bezier = [number, number, number, number];
 
 export interface Keyframe<T> {
   time: number;       // absolute seconds in the composition
   value: T;
   easing?: Easing;    // easing INTO this keyframe (default ease-in-out)
+  bezier?: Bezier;    // the curve when easing is 'bezier'
 }
 
 export interface AnimatedProperty<T> {
