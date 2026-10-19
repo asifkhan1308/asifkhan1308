@@ -10,6 +10,7 @@ const GROUPS: Array<{ title: string; rows: Array<[string, string]> }> = [
       ['Space', 'Play / pause'],
       ['Home / End', 'Jump to start / end'],
       ['← / →', 'Previous / next frame'],
+      ['⇧ ← / ⇧ →', 'Back / forward 10 frames'],
       ['M', 'Add a marker at the playhead (double-click to rename)'],
       ['B / N', 'Work area start / end at the playhead (loops playback; export can use it)'],
     ],
@@ -33,6 +34,7 @@ const GROUPS: Array<{ title: string; rows: Array<[string, string]> }> = [
     rows: [
       ['Drag', 'Move (snaps to the frame and other layers)'],
       ['Alt + drag', 'Move without snapping'],
+      ['Alt + arrows', 'Nudge the selection 1 px (add Shift for 10 px)'],
       ['Corner / edge handles', 'Scale · top knob rotates'],
     ],
   },

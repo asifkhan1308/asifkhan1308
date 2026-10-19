@@ -26,7 +26,7 @@ import {
   newTextLayer,
 } from './engine/defaults';
 import { createHistory } from './engine/history';
-import { decompose, invert, IDENTITY, mul, worldMatrix, wouldCycle } from './engine/matrix';
+import { ancestors, decompose, invert, IDENTITY, mul, worldMatrix, wouldCycle } from './engine/matrix';
 import { worldCorners } from './engine/bbox';
 import { aabb, alignDelta, type AlignEdge, type Box } from './engine/guides';
 import {
@@ -124,6 +124,8 @@ interface MotionLabV1State extends UIState {
   alignSelected: (edge: AlignEdge) => void;
   /** Spread 3+ selected layers evenly between the outermost two. */
   distributeSelected: (axis: 'x' | 'y') => void;
+  /** Move the selection by screen pixels (arrow-key nudge); held keys merge into one undo step. */
+  nudgeSelected: (dx: number, dy: number) => void;
   setCurrentTime: (t: number) => void;
   setIsPlaying: (b: boolean) => void;
   setActiveTool: (t: UIState['activeTool']) => void;
@@ -904,6 +906,15 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
         if (Math.abs(d) > 1e-6) moveBy(get(), b.id, b.world.toParent(axis === 'x' ? [d, 0] : [0, d]));
       });
     }, 'Distribute');
+  },
+  nudgeSelected: (dx, dy) => {
+    const s = get();
+    const ids = selectionOf(s);
+    // Locked layers stay put, and a child whose parent also moves follows it.
+    const movers = s.project.layers.filter((l) => ids.includes(l.id) && !l.locked && !ancestors(l, s.project.layers).some((a) => ids.includes(a.id)));
+    const boxes = movers.map((l) => boxOf(s, l.id)).filter((b): b is NonNullable<ReturnType<typeof boxOf>> => !!b);
+    if (!boxes.length) return;
+    s.batch(() => boxes.forEach((b) => moveBy(get(), b.id, b.world.toParent([dx, dy]))), 'Nudge', true);
   },
   setCurrentTime: (t) => {
     const comp = get().project.composition;

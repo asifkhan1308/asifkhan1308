@@ -162,10 +162,19 @@ export default function MotionLabV1({ feedback }: { feedback?: string } = {}) {
         setCurrentTime(0);
       } else if (e.key === 'End') {
         setCurrentTime(duration);
+      } else if (e.altKey && e.key.startsWith('Arrow')) {
+        // Alt + arrows nudge the selection 1 px (Shift: 10 px).
+        if (selectedLayerId) {
+          e.preventDefault();
+          const step = e.shiftKey ? 10 : 1;
+          const d: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+          if (d[e.key]) useV1.getState().nudgeSelected(...d[e.key]);
+        }
       } else if (e.key === 'ArrowLeft') {
-        setCurrentTime(Math.max(0, currentTime - 1 / fps));
+        // Shift steps 10 frames.
+        setCurrentTime(Math.max(0, currentTime - (e.shiftKey ? 10 : 1) / fps));
       } else if (e.key === 'ArrowRight') {
-        setCurrentTime(Math.min(duration, currentTime + 1 / fps));
+        setCurrentTime(Math.min(duration, currentTime + (e.shiftKey ? 10 : 1) / fps));
       }
     };
     window.addEventListener('keydown', h);

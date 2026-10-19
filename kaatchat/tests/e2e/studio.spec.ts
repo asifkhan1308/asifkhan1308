@@ -681,7 +681,6 @@ test('Studio: multi-select — shift-click, group drag, align, distribute, delet
 
   // Delete all three, then one undo brings them back.
   await reselect();
-  await page.locator('.v1-canvas-wrap').focus().catch(() => {});
   await page.keyboard.press('Delete');
   await expect(heads).toHaveCount(0);
   await page.keyboard.press('ControlOrMeta+z');
@@ -1091,4 +1090,16 @@ test('Studio: background colour, and Save frame as PNG at full resolution', asyn
   expect(px(10, 10)).toEqual([32, 64, 128]);                             // background
   expect(px(960, 540)).toEqual([255, 255, 255]);                         // the white circle at the centre
   expect(px(1910, 1070)).toEqual([32, 64, 128]);                         // full 1920×1080 frame
+});
+
+test('Studio: Alt + arrows nudge the selection; Shift + arrows step 10 frames', async ({ page }) => {
+  await page.goto('/#/studio');
+  await page.locator('.v1-tool', { hasText: 'Rect' }).click();
+  const x = page.locator('.v1-prop', { hasText: 'Position' }).locator('input').first();
+  const x0 = Number(await x.inputValue());
+  await page.keyboard.press('Alt+ArrowRight');
+  await page.keyboard.press('Alt+Shift+ArrowRight');
+  await expect(x).toHaveValue(String(x0 + 11));
+  await page.keyboard.press('Shift+ArrowRight');
+  await expect(page.locator('.v1-tl-time')).toContainText('0:00.33');
 });

@@ -25,6 +25,8 @@ Press **?** in the editor for every shortcut and gesture.
 - **Text, rectangle, ellipse, null, video, image, audio.**
 - **Select several** with Shift/⌘-click (canvas or timeline); **⌘A** selects all, **Esc** clears.
   Dragging moves the whole group; Delete / ⌘D act on all of them.
+- **Nudge** with Alt + arrow keys (1 px; add Shift for 10 px). Plain ← / → step frames
+  (Shift: 10 frames).
 - **Restack** by dragging a name in the timeline; **rename** by double-clicking it.
 - **Copy / paste** with ⌘C / ⌘V. If the selected layer has keyframes at the playhead,
   ⌘C copies those keyframes; otherwise it copies the layers (with the media they use),
