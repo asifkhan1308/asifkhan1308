@@ -1,6 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
 import { useV1 } from '../store';
-import { pickLayerAt, worldCorners } from '../engine/bbox';
+import { pickLayerAt, worldCorners, type WorldBox } from '../engine/bbox';
+import { aabb, guideTargets, snapMove } from '../engine/guides';
+import { ancestors } from '../engine/matrix';
 import { isLayerActive } from '../engine/compose';
 import ContextMenu from './ContextMenu';
 import { addLayerMenu, layerMenu } from './menuBuilders';
@@ -58,6 +60,30 @@ export default function V1CanvasHandles() {
   const selectLayer = useV1((s) => s.selectLayer);
   const [menu, setMenu] = useState<{ x: number; y: number; layerId: string | null } | null>(null);
 
+  /* Smart guides: snap a dragged layer's box to the frame and other layers.
+   * 6 screen px whatever the zoom; Alt drags freely. Children of the dragged
+   * layer move with it, so they are not targets. */
+  const [guides, setGuides] = useState<{ gx: number | null; gy: number | null } | null>(null);
+  const makeSnapper = (layerId: string, start: WorldBox) => {
+    const st = useV1.getState();
+    const t = st.currentTime;
+    const others = st.project.layers
+      .filter((l) => l.id !== layerId && l.type !== 'null' && isLayerActive(l, t))
+      .filter((l) => !ancestors(l, st.project.layers).some((a) => a.id === layerId))
+      .map((l) => worldCorners(l, t, st.project.assets, st.project.layers))
+      .filter((b): b is WorldBox => !!b)
+      .map((b) => aabb(b.corners));
+    const targets = guideTargets(st.project.composition, others);
+    const box = aabb(start.corners);
+    const thr = 6 / (svgRef.current?.getScreenCTM()?.a || 1);
+    return (d: V2, free: boolean): V2 => {
+      if (free) { setGuides(null); return d; }
+      const r = snapMove(box, d, targets, thr);
+      setGuides(r.gx === null && r.gy === null ? null : { gx: r.gx, gy: r.gy });
+      return r.d;
+    };
+  };
+
   const onContext = (ev: React.MouseEvent) => {
     ev.preventDefault();
     const p = toComp(ev as unknown as React.PointerEvent);
@@ -94,15 +120,18 @@ export default function V1CanvasHandles() {
     (ev.target as Element).setPointerCapture(ev.pointerId);
     const start = toComp(ev);
     const startPos: V2 = [...b.position];
+    const snap = makeSnapper(l.id, b);
     const onMove = (me: PointerEvent) => {
       const cur = toComp(me);
-      // World-space drag → the parent's space, so parented layers track the pointer.
-      const d = b.toParent([cur[0] - start[0], cur[1] - start[1]]);
+      // Snap in world space, then convert to the parent's space so parented
+      // layers track the pointer.
+      const d = b.toParent(snap([cur[0] - start[0], cur[1] - start[1]], me.altKey));
       state.setPropertyBase<V2>(l.id, 'position', [startPos[0] + d[0], startPos[1] + d[1]]);
     };
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      setGuides(null);
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
@@ -149,13 +178,14 @@ export default function V1CanvasHandles() {
       case 'r': pivot = [(tl[0] + bl[0]) / 2, (tl[1] + bl[1]) / 2]; break;
     }
 
+    const snapBody = makeSnapper(layer.id, box);
     const onMove = (me: PointerEvent) => {
       const cur = toComp(me);
       const dx = cur[0] - start[0];
       const dy = cur[1] - start[1];
 
       if (kind === 'body') {
-        const d = box.toParent([dx, dy]);
+        const d = box.toParent(snapBody([dx, dy], me.altKey));
         setPropertyBase<V2>(layer.id, 'position', [startPos[0] + d[0], startPos[1] + d[1]]);
       } else if (kind === 'rot') {
         const a0 = Math.atan2(start[1] - center[1], start[0] - center[0]);
@@ -188,6 +218,7 @@ export default function V1CanvasHandles() {
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      setGuides(null);
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
@@ -215,6 +246,8 @@ export default function V1CanvasHandles() {
             onPointerDown={onBackdropDown}
           />
           {nullMarks}
+          {guides?.gx != null && <line className="v1-guide" x1={guides.gx} y1={0} x2={guides.gx} y2={comp.height} />}
+          {guides?.gy != null && <line className="v1-guide" x1={0} y1={guides.gy} x2={comp.width} y2={guides.gy} />}
         </svg>
         <ContextMenu
           anchor={menu ? { x: menu.x, y: menu.y } : null}
@@ -256,6 +289,8 @@ export default function V1CanvasHandles() {
         onPointerDown={onBackdropDown}
       />
       {nullMarks}
+      {guides?.gx != null && <line className="v1-guide" x1={guides.gx} y1={0} x2={guides.gx} y2={comp.height} />}
+      {guides?.gy != null && <line className="v1-guide" x1={0} y1={guides.gy} x2={comp.width} y2={guides.gy} />}
       {/* Selection outline */}
       <polygon
         className="v1-sel-outline"

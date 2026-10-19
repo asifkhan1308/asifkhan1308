@@ -458,3 +458,33 @@ test('Studio: parenting — a rectangle follows its null on canvas and in the ex
   expect(lum(1458, 538)).toBeGreaterThan(200);
   expect(lum(708, 538)).toBeLessThan(60);
 });
+
+test('Studio: smart guides snap canvas drags to the frame centre; Alt drags freely', async ({ page }) => {
+  await page.goto('/#/studio');
+  await page.locator('.v1-tool', { hasText: 'Ellipse' }).click();      // centred at 960,540
+  const stage = (await page.locator('.v1-canvas').boundingBox())!;
+  const k = stage.width / 1920;
+  const cx = stage.x + 960 * k, cy = stage.y + 540 * k;
+  const pos = page.locator('.v1-inspector .v1-section').first().locator('.v1-field input');
+
+  // Drag right 300 comp px and 3 screen px down: the 3 px slip snaps back to the centre line.
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + 150 * k, cy + 2, { steps: 4 });
+  await page.mouse.move(cx + 300 * k, cy + 3, { steps: 4 });
+  await expect(page.locator('.v1-guide')).toHaveCount(1);              // horizontal centre guide shown
+  await page.mouse.up();
+  await expect(page.locator('.v1-guide')).toHaveCount(0);
+  expect(Number(await pos.nth(1).inputValue())).toBe(540);
+  expect(Math.abs(Number(await pos.nth(0).inputValue()) - 1260)).toBeLessThan(4);
+
+  // Same slip with Alt held: no snapping.
+  const x1 = stage.x + Number(await pos.nth(0).inputValue()) * k;
+  await page.mouse.move(x1, cy);
+  await page.keyboard.down('Alt');
+  await page.mouse.down();
+  await page.mouse.move(x1, cy + 3, { steps: 4 });
+  await page.mouse.up();
+  await page.keyboard.up('Alt');
+  expect(Number(await pos.nth(1).inputValue())).toBeGreaterThan(542);
+});
