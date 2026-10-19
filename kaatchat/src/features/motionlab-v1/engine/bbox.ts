@@ -40,6 +40,7 @@ export function intrinsicSize(layer: Layer, time: number, assets: Asset[]): V2 {
       if (!measure) return [200, Math.max(10, resolveAnimated(layer.fontSize, time))];
       const size = resolveAnimated(layer.fontSize, time);
       measure.font = `${layer.fontWeight} ${size}px ${layer.fontFamily}`;
+      (measure as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = `${layer.letterSpacing || 0}px`;
       const lines = layer.text.split('\n');
       const w = Math.max(1, ...lines.map((l) => measure.measureText(l).width));
       const h = Math.max(size, size * layer.lineHeight * lines.length);

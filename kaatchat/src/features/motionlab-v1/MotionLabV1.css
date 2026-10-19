@@ -1054,3 +1054,5 @@
 }
 .v1-tl-marker span { font-size: 9.5px; font-weight: 600; line-height: 1; color: var(--v1-text); background: var(--v1-surface-2); padding: 1px 3px; border-radius: 2px; white-space: nowrap; margin-bottom: 1px; }
 .v1-tl-marker-edit { position: absolute; top: 2px; z-index: 4; width: 110px; font: inherit; font-size: 10.5px; padding: 1px 4px; border: 1px solid var(--v1-text); border-radius: 3px; background: var(--v1-surface); color: var(--v1-text); }
+.v1-prop-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.v1-prop-pair label { display: flex; flex-direction: column; gap: 4px; }

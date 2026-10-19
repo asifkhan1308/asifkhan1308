@@ -45,6 +45,7 @@ Actions:
   { "op": "set_text", "text": string }                                      // text layers
   { "op": "set_color", "color": "#rrggbb" }                                 // text / shape fill (solid)
   { "op": "set_gradient", "from": "#rrggbb", "to": "#rrggbb", "angle"?: <deg> } // linear gradient fill; 0° = left→right
+  { "op": "set_stroke", "color": "#rrggbb" | null, "width"?: <px> }          // outline (null = off)
   { "op": "comp", "duration": <sec> }
   { "op": "marker", "time"?: <sec>, "label"?: string }                    // timeline marker (default: playhead)
   { "op": "parent", "to": "<layer id or name>" | null }
@@ -248,6 +249,16 @@ export function applyAIActions(actions: unknown): AIResult {
           if (!/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(c)) { skip('color must be #rrggbb'); break; }
           if (layer.type !== 'text' && layer.type !== 'rectangle' && layer.type !== 'ellipse') { skip(`${layer.type} layers have no fill`); break; }
           s.patchLayer(layer.id, { fill: c, gradient: undefined } as Partial<Layer>);
+          res.applied++;
+          break;
+        }
+        case 'set_stroke': {
+          if (layer.type !== 'text' && layer.type !== 'rectangle' && layer.type !== 'ellipse') { skip(`${layer.type} layers have no stroke`); break; }
+          if (raw.color === null || raw.color === 'none') { s.patchLayer(layer.id, { stroke: null } as Partial<Layer>); res.applied++; break; }
+          const c = typeof raw.color === 'string' ? raw.color.trim() : '';
+          if (!/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(c)) { skip('stroke colour must be #rrggbb'); break; }
+          const w = Math.max(0, Math.min(200, num(raw.width) ?? 4));
+          s.patchLayer(layer.id, { stroke: c, strokeWidth: w } as Partial<Layer>);
           res.applied++;
           break;
         }

@@ -317,6 +317,8 @@ function drawGrain(ctx: CanvasRenderingContext2D, amount: number, w: number, h: 
 function drawText(ctx: CanvasRenderingContext2D, layer: import('../types').TextLayer, time: number) {
   const size = resolveAnimated(layer.fontSize, time);
   ctx.font = `${layer.fontWeight} ${size}px ${layer.fontFamily}`;
+  // Letter spacing (Chromium / Safari canvas support it; others ignore it).
+  (ctx as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = `${layer.letterSpacing || 0}px`;
   ctx.textAlign = layer.align;
   ctx.textBaseline = 'alphabetic';
   const lines = layer.text.split('\n');

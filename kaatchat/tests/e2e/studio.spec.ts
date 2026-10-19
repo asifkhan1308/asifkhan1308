@@ -927,3 +927,34 @@ test('Studio: M adds a marker; click jumps, double-click renames, trims snap to 
   await page.locator('.v1-ctx-item', { hasText: 'Delete marker' }).click();
   await expect(marker).toHaveCount(0);
 });
+
+test('Studio: stroke, font family and letter spacing', async ({ page }) => {
+  await page.goto('/#/studio');
+  await page.locator('.v1-tool', { hasText: 'Rect' }).click();          // white, x 672–1248
+  const px = (x: number, y: number) => page.evaluate(([cx, cy]) => {
+    const c = document.querySelector('.v1-canvas') as HTMLCanvasElement;
+    const k = c.width / 1920;
+    return [...c.getContext('2d')!.getImageData(Math.round(cx * k), Math.round(cy * k), 1, 1).data].slice(0, 3);
+  }, [x, y]);
+  expect((await px(1256, 540))[0]).toBeLessThan(20);                     // just outside: background
+  await page.locator('.v1-seg[aria-label="Stroke"]').getByRole('button', { name: 'On' }).click();
+  await page.getByLabel('Stroke colour').evaluate((el) => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, '#ff0000');
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  const width = page.locator('.v1-prop', { hasText: 'Stroke' }).locator('.v1-field input');
+  await setValue(width, 24);                                             // 12 px lands outside the edge
+  await expect.poll(() => px(1256, 540)).toEqual([255, 0, 0]);
+
+  // Text: letter spacing widens the measured box; the font menu changes the rendering.
+  await page.locator('.v1-ai-input').fill('add a title "SPACING"');
+  await page.locator('.v1-ai-input').press('Enter');
+  const boxW = () => page.locator('.v1-sel-outline').first().evaluate((el) => (el as SVGGraphicsElement).getBBox().width);
+  const w0 = await boxW();
+  await setValue(page.locator('.v1-prop-pair label', { hasText: 'Letter spacing' }).locator('input'), 40);
+  await expect.poll(boxW).toBeGreaterThan(w0 + 200);                     // 7 letters × 40 px
+  const shot = () => page.locator('.v1-canvas').screenshot();
+  const before = await shot();
+  await page.getByLabel('Font family').selectOption({ label: 'Serif' });
+  await expect.poll(async () => Buffer.compare(await shot(), before)).not.toBe(0);
+});

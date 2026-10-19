@@ -30,7 +30,7 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
   // placeholders, split, then restore.
   const saved: string[] = [];
   const masked = prompt.replace(/"[^"]*"|“[^”]*”/g, (q) => `\uE000${saved.push(q) - 1}\uE000`);
-  const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent|mask|matte|use|align|center|centre|typewriter|type|reveal|letter|word|gradient|drop|put)))\s*/i);
+  const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent|mask|matte|use|align|center|centre|typewriter|type|reveal|letter|word|gradient|drop|put|outline|stroke)))\s*/i);
 
   for (const part of clauses) {
     const c = part.replace(/\uE000(\d+)\uE000/g, (_, i) => saved[Number(i)]).trim();
@@ -70,6 +70,13 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
     if (/\b(?:pop|bounce)\b/.test(l)) { preset('pop'); continue; }
     if (/\bspin\b|\brotate\s+(?:it\s+)?(?:a\s+)?full\b|\b360\b/.test(l)) { preset('spin'); continue; }
 
+    // outline: "outline it white 4px" / "stroke 6px black" / "no outline"
+    if (/^(?:no|remove)\s+(?:the\s+)?(?:outline|stroke)\b/.test(l)) { out.push({ op: 'set_stroke', color: null }); continue; }
+    if ((m = l.match(/^(?:outline|stroke)(?:\s+(?:it|this))?(?:\s+(?:in|with))?\s+(?:(#[0-9a-f]{3,8}|[a-z]+)\s*)?(?:(\d+(?:\.\d+)?)\s*px)?\s*(#[0-9a-f]{3,8}|[a-z]+)?\s*$/))) {
+      const name = m[1] ?? m[3];
+      const col = !name ? '#000000' : name.startsWith('#') ? name : COLORS[name];
+      if (col) { out.push({ op: 'set_stroke', color: col, ...(m[2] ? { width: Number(m[2]) } : {}) }); continue; }
+    }
     // gradient: "gradient from red to blue (at 45°)"
     if ((m = l.match(/\bgradient\s+(?:from\s+)?(#[0-9a-f]{3,8}|[a-z]+)\s+(?:to|into)\s+(#[0-9a-f]{3,8}|[a-z]+)(?:\s+(?:at\s+)?(-?\d+)\s*(?:°|deg|degrees)?)?/))) {
       const c1 = m[1].startsWith('#') ? m[1] : COLORS[m[1]];

@@ -210,6 +210,7 @@ export default function V1Inspector() {
             </PropRow>
           )}
           <FillField layer={layer} />
+          <StrokeField layer={layer} />
         </section>
       )}
 
@@ -391,6 +392,27 @@ export default function V1Inspector() {
             </select>
           </div>
           <div className="v1-prop">
+            <div className="v1-prop-head"><span className="v1-prop-label">Font</span></div>
+            <select
+              className="select-full"
+              aria-label="Font family"
+              value={FONTS.some((f) => f.css === layer.fontFamily) ? layer.fontFamily : FONTS[0].css}
+              onChange={(e) => patchLayer(layer.id, { fontFamily: e.target.value })}
+            >
+              {FONTS.map((f) => <option key={f.css} value={f.css}>{f.label}</option>)}
+            </select>
+          </div>
+          <div className="v1-prop v1-prop-pair">
+            <label>
+              <span className="v1-prop-label">Letter spacing</span>
+              <NumberField value={layer.letterSpacing} onChange={(v) => patchLayer(layer.id, { letterSpacing: Math.max(-20, Math.min(200, v)) })} step={1} suffix="px" />
+            </label>
+            <label>
+              <span className="v1-prop-label">Line height</span>
+              <NumberField value={layer.lineHeight} onChange={(v) => patchLayer(layer.id, { lineHeight: Math.max(0.5, Math.min(4, v)) })} step={0.05} suffix="×" />
+            </label>
+          </div>
+          <div className="v1-prop">
             <div className="v1-prop-head"><span className="v1-prop-label">Align</span></div>
             <select
               className="select-full"
@@ -403,6 +425,7 @@ export default function V1Inspector() {
             </select>
           </div>
           <FillField layer={layer} />
+          <StrokeField layer={layer} />
         </section>
       )}
     </div>
@@ -444,6 +467,40 @@ function animatedPropertyFor(layer: Layer, path: AnimPath): AnimatedProperty<unk
 }
 
 /* ───── small controls ───── */
+
+/* System font stacks that exist everywhere (works offline, no downloads). */
+const FONTS: Array<{ label: string; css: string }> = [
+  { label: 'Sans (Inter / system)', css: 'Inter, -apple-system, system-ui, sans-serif' },
+  { label: 'Rounded', css: 'ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif' },
+  { label: 'Serif', css: 'Georgia, "Times New Roman", serif' },
+  { label: 'Mono', css: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace' },
+  { label: 'Condensed', css: '"Arial Narrow", "Roboto Condensed", "Helvetica Neue", sans-serif' },
+  { label: 'Display (heavy)', css: 'Impact, "Arial Black", "Helvetica Neue", sans-serif' },
+];
+
+/** Outline: off, or a colour + width (shapes and text). */
+function StrokeField({ layer }: { layer: Layer & { stroke: string | null; strokeWidth: number } }) {
+  const patch = (p: Partial<{ stroke: string | null; strokeWidth: number }>) => useV1.getState().patchLayer(layer.id, p as Partial<Layer>);
+  const on = !!layer.stroke && layer.strokeWidth > 0;
+  return (
+    <div className="v1-prop">
+      <div className="v1-prop-head">
+        <span className="v1-prop-label">Stroke</span>
+        <div className="v1-seg" role="group" aria-label="Stroke">
+          <button type="button" className={!on ? 'on' : ''} aria-pressed={!on} onClick={() => patch({ stroke: null })}>Off</button>
+          <button type="button" className={on ? 'on' : ''} aria-pressed={on}
+            onClick={() => !on && patch({ stroke: layer.stroke ?? '#000000', strokeWidth: layer.strokeWidth > 0 ? layer.strokeWidth : 4 })}>On</button>
+        </div>
+      </div>
+      {on && (
+        <div className="v1-grad">
+          <input type="color" className="color-input" aria-label="Stroke colour" value={layer.stroke!} onChange={(e) => patch({ stroke: e.target.value })} />
+          <NumberField value={layer.strokeWidth} onChange={(v) => patch({ strokeWidth: Math.max(0, Math.min(200, v)) })} step={1} suffix="px" />
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** Fill: solid colour (as before) or a two-colour linear gradient + angle. */
 function FillField({ layer }: { layer: Layer & { fill: string; gradient?: Gradient } }) {
