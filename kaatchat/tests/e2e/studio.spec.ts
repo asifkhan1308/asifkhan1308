@@ -219,3 +219,28 @@ test('Studio: drag layers to restack them and rename inline', async ({ page }) =
   await expect(heads).toHaveCount(3);
   await expect(heads.nth(2).locator('.v1-tl-layer-name')).not.toHaveText('Box');
 });
+
+test('Studio: ✦ Ask works offline — add, style, animate and trim in one undoable command', async ({ page }) => {
+  await page.goto('/#/studio');
+  const ask = page.locator('.v1-ai-input');
+  await ask.fill('add a title "Launch day" and pop it in, make it red, trim to 3s');
+  await ask.press('Enter');
+  await expect(page.locator('.v1-ai-status')).toContainText('Applied 4 actions');
+  const heads = page.locator('.v1-tl-layer-row-head');
+  await expect(heads).toHaveCount(1);
+  await expect(page.locator('.text-input')).toHaveValue('Launch day');
+  // pop = 3 scale keys; the clip is 3 s of the 10 s comp.
+  await expect(page.locator('.v1-tl-layer-row-track').first().locator('.v1-tl-kf')).toHaveCount(3);
+  const width = await page.locator('.v1-tl-clip').first().evaluate((el) => parseFloat((el as HTMLElement).style.width));
+  expect(width).toBeCloseTo(30, 1);
+
+  // One ⌘Z removes the whole command.
+  await page.locator('.v1-canvas-wrap').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(heads).toHaveCount(0);
+
+  // Unknown phrases explain themselves instead of failing silently.
+  await ask.fill('write me a poem');
+  await ask.press('Enter');
+  await expect(page.locator('.v1-ai-status.err')).toContainText('Offline mode');
+});

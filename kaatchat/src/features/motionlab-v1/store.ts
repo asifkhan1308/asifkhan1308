@@ -96,6 +96,8 @@ interface MotionLabV1State extends UIState {
   setActiveTool: (t: UIState['activeTool']) => void;
 
   /* History */
+  /** Run several edits as ONE undo step (e.g. a whole ✦ Ask command). */
+  batch: (fn: () => void, label?: string) => void;
   undo: () => void;
   redo: () => void;
   canUndo: () => boolean;
@@ -625,6 +627,12 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
   },
   setIsPlaying: (b) => set({ isPlaying: b }),
   setActiveTool: (t) => set({ activeTool: t }),
+
+  batch: (fn, label = 'Edit') => {
+    const before = get().project;
+    history.silence(fn);
+    if (get().project !== before) history.push(get().project, label);
+  },
 
   undo: () => {
     const prev = history.undo();
