@@ -65,6 +65,11 @@ export default function V1Timeline() {
   const gridRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
   const [snapOn, setSnapOn] = useState(true);
+  // Timeline markers (M): on the ruler; click jumps, double-click renames,
+  // right-click for rename / delete.
+  const markers = useV1((s) => s.project.markers);
+  const [markerMenu, setMarkerMenu] = useState<{ x: number; y: number; id: string } | null>(null);
+  const [editingMarker, setEditingMarker] = useState<string | null>(null);
   // V1.5 review feedback: markers on the ruler + a list to work through.
   const comments = useV1((s) => s.project.comments);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -224,6 +229,39 @@ export default function V1Timeline() {
               <span>{tickLabel(s)}</span>
             </div>
           ))}
+          {(markers ?? []).map((m) => (
+            editingMarker === m.id ? (
+              <input
+                key={m.id}
+                className="v1-tl-marker-edit"
+                style={{ left: `${(m.time / comp.duration) * 100}%` }}
+                defaultValue={m.label}
+                autoFocus
+                aria-label="Marker name"
+                onFocus={(e) => e.currentTarget.select()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === 'Enter') { useV1.getState().renameMarker(m.id, e.currentTarget.value); setEditingMarker(null); }
+                  if (e.key === 'Escape') setEditingMarker(null);
+                }}
+                onBlur={(e) => { useV1.getState().renameMarker(m.id, e.currentTarget.value); setEditingMarker(null); }}
+              />
+            ) : (
+              <button
+                key={m.id}
+                className="v1-tl-marker"
+                style={{ left: `${(m.time / comp.duration) * 100}%` }}
+                title={`${m.label} — click to jump, double-click to rename`}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => setCurrentTime(m.time)}
+                onDoubleClick={() => setEditingMarker(m.id)}
+                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setMarkerMenu({ x: e.clientX, y: e.clientY, id: m.id }); }}
+              >
+                <span>{m.label}</span>
+              </button>
+            )
+          ))}
           {openComments.map((c) => (
             <button
               key={c.id}
@@ -294,6 +332,14 @@ export default function V1Timeline() {
           ))
         )}
       </div>
+      <ContextMenu
+        anchor={markerMenu ? { x: markerMenu.x, y: markerMenu.y } : null}
+        onClose={() => setMarkerMenu(null)}
+        items={markerMenu ? [
+          { label: 'Rename marker…', run: () => setEditingMarker(markerMenu.id) },
+          { label: 'Delete marker', danger: true, run: () => useV1.getState().removeMarker(markerMenu.id) },
+        ] : []}
+      />
       <ContextMenu
         anchor={menu ? { x: menu.x, y: menu.y } : null}
         onClose={() => setMenu(null)}
@@ -407,7 +453,7 @@ function LayerRowImpl({
     let cur = t0;
     let dragged = false;
     // Snap to other layers and this layer's clip edges (not the playhead: it follows the key).
-    const targets = snapTargets(useV1.getState().project.layers, duration, layer.id, [layer.startTime, layer.startTime + layer.duration]);
+    const targets = snapTargets(useV1.getState().project.layers, duration, layer.id, [layer.startTime, layer.startTime + layer.duration, ...markerTimes()]);
     const thr = (SNAP_PX / rect.width) * duration;
     const onMove = (ev: PointerEvent) => {
       if (!dragged && Math.abs(ev.clientX - x0) < 3) return;
@@ -446,7 +492,7 @@ function LayerRowImpl({
     const end0 = layer.startTime + layer.duration;
     const t0 = toTime(e.clientX);
     const st = useV1.getState();
-    const targets = snapTargets(st.project.layers, duration, layer.id, [st.currentTime]);
+    const targets = snapTargets(st.project.layers, duration, layer.id, [st.currentTime, ...markerTimes()]);
     const thr = (SNAP_PX / rect.width) * duration;
     const onMove = (ev: PointerEvent) => {
       const t = toTime(ev.clientX);
@@ -583,6 +629,9 @@ const LayerRow = memo(LayerRowImpl, (a, b) =>
   a.renaming === b.renaming &&
   a.snap.enabled === b.snap.enabled &&
   nowKey(a) === nowKey(b));
+
+/** Marker times for snapping (read live so drags see new markers). */
+const markerTimes = () => (useV1.getState().project.markers ?? []).map((m) => m.time);
 
 /** Layer type label; media layers holding an audio file read "audio". */
 function TypeTag({ layer }: { layer: Layer }) {

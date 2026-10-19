@@ -895,3 +895,35 @@ test('Studio: music / audio files import as sound-only layers and are mixed into
   await (await dl2).saveAs(path2);
   expect(meanVolume(path2, 0.2, 2.5)).toBeGreaterThan(-40);
 });
+
+test('Studio: M adds a marker; click jumps, double-click renames, trims snap to it, right-click deletes', async ({ page }) => {
+  await page.goto('/#/studio');
+  await page.locator('.v1-tool', { hasText: 'Rect' }).click();
+  await seek(page, 0.4);                                                 // 4 s
+  await page.locator('.v1-canvas-wrap').hover();
+  await page.keyboard.press('m');
+  const marker = page.locator('.v1-tl-marker');
+  await expect(marker).toHaveCount(1);
+  await seek(page, 0.05);
+  await marker.click();
+  await expect(page.locator('.v1-tl-time')).toHaveText(/^04:00 \//);
+  await marker.dblclick();
+  await page.getByLabel('Marker name').fill('Beat drop');
+  await page.keyboard.press('Enter');
+  await expect(marker).toContainText('Beat drop');
+
+  // Trim the clip's end near the marker (playhead moved away): it snaps onto it.
+  await seek(page, 0.9);
+  const mx = await marker.evaluate((el) => { const b = el.getBoundingClientRect(); return b.left + 1; });
+  const h = (await page.locator('.v1-tl-clip-trim-out').first().boundingBox())!;
+  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(mx + 2, h.y + h.height / 2, { steps: 6 });
+  await page.mouse.up();
+  const clipEnd = await page.locator('.v1-tl-clip').first().evaluate((el) => parseFloat((el as HTMLElement).style.left) + parseFloat((el as HTMLElement).style.width));
+  expect(clipEnd).toBeCloseTo(40, 3);
+
+  await marker.click({ button: 'right' });
+  await page.locator('.v1-ctx-item', { hasText: 'Delete marker' }).click();
+  await expect(marker).toHaveCount(0);
+});

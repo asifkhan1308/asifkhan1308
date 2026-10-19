@@ -123,6 +123,10 @@ export default function MotionLabV1({ feedback }: { feedback?: string } = {}) {
       if (e.code === 'Space') {
         e.preventDefault();
         setIsPlaying(!isPlaying);
+      } else if (!mod && e.key.toLowerCase() === 'm') {
+        // M: drop a timeline marker at the playhead.
+        e.preventDefault();
+        useV1.getState().addMarker(currentTime);
       } else if (!mod && e.key.toLowerCase() === 'k') {
         // Avid/Premiere Pro convention: K splits at the playhead.
         if (selectedLayerId) {

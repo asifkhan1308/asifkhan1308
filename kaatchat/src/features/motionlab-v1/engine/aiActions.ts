@@ -46,6 +46,7 @@ Actions:
   { "op": "set_color", "color": "#rrggbb" }                                 // text / shape fill (solid)
   { "op": "set_gradient", "from": "#rrggbb", "to": "#rrggbb", "angle"?: <deg> } // linear gradient fill; 0° = left→right
   { "op": "comp", "duration": <sec> }
+  { "op": "marker", "time"?: <sec>, "label"?: string }                    // timeline marker (default: playhead)
   { "op": "parent", "to": "<layer id or name>" | null }
   { "op": "matte", "to": "<layer id or name>" | null, "inverted"?: boolean }
   { "op": "align", "edge": "left"|"hcenter"|"right"|"top"|"vcenter"|"bottom" }       // to the frame // show this layer only through (or outside) that layer                    // move/rotate/scale with that layer (usually a null)
@@ -92,6 +93,12 @@ export function applyAIActions(actions: unknown): AIResult {
         if (typeof raw.name === 'string' && raw.name.trim()) s.renameLayer(id, raw.name.trim());
         lastAdded = id;
         s.selectLayer(id);
+        res.applied++;
+        continue;
+      }
+      if (op === 'marker') {
+        const t = num(raw.time) ?? s.currentTime;
+        s.addMarker(clampT(t), typeof raw.label === 'string' ? raw.label : undefined);
         res.applied++;
         continue;
       }

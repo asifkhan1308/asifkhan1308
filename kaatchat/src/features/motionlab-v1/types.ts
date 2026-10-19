@@ -206,7 +206,11 @@ export interface Project {
   /** Review feedback received via a feedback link (V1.5). Optional: older
    *  projects simply have none. */
   comments?: ReviewComment[];
+  /** Timeline markers (M at the playhead). Optional: older projects have none. */
+  markers?: Marker[];
 }
+
+export interface Marker { id: string; time: number; label: string }
 
 /* ───── Review (V1.5) ───── */
 export interface ReviewComment {

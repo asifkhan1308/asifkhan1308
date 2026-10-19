@@ -10,6 +10,7 @@ const GROUPS: Array<{ title: string; rows: Array<[string, string]> }> = [
       ['Space', 'Play / pause'],
       ['Home / End', 'Jump to start / end'],
       ['← / →', 'Previous / next frame'],
+      ['M', 'Add a marker at the playhead (double-click to rename)'],
     ],
   },
   {

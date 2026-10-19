@@ -35,6 +35,13 @@ export function changeKey(prev: Project, next: Project): string {
   if (prev.composition !== next.composition) parts.push('comp');
   b.forEach((l, i) => { if (l !== a[i]) parts.push(l.id); });
   if (prev.assets !== next.assets) parts.push('assets');
+  // Markers / review comments: adding or removing one is its own step;
+  // edits (rename, resolve) only merge with the same kind of edit.
+  for (const k of ['markers', 'comments'] as const) {
+    if (prev[k] === next[k]) continue;
+    if ((prev[k]?.length ?? 0) !== (next[k]?.length ?? 0)) return `struct#${++uniq}`;
+    parts.push(k);
+  }
   return parts.join(',') || 'meta';
 }
 

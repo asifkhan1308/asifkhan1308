@@ -30,7 +30,7 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
   // placeholders, split, then restore.
   const saved: string[] = [];
   const masked = prompt.replace(/"[^"]*"|“[^”]*”/g, (q) => `\uE000${saved.push(q) - 1}\uE000`);
-  const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent|mask|matte|use|align|center|centre|typewriter|type|reveal|letter|word|gradient)))\s*/i);
+  const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent|mask|matte|use|align|center|centre|typewriter|type|reveal|letter|word|gradient|drop|put)))\s*/i);
 
   for (const part of clauses) {
     const c = part.replace(/\uE000(\d+)\uE000/g, (_, i) => saved[Number(i)]).trim();
@@ -38,6 +38,11 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
     if (!l) continue;
     let m: RegExpMatchArray | null;
 
+    // markers: "add a marker (called Drop) (at 2s)"
+    if ((m = c.match(/^(?:add|drop|put)\s+(?:a\s+)?marker\b(?:\s+(?:called|named|labelled|labeled)\s+(.+?))?(?:\s+at\s+(-?\d+(?:\.\d+)?)\s*(?:s|sec|secs|seconds?)?)?\s*$/i))) {
+      out.push({ op: 'marker', ...(m[1] ? { label: quoted(m[1]) } : {}), ...(m[2] ? { time: Number(m[2]) } : {}) });
+      continue;
+    }
     // add text / shapes
     if ((m = c.match(/^(?:add|create|insert)\s+(?:a|an|the)?\s*(?:text|title|heading|caption|label)\b(?:\s+(?:saying|that says|which says|with|reading|:))?\s*(.*)$/i))) {
       const text = quoted(m[1].replace(/^(?:text\s+)/i, ''));

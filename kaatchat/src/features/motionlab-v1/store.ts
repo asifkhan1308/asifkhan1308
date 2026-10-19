@@ -125,6 +125,11 @@ interface MotionLabV1State extends UIState {
   setActiveTool: (t: UIState['activeTool']) => void;
 
   /* History */
+  /* Timeline markers */
+  addMarker: (time: number, label?: string) => string;
+  renameMarker: (id: string, label: string) => void;
+  removeMarker: (id: string) => void;
+
   /* Review feedback (V1.5) */
   addComments: (list: ReviewComment[]) => number;   // returns how many were new
   setCommentResolved: (id: string, resolved: boolean) => void;
@@ -875,6 +880,22 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
   },
   setIsPlaying: (b) => set({ isPlaying: b }),
   setActiveTool: (t) => set({ activeTool: t }),
+
+  addMarker: (time, label) => {
+    const t = Math.max(0, Math.min(get().project.composition.duration, +time.toFixed(3)));
+    const existing = (get().project.markers ?? []).find((m) => Math.abs(m.time - t) < 0.01);
+    if (existing) return existing.id;                    // one marker per moment
+    const id = `m_${Math.random().toString(36).slice(2, 8)}`;
+    set((s) => {
+      const list = [...(s.project.markers ?? []), { id, time: t, label: label?.trim() || `Marker ${(s.project.markers?.length ?? 0) + 1}` }];
+      return { project: touch({ ...s.project, markers: list.sort((a, b) => a.time - b.time) }) };
+    });
+    return id;
+  },
+  renameMarker: (id, label) =>
+    set((s) => ({ project: touch({ ...s.project, markers: (s.project.markers ?? []).map((m) => (m.id === id ? { ...m, label: label.trim() || m.label } : m)) }) })),
+  removeMarker: (id) =>
+    set((s) => ({ project: touch({ ...s.project, markers: (s.project.markers ?? []).filter((m) => m.id !== id) }) })),
 
   addComments: (list) => {
     const have = new Set((get().project.comments ?? []).map((c) => c.id));
