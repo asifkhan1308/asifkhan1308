@@ -63,6 +63,10 @@ function textLeft(layer: Layer, w: number): number {
   return layer.align === 'center' ? -w / 2 : layer.align === 'right' ? -w : 0;
 }
 
+/** A media layer whose asset is an audio file (music / voice-over). */
+export const isAudioLayer = (layer: Layer, assets: Asset[]) =>
+  layer.type === 'media' && assets.find((a) => a.id === layer.assetId)?.kind === 'audio';
+
 export interface WorldBox {
   /** Four corners of the layer's local rect, in composition coordinates.
    *  Order: TL, TR, BR, BL. */
@@ -85,6 +89,7 @@ export interface WorldBox {
 }
 
 export function worldCorners(layer: Layer, time: number, assets: Asset[], layers?: Layer[]): WorldBox | null {
+  if (isAudioLayer(layer, assets)) return null; // sound only: no box on the canvas
   const t = resolveTransform(layer.transform, time);
   const [lw, lh] = intrinsicSize(layer, time, assets);
   const W = worldMatrix(layer, layers, time);
@@ -137,6 +142,7 @@ export function pickLayerAt(project: Project, time: number, point: V2): string |
   for (let i = project.layers.length - 1; i >= 0; i--) {
     const layer = project.layers[i];
     if (!isLayerActive(layer, time)) continue;
+    if (isAudioLayer(layer, project.assets)) continue;
     if (layer.locked) continue;
     const [lw, lh] = intrinsicSize(layer, time, project.assets);
     const localTop = layer.type === 'text'

@@ -453,7 +453,7 @@ function drawMedia(
   mediaBy?: Map<string, HTMLImageElement | HTMLVideoElement>,
 ) {
   const asset = assets.find((a) => a.id === layer.assetId);
-  if (!asset) return;
+  if (!asset || asset.kind === 'audio') return; // sound only — nothing to draw
   const el = mediaBy?.get(layer.assetId);
   if (!el) {
     // Placeholder tile when media isn't loaded yet so the layer is still visible.

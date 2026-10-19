@@ -29,19 +29,19 @@ export default function V1Toolbar() {
       // Engine import: probes real duration/dimensions and persists the bytes
       // in the shared media store, so the clip survives reload (rehydrateMedia).
       const m = await importFile(file);
-      if (m.kind === 'audio') throw new Error('Studio layers are visual. Audio tracks arrive in a later version.');
       const asset: Asset = {
         id: m.id,
-        kind: m.kind === 'video' ? 'video' : 'image',
+        kind: m.kind === 'video' ? 'video' : m.kind === 'audio' ? 'audio' : 'image',
         name: m.name,
         mime: m.mime,
         width: m.width,
         height: m.height,
-        duration: m.kind === 'video' ? m.duration : 0,
+        duration: m.kind === 'video' || m.kind === 'audio' ? m.duration : 0,
         url: URL.createObjectURL(file),
       };
       addAsset(asset);
-      if (asset.kind === 'video') addMediaLayer(asset);
+      // Audio files become media layers with sound and nothing to draw.
+      if (asset.kind === 'video' || asset.kind === 'audio') addMediaLayer(asset);
       else addImageLayer(asset);
       setNotice(null);
     } catch (e) {
@@ -77,7 +77,7 @@ export default function V1Toolbar() {
       <input
         ref={fileRef}
         type="file"
-        accept="image/*,video/*"
+        accept="image/*,video/*,audio/*"
         hidden
         onChange={(e) => {
           const f = e.target.files?.[0];

@@ -517,7 +517,7 @@ function LayerRowImpl({
           )}
           <div className="v1-tl-layer-type">
             {/* Parented layers show their parent here (type stays in the tooltip + Inspector). */}
-            {layer.parentId ? <ParentTag id={layer.parentId} type={layer.type} /> : layer.type}
+            {layer.parentId ? <ParentTag id={layer.parentId} type={layer.type} /> : <TypeTag layer={layer} />}
           </div>
         </div>
         <div className="v1-tl-row-actions">
@@ -583,6 +583,12 @@ const LayerRow = memo(LayerRowImpl, (a, b) =>
   a.renaming === b.renaming &&
   a.snap.enabled === b.snap.enabled &&
   nowKey(a) === nowKey(b));
+
+/** Layer type label; media layers holding an audio file read "audio". */
+function TypeTag({ layer }: { layer: Layer }) {
+  const audio = useV1((s) => layer.type === 'media' && s.project.assets.find((a) => a.id === layer.assetId)?.kind === 'audio');
+  return <>{audio ? '♪ audio' : layer.type}</>;
+}
 
 /** "↳ Parent name" next to a child's type label. Subscribes to the name only. */
 function ParentTag({ id, type }: { id: string; type: string }) {

@@ -855,3 +855,43 @@ test('Studio: motion blur streaks fast motion — paused canvas and export', asy
   const sharp = await exportGrey('sharp.mp4');
   expect(blurred).toBeGreaterThan(sharp + 8);
 });
+
+test('Studio: music / audio files import as sound-only layers and are mixed into the export', async ({ page }) => {
+  await page.goto('/#/studio');
+  await setValue(page.locator('.duration-field input'), 3);
+  await page.locator('.v1-tool', { hasText: 'Rect' }).click();
+  await page.locator('.v1-toolbar input[type=file]').setInputFiles(fx.music);
+  const heads = page.locator('.v1-tl-layer-row-head');
+  await expect(heads).toHaveCount(2);
+  await expect(heads.nth(1)).toContainText('♪ audio');
+  await expect(page.locator('.v1-audio-note')).toBeVisible();            // no transform for sound
+  await expect(page.locator('.v1-section', { hasText: 'Fade out' })).toBeVisible();
+  await expect(page.locator('.v1-sel-outline')).toHaveCount(0);          // nothing on the canvas
+  await expect(page.locator('.v1-notice.err')).toHaveCount(0);
+
+  await page.locator('.btn-export').click();
+  const render = page.locator('.modal .btn-primary');
+  await expect(render).toHaveText('Render', { timeout: 30_000 });
+  const dl = page.waitForEvent('download', { timeout: 120_000 });
+  await render.click();
+  const path = test.info().outputPath('music.mp4');
+  await (await dl).saveAs(path);
+  expect(probe(path).audio).toMatch(/^(aac|opus)/);
+  expect(meanVolume(path, 0.2, 2.5)).toBeGreaterThan(-40);               // the music is there
+
+  // Survives save → reload → reopen (bytes come back from the media store).
+  await page.locator('.v1-menu-trigger').click();
+  await page.locator('.v1-menu-item', { hasText: 'Save' }).first().click();
+  await expect(page.locator('.v1-save-badge')).toContainText('Saved');
+  await page.reload();
+  await page.locator('.v1-menu-trigger').click();
+  await page.locator('.v1-menu-recent-main').first().click();
+  await expect(heads.nth(1)).toContainText('♪ audio');
+  await page.locator('.btn-export').click();
+  await expect(page.locator('.modal .btn-primary')).toHaveText('Render', { timeout: 30_000 });
+  const dl2 = page.waitForEvent('download', { timeout: 120_000 });
+  await page.locator('.modal .btn-primary').click();
+  const path2 = test.info().outputPath('music-reopened.mp4');
+  await (await dl2).saveAs(path2);
+  expect(meanVolume(path2, 0.2, 2.5)).toBeGreaterThan(-40);
+});

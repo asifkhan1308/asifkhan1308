@@ -3,6 +3,7 @@ import { selectionOf, useV1 } from '../store';
 import { cubicBezier, resolveAnimated } from '../engine/interp';
 import type { AnimatedProperty, Bezier, Easing, Gradient, Layer, MatteMode, RevealMode, V2 } from '../types';
 import { wouldCycle } from '../engine/matrix';
+import { isAudioLayer } from '../engine/bbox';
 import type { AlignEdge } from '../engine/guides';
 
 type AnimPath =
@@ -47,6 +48,7 @@ export default function V1Inspector() {
   }
 
   const resolve = <T,>(ap: AnimatedProperty<T> | undefined) => (ap ? resolveAnimated(ap, currentTime) : undefined);
+  const audio = isAudioLayer(layer, project.assets);
   return (
     <div className="v1-inspector">
       {selCount > 1 && (
@@ -63,6 +65,9 @@ export default function V1Inspector() {
         <div className="v1-layer-type">{layer.type}</div>
       </div>
 
+      {audio ? (
+        <div className="v1-audio-note">Audio layer — sound only, nothing on the canvas. Use the Audio section to set volume and fades; trim and move it on the timeline.</div>
+      ) : (
       <section className="v1-section">
         <div className="v1-section-head">Transform</div>
 
@@ -183,6 +188,7 @@ export default function V1Inspector() {
           />
         </PropRow>
       </section>
+      )}
 
       {(layer.type === 'rectangle' || layer.type === 'ellipse') && (
         <section className="v1-section">
@@ -207,7 +213,7 @@ export default function V1Inspector() {
         </section>
       )}
 
-      {layer.type !== 'null' && (
+      {layer.type !== 'null' && !audio && (
         <section className="v1-section">
           <div className="v1-section-head">
             <span>Effects</span>

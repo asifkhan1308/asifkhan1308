@@ -1045,3 +1045,4 @@
 .v1-mb-btn { background: transparent; border: 1px solid var(--v1-line); color: var(--v1-text-2); border-radius: 6px; padding: 4px 10px; font: inherit; font-size: 11.5px; cursor: pointer; white-space: nowrap; }
 .v1-mb-btn.on { color: var(--v1-text); border-color: var(--v1-text); }
 .v1-mb-shutter { font: inherit; font-size: 11.5px; color: var(--v1-text); background: var(--v1-surface-2); border: 1px solid var(--v1-line); border-radius: 6px; padding: 3px 6px; }
+.v1-audio-note { font-size: 11.5px; line-height: 1.45; color: var(--v1-text-2); padding: 12px 14px; border-bottom: 1px solid var(--v1-line); }

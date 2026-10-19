@@ -177,7 +177,9 @@ export type Layer =
   | NullLayer;
 
 /* ───── Assets (referenced by media/image layers; one entry per source file) ───── */
-export type AssetKind = 'video' | 'image';
+/** 'audio' = a music / voice file used by a media layer that has sound
+ *  but nothing to draw. */
+export type AssetKind = 'video' | 'image' | 'audio';
 
 export interface Asset {
   id: string;
