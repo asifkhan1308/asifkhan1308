@@ -123,6 +123,10 @@ export default function MotionLabV1({ feedback }: { feedback?: string } = {}) {
       if (e.code === 'Space') {
         e.preventDefault();
         setIsPlaying(!isPlaying);
+      } else if (!mod && (e.key.toLowerCase() === 'b' || e.key.toLowerCase() === 'n')) {
+        // B / N: work area begins / ends at the playhead (After Effects keys).
+        e.preventDefault();
+        useV1.getState().setWorkArea(e.key.toLowerCase() === 'b' ? { start: currentTime } : { end: currentTime });
       } else if (!mod && e.key.toLowerCase() === 'm') {
         // M: drop a timeline marker at the playhead.
         e.preventDefault();

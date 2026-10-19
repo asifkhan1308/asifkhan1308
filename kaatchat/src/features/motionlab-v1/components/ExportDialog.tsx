@@ -11,6 +11,10 @@ export default function V1ExportDialog({ onClose }: { onClose: () => void }) {
   const mediaReady = project.assets.filter((a) => a.url).every((a) => mediaBy.has(a.id));
   const [format, setFormat] = useState<'mp4' | 'webm'>('mp4');
   const [quality, setQuality] = useState<'low' | 'medium' | 'high' | 'ultra'>('high');
+  // Like After Effects: when a work area is set, render that by default.
+  const workArea = project.composition.workArea;
+  const [onlyWorkArea, setOnlyWorkArea] = useState(!!workArea);
+  const fmtT = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`;
   const [state, setState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
   // Escape closes, except mid-render (Close is disabled then too).
   useEffect(() => {
@@ -31,6 +35,7 @@ export default function V1ExportDialog({ onClose }: { onClose: () => void }) {
         format,
         quality,
         mediaBy,
+        ...(workArea && onlyWorkArea ? { range: workArea } : {}),
         onProgress: (r, m) => {
           setProgress(Math.round(r * 100));
           setMessage(m);
@@ -60,6 +65,12 @@ export default function V1ExportDialog({ onClose }: { onClose: () => void }) {
           <button className="btn-close" onClick={onClose}>✕</button>
         </div>
         <div className="modal-content">
+          {workArea && (
+            <label className="v1-export-range">
+              <input type="checkbox" checked={onlyWorkArea} onChange={(e) => setOnlyWorkArea(e.target.checked)} />
+              <span>Work area only ({fmtT(workArea.start)} – {fmtT(workArea.end)})</span>
+            </label>
+          )}
           <div className="export-options">
             <div className="option-group">
               <label>Format</label>

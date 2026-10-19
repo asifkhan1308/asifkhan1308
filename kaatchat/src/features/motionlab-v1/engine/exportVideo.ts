@@ -26,6 +26,8 @@ export interface V1ExportOptions {
   mediaBy: Map<string, HTMLImageElement | HTMLVideoElement>;
   onProgress?: (ratio: number, message: string) => void;
   signal?: AbortSignal;
+  /** Export only this part of the timeline (e.g. the work area). */
+  range?: { start: number; end: number };
 }
 
 export interface V1ExportResult {
@@ -45,7 +47,10 @@ export async function exportProjectToVideo(opts: V1ExportOptions): Promise<V1Exp
   const width = even(comp.width);
   const height = even(comp.height);
   const fps = comp.fps;
-  const duration = Math.max(0.1, comp.duration);
+  // Whole comp, or just the requested range (work area); the file starts at 0.
+  const start = Math.max(0, Math.min(comp.duration, opts.range?.start ?? 0));
+  const end = Math.max(start + 0.1, Math.min(comp.duration, opts.range?.end ?? comp.duration));
+  const duration = Math.max(0.1, end - start);
   const totalFrames = Math.max(1, Math.round(duration * fps));
 
   const vCandidates: VideoCodec[] =
@@ -88,10 +93,12 @@ export async function exportProjectToVideo(opts: V1ExportOptions): Promise<V1Exp
       output.addAudioTrack(audioSource);
     }
   }
-  let samplesDone = 0;
+  // The mix covers the whole comp; a range export reads from its start.
+  const audioBase = Math.round(start * AUDIO_RATE);
+  let samplesDone = audioBase;
   const flushAudio = async (untilSeconds: number) => {
     if (!audioSource || !mix) return;
-    const until = Math.min(mix.length, Math.round(untilSeconds * AUDIO_RATE));
+    const until = Math.min(mix.length, audioBase + Math.round(untilSeconds * AUDIO_RATE));
     while (samplesDone < until) {
       const next = Math.min(until, samplesDone + AUDIO_RATE);
       await audioSource.add(sliceAudio(mix, samplesDone, next));
@@ -108,10 +115,10 @@ export async function exportProjectToVideo(opts: V1ExportOptions): Promise<V1Exp
   try {
     for (let k = 0; k < totalFrames; k++) {
       throwIfAborted();
-      const time = k / fps;
+      const time = start + k / fps;                    // comp time
       await seekMediaForExport(opts.project, time, opts.mediaBy);
       composeFrameBlurred(ctx, opts.project, time, { mediaBy: opts.mediaBy });
-      await videoSource.add(time, 1 / fps);
+      await videoSource.add(k / fps, 1 / fps);         // file time starts at 0
       opts.onProgress?.((k + 1) / totalFrames, `Frame ${k + 1} of ${totalFrames} · ${videoCodec.toUpperCase()}`);
       if (k % fps === fps - 1) await flushAudio((k + 1) / fps);
     }

@@ -66,6 +66,9 @@ Press **?** in the editor for every shortcut and gesture.
 - **Snap**: clips, trims and keyframes snap to the playhead, clip edges, keyframes and markers
   (hold Alt to drag freely; the *Snap* button turns it off).
 - **Markers**: **M** at the playhead; click to jump, double-click to rename, right-click to delete.
+- **Work area**: **B** / **N** set its start / end at the playhead. Playback loops inside it, and
+  Export renders just that range by default (untick *Work area only* for the whole comp).
+  Double-click the band to clear it.
 - **K** splits the selected clip at the playhead; drag clip edges to trim.
 
 ## Audio

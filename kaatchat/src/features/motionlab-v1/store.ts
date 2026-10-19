@@ -55,6 +55,8 @@ interface MotionLabV1State extends UIState {
   setCompositionSize: (w: number, h: number) => void;
   setCompositionFps: (fps: Project['composition']['fps']) => void;
   setCompositionDuration: (seconds: number) => void;
+  /** Work area start / end (B / N at the playhead); null clears it. */
+  setWorkArea: (wa: { start?: number; end?: number } | null) => void;
   /** Motion blur on/off and shutter (fraction of a frame, 0.5 = 180°). */
   setMotionBlur: (mb: { enabled: boolean; shutter?: number; samples?: number }) => void;
 
@@ -326,6 +328,19 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
 
   setCompositionSize: (width, height) =>
     set((s) => ({ project: touch({ ...s.project, composition: { ...s.project.composition, width, height } }) })),
+  setWorkArea: (wa) =>
+    set((s) => {
+      const c = s.project.composition;
+      if (!wa) return { project: touch({ ...s.project, composition: { ...c, workArea: undefined } }) };
+      const cur = c.workArea ?? { start: 0, end: c.duration };
+      let start = Math.max(0, Math.min(c.duration, wa.start ?? cur.start));
+      let end = Math.max(0, Math.min(c.duration, wa.end ?? cur.end));
+      // Setting one edge past the other moves the other edge along (like AE).
+      if (wa.start !== undefined && start >= end) end = Math.min(c.duration, start + 1 / c.fps);
+      if (wa.end !== undefined && end <= start) start = Math.max(0, end - 1 / c.fps);
+      start = +start.toFixed(4); end = +end.toFixed(4);
+      return { project: touch({ ...s.project, composition: { ...c, workArea: { start, end } } }) };
+    }),
   setMotionBlur: (mb) =>
     set((s) => {
       const cur = s.project.composition.motionBlur;
@@ -340,8 +355,11 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
       if (!Number.isFinite(duration) || duration <= 0) return s;
       // Layers past the new end are kept (non-destructive, like AE); only the
       // playhead must stay inside the comp.
+      const wa = s.project.composition.workArea;
+      // Keep a work area inside the new length (drop it if nothing is left).
+      const workArea = wa && wa.start < duration ? { start: wa.start, end: Math.min(wa.end, duration) } : undefined;
       return {
-        project: touch({ ...s.project, composition: { ...s.project.composition, duration } }),
+        project: touch({ ...s.project, composition: { ...s.project.composition, duration, workArea } }),
         currentTime: Math.min(s.currentTime, duration),
       };
     }),

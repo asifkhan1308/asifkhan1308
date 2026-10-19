@@ -34,6 +34,8 @@ export interface Composition {
   /** Motion blur: each frame averages sub-frames across the shutter.
    *  shutter = fraction of a frame (0.5 = 180°). Absent = off. */
   motionBlur?: { enabled: boolean; shutter: number; samples: number };
+  /** Work area (B / N): playback loops inside it; export can use it. */
+  workArea?: { start: number; end: number };
 }
 
 /* ───── Transform (every visual layer has one) ───── */

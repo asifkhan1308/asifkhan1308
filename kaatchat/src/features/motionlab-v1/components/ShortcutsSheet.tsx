@@ -11,6 +11,7 @@ const GROUPS: Array<{ title: string; rows: Array<[string, string]> }> = [
       ['Home / End', 'Jump to start / end'],
       ['← / →', 'Previous / next frame'],
       ['M', 'Add a marker at the playhead (double-click to rename)'],
+      ['B / N', 'Work area start / end at the playhead (loops playback; export can use it)'],
     ],
   },
   {

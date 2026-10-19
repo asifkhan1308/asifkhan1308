@@ -1059,3 +1059,7 @@
 .v1-gen-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .v1-gen-chip { font: inherit; font-size: 11px; color: var(--v1-text); background: var(--v1-surface-2); border: 1px solid var(--v1-line); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
 .v1-gen-chip:hover { border-color: var(--v1-text); }
+
+/* Work area */
+.v1-tl-workarea { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--v1-text) 14%, transparent); border-left: 2px solid var(--v1-text); border-right: 2px solid var(--v1-text); pointer-events: auto; z-index: 1; }
+.v1-export-range { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--v1-text); margin-bottom: 12px; }

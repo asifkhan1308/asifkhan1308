@@ -1018,3 +1018,47 @@ test('Studio: a group drag is one undo step; quick ✦ Ask commands are one step
   await expect(page.locator('.v1-seg[aria-label="Stroke"] button.on')).toHaveText('Off');
   await expect(page.getByLabel('Fill colour')).toHaveValue('#ff3b30');  // the colour command is still applied
 });
+
+test('Studio: work area — B / N, looped playback, and a range export with correctly offset audio', async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.goto('/#/studio');
+  await setValue(page.locator('.duration-field input'), 4);
+  await page.locator('.v1-toolbar input[type=file]').setInputFiles(fx.talk); // tone 1–4 s
+  await expect(page.locator('.v1-tl-layer-row-head')).toHaveCount(1);
+  await page.locator('.v1-canvas-wrap').hover();
+  await seek(page, 0.25);                                                // 1 s
+  await page.keyboard.press('b');
+  await seek(page, 0.75);                                                // 3 s
+  await page.keyboard.press('n');
+  await expect(page.locator('.v1-tl-workarea')).toHaveCount(1);
+
+  // Playback loops inside 1–3 s.
+  await page.keyboard.press('Space');
+  const seen: number[] = [];
+  for (let i = 0; i < 12; i++) {
+    await page.waitForTimeout(250);
+    const [m, s] = (await page.locator('.v1-tl-time').innerText()).split(' / ')[0].split(':');
+    seen.push(Number(m) * 60 + Number(s));
+  }
+  await page.keyboard.press('Space');
+  expect(Math.min(...seen)).toBeGreaterThanOrEqual(0.99);
+  expect(Math.max(...seen)).toBeLessThanOrEqual(3.01);
+
+  // Export defaults to the work area: a 2 s file whose audio starts on the tone.
+  await page.locator('.btn-export').click();
+  await expect(page.locator('.v1-export-range input')).toBeChecked();
+  const render = page.locator('.modal .btn-primary');
+  await expect(render).toHaveText('Render', { timeout: 30_000 });
+  const dl = page.waitForEvent('download', { timeout: 120_000 });
+  await render.click();
+  const path = test.info().outputPath('range.mp4');
+  await (await dl).saveAs(path);
+  const info = probe(path);
+  expect(info.duration).toBeGreaterThan(1.9);
+  expect(info.duration).toBeLessThan(2.2);
+  expect(meanVolume(path, 0.05, 0.5)).toBeGreaterThan(-30);              // tone from the first moment
+
+  // Double-click clears it.
+  await page.locator('.v1-tl-workarea').dblclick();
+  await expect(page.locator('.v1-tl-workarea')).toHaveCount(0);
+});

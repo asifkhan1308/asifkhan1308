@@ -233,6 +233,15 @@ export default function V1Timeline() {
               <span>{tickLabel(s)}</span>
             </div>
           ))}
+          {comp.workArea && (
+            <div
+              className="v1-tl-workarea"
+              style={{ left: `${(comp.workArea.start / comp.duration) * 100}%`, width: `${((comp.workArea.end - comp.workArea.start) / comp.duration) * 100}%` }}
+              title="Work area — playback loops here; export can use it. Double-click to clear."
+              onMouseDown={(e) => { if (e.detail > 1) e.stopPropagation(); }}
+              onDoubleClick={(e) => { e.stopPropagation(); useV1.getState().setWorkArea(null); }}
+            />
+          )}
           {(markers ?? []).map((m) => (
             editingMarker === m.id ? (
               <input

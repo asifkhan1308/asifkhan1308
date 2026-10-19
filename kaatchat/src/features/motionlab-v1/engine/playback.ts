@@ -24,9 +24,13 @@ export function usePlaybackClock() {
     const tick = (now: number) => {
       const dt = (now - lastRef.current) / 1000;
       lastRef.current = now;
-      const next = useV1.getState().currentTime + dt;
-      if (next >= duration) {
-        setCurrentTime(0);
+      // Loop inside the work area when there is one, else the whole comp.
+      const wa = useV1.getState().project.composition.workArea;
+      const lo = wa ? wa.start : 0, hi = wa ? wa.end : duration;
+      const cur = useV1.getState().currentTime;
+      const next = (cur < lo || cur > hi ? lo : cur) + dt;
+      if (next >= hi) {
+        setCurrentTime(lo);
       } else {
         setCurrentTime(next);
       }
