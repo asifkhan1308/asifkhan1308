@@ -985,3 +985,36 @@ test('Studio: Generate offline templates from the chips', async ({ page }) => {
     await expect(heads).toHaveCount(0);
   }
 });
+
+test('Studio: a group drag is one undo step; quick ✦ Ask commands are one step each', async ({ page }) => {
+  await page.goto('/#/studio');
+  const pos = transform(page).locator('.v1-field input');
+  const heads = page.locator('.v1-tl-layer-row-head');
+  for (const x of [600, 1300]) {
+    await page.locator('.v1-tool', { hasText: 'Ellipse' }).click();
+    await setValue(pos.nth(0), x);
+  }
+  await heads.nth(0).click();
+  await heads.nth(1).click({ modifiers: ['Shift'] });
+  const stage = (await page.locator('.v1-canvas').boundingBox())!;
+  const k = stage.width / 1920;
+  const [sx, sy] = [stage.x + 600 * k, stage.y + 540 * k];
+  await page.mouse.move(sx, sy);
+  await page.mouse.down();
+  for (let i = 1; i <= 10; i++) await page.mouse.move(sx + i * 8, sy + 30 + i, { steps: 1 });
+  await page.mouse.up();
+  await page.keyboard.press('ControlOrMeta+z');                          // undoes the whole drag
+  await heads.nth(0).click();
+  await expect(pos.nth(0)).toHaveValue('600');
+  await heads.nth(1).click();
+  await expect(pos.nth(0)).toHaveValue('1300');
+
+  // Two commands sent back-to-back → two undo steps.
+  const ask = page.locator('.v1-ai-input');
+  await ask.fill('make it red'); await ask.press('Enter');
+  await ask.fill('outline it white 6px'); await ask.press('Enter');
+  await page.locator('.v1-canvas-wrap').hover();
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(page.locator('.v1-seg[aria-label="Stroke"] button.on')).toHaveText('Off');
+  await expect(page.getByLabel('Fill colour')).toHaveValue('#ff3b30');  // the colour command is still applied
+});

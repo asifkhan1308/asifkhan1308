@@ -79,12 +79,14 @@ Press **?** in the editor for every shortcut and gesture.
   *add a title "…"*, *fade in over 1s*, *slide in from the left*, *make it red*,
   *gradient from blue to purple*, *trim to 3s*, *start at 2s*, *split*, *rename to …*,
   *parent it to …*, *use … as matte*, *center it*, *align left*, *typewriter over 2s*,
-  *add a marker called … at 2s*, *delete it*. Unknown phrases explain themselves.
+  *add a marker called … at 2s*, *outline it white 4px*, *make it cinematic* (also *vintage*,
+  *black and white*, *dreamy*, *punchy*, *neon*; *reset the look*), *delete it*.
+  Unknown phrases explain themselves.
 - **Local model** (Ollama / LM Studio, on your own machine) or **cloud model** (your key):
   ✦ Ask takes free-form instructions, and **Generate ▸** designs a whole piece from a
   description — layers, copy, colours, timing and animation — as normal editable layers.
   With no model, Generate builds an animated title card from your prompt.
-- Every command is **one undo step**. Invalid AI output is skipped with a reason, never applied.
+- Every command is **one undo step** (even when several are sent back-to-back). Invalid AI output is skipped with a reason, never applied.
 - Honest limit: language models design motion graphics; they do not render photographic video.
 
 ## Review links (no server)

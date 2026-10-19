@@ -11,6 +11,19 @@ import type { AnimatedProperty, Layer, V2 } from '../types';
 
 export const PRESETS = ['fade_in', 'fade_out', 'slide_in_left', 'slide_in_right', 'slide_in_up', 'slide_in_down', 'pop', 'spin', 'typewriter', 'letters_in', 'words_in'] as const;
 export type Preset = (typeof PRESETS)[number];
+
+/* One-word looks: curated combinations of the existing effects (editable
+ * afterwards like any effect). 'none' resets them to neutral. */
+export const LOOKS: Record<string, Partial<Record<'brightness' | 'contrast' | 'saturation' | 'blur' | 'vignette' | 'grain' | 'tintAmount' | 'glow' | 'shadow', number>> & { tint?: string }> = {
+  cinematic: { contrast: 0.18, saturation: -0.15, vignette: 0.45, grain: 0.12, tintAmount: 0.08, tint: '#ffb46b' },
+  vintage: { contrast: -0.1, saturation: -0.35, vignette: 0.35, grain: 0.35, tintAmount: 0.22, tint: '#d9a066' },
+  'black-and-white': { saturation: -1, contrast: 0.15 },
+  dreamy: { brightness: 0.08, contrast: -0.12, blur: 0.04, glow: 0.45, tintAmount: 0.1, tint: '#ffd1f0' },
+  punchy: { contrast: 0.25, saturation: 0.3, brightness: 0.04 },
+  neon: { saturation: 0.4, glow: 0.8, contrast: 0.1 },
+  none: {},
+};
+export const LOOK_NAMES = Object.keys(LOOKS);
 const LAYER_TYPES = ['text', 'rectangle', 'ellipse', 'null'] as const;
 
 /** Prop paths the model may set / keyframe directly. */
@@ -47,6 +60,7 @@ Actions:
   { "op": "set_color", "color": "#rrggbb" }                                 // text / shape fill (solid)
   { "op": "set_gradient", "from": "#rrggbb", "to": "#rrggbb", "angle"?: <deg> } // linear gradient fill; 0° = left→right
   { "op": "set_stroke", "color": "#rrggbb" | null, "width"?: <px> }          // outline (null = off)
+  { "op": "look", "name": ${LOOK_NAMES.map((n) => `"${n}"`).join('|')} }     // effect preset for the layer
   { "op": "comp", "duration": <sec> }
   { "op": "marker", "time"?: <sec>, "label"?: string }                    // timeline marker (default: playhead)
   { "op": "parent", "to": "<layer id or name>" | null }
@@ -258,6 +272,21 @@ export function applyAIActions(actions: unknown): AIResult {
           if (!/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(c)) { skip('color must be #rrggbb'); break; }
           if (layer.type !== 'text' && layer.type !== 'rectangle' && layer.type !== 'ellipse') { skip(`${layer.type} layers have no fill`); break; }
           s.patchLayer(layer.id, { fill: c, gradient: undefined } as Partial<Layer>);
+          res.applied++;
+          break;
+        }
+        case 'look': {
+          const name = String(raw.name ?? '').toLowerCase().replace(/[\s_]+/g, '-');
+          const look = LOOKS[name];
+          if (!look) { skip(`unknown look "${String(raw.name)}"`); break; }
+          if (layer.type === 'null' || (layer.type === 'media' && s.project.assets.find((a) => a.id === layer.assetId)?.kind === 'audio')) {
+            skip(`${layer.type} layers have no look`);
+            break;
+          }
+          s.enableEffects(layer.id);
+          const keys = ['brightness', 'contrast', 'saturation', 'blur', 'vignette', 'grain', 'tintAmount', 'glow', 'shadow'] as const;
+          for (const k of keys) s.setPropertyBase(layer.id, k, look[k] ?? 0);
+          if (look.tint) s.setEffectTintColor(layer.id, look.tint);
           res.applied++;
           break;
         }

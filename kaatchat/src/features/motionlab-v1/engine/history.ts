@@ -46,7 +46,8 @@ export function changeKey(prev: Project, next: Project): string {
 }
 
 export interface HistoryHandle {
-  push: (project: Project, label?: string) => void;
+  /** `separate`: always a new undo step (never merged with the previous). */
+  push: (project: Project, label?: string, separate?: boolean) => void;
   undo: () => Project | null;
   redo: () => Project | null;
   canUndo: () => boolean;
@@ -64,7 +65,7 @@ export function createHistory(initial: Project): HistoryHandle {
   let index = 0;
   let silenced = 0;
 
-  const push: HistoryHandle['push'] = (project, label = 'Edit') => {
+  const push: HistoryHandle['push'] = (project, label = 'Edit', separate = false) => {
     if (silenced > 0) return;
     const now = Date.now();
     const prev = entries[index];
@@ -73,7 +74,7 @@ export function createHistory(initial: Project): HistoryHandle {
     const key = prev ? changeKey(prev.project, project) : undefined;
     // Coalesce rapid repeats of the same edit — a slider drag on one layer
     // → one entry — but never chain different edits into one undo step.
-    if (prev && index > 0 && now - prev.at < COALESCE_MS && prev.label === label && prev.key === key) {
+    if (!separate && prev && index > 0 && now - prev.at < COALESCE_MS && prev.label === label && prev.key === key) {
       entries[index] = { project, at: now, label, key };
       return;
     }

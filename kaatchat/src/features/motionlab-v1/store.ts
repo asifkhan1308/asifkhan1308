@@ -147,7 +147,7 @@ interface MotionLabV1State extends UIState {
   alignToFrame: (id: string, edge: AlignEdge) => void;
 
   /** Run several edits as ONE undo step (e.g. a whole ✦ Ask command). */
-  batch: (fn: () => void, label?: string) => void;
+  batch: (fn: () => void, label?: string, mergeable?: boolean) => void;
   undo: () => void;
   redo: () => void;
   canUndo: () => boolean;
@@ -952,10 +952,13 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
   hasLayerClipboard: () => !!layerClipboard?.layers.length,
   lastCopied: () => lastCopied,
 
-  batch: (fn, label = 'Edit') => {
+  batch: (fn, label = 'Edit', mergeable = false) => {
     const before = get().project;
     history.silence(fn);
-    if (get().project !== before) history.push(get().project, label);
+    // A batch (one ✦ Ask command, align…) is its own undo step. Continuous
+    // gestures (a group drag, one batch per mouse move) pass mergeable so the
+    // whole drag stays one step.
+    if (get().project !== before) history.push(get().project, label, !mergeable);
   },
 
   undo: () => {

@@ -30,7 +30,7 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
   // placeholders, split, then restore.
   const saved: string[] = [];
   const masked = prompt.replace(/"[^"]*"|“[^”]*”/g, (q) => `\uE000${saved.push(q) - 1}\uE000`);
-  const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent|mask|matte|use|align|center|centre|typewriter|type|reveal|letter|word|gradient|drop|put|outline|stroke)))\s*/i);
+  const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent|mask|matte|use|align|center|centre|typewriter|type|reveal|letter|word|gradient|drop|put|outline|stroke|reset|no)))\s*/i);
 
   for (const part of clauses) {
     const c = part.replace(/\uE000(\d+)\uE000/g, (_, i) => saved[Number(i)]).trim();
@@ -70,6 +70,14 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
     if (/\b(?:pop|bounce)\b/.test(l)) { preset('pop'); continue; }
     if (/\bspin\b|\brotate\s+(?:it\s+)?(?:a\s+)?full\b|\b360\b/.test(l)) { preset('spin'); continue; }
 
+    // looks: "make it cinematic", "vintage look", "black and white", "no look"
+    if ((m = l.match(/\b(cinematic|vintage|retro|black\s*(?:and|&)\s*white|b\s*&\s*w|monochrome|greyscale|grayscale|dreamy|punchy|vivid|neon)\b/))) {
+      const w = m[1].replace(/\s+/g, ' ');
+      const name = /black|b\s*&|mono|grey|gray/.test(w) ? 'black-and-white' : w === 'retro' ? 'vintage' : w === 'vivid' ? 'punchy' : w;
+      out.push({ op: 'look', name });
+      continue;
+    }
+    if (/^(?:no|remove|reset)\s+(?:the\s+)?(?:look|effects|filter)\b/.test(l)) { out.push({ op: 'look', name: 'none' }); continue; }
     // outline: "outline it white 4px" / "stroke 6px black" / "no outline"
     if (/^(?:no|remove)\s+(?:the\s+)?(?:outline|stroke)\b/.test(l)) { out.push({ op: 'set_stroke', color: null }); continue; }
     if ((m = l.match(/^(?:outline|stroke)(?:\s+(?:it|this))?(?:\s+(?:in|with))?\s+(?:(#[0-9a-f]{3,8}|[a-z]+)\s*)?(?:(\d+(?:\.\d+)?)\s*px)?\s*(#[0-9a-f]{3,8}|[a-z]+)?\s*$/))) {

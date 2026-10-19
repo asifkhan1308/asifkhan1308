@@ -140,7 +140,7 @@ export default function V1CanvasHandles() {
         const d = m.b.toParent(dw);
         state.setPropertyBase<V2>(m.id, 'position', [m.startPos[0] + d[0], m.startPos[1] + d[1]]);
       });
-      if (movers.length > 1) state.batch(apply, 'Move'); else apply();
+      if (movers.length > 1) state.batch(apply, 'Move', true); else apply();
     };
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
