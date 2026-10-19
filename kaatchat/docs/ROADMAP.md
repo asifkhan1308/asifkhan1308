@@ -49,3 +49,20 @@ AI-generated movies, After Effects / Premiere / DaVinci replacements, fully auto
 - Browser storage keeps media up to 420 MB per file. Larger files work for the session and need relinking after a reload.
 - Named versions last while a project is open.
 - Transitions in the preview hold the first or last frame. The export renders them fully.
+
+## MOTIONLAB Studio (`#/studio`) — status
+
+User guide: [STUDIO.md](STUDIO.md). Every item below has unit and/or browser tests.
+
+**V1 — done:** layers (text, shapes, null, video, image, audio), keyframes with easing incl.
+hold and custom bezier curves, auto-key, timeline (move / trim / split, zoom, snapping,
+markers, restack, rename), canvas handles + smart guides, multi-select with group move /
+align / distribute, parenting, track mattes, text animators, gradient fills, effects incl.
+drop shadow and glow, motion blur, clip audio (volume, mute, fades) and music layers,
+copy / paste layers across projects, undo/redo, save / autosave / `.kaatchat`, MP4 / WebM
+export with audio, ✦ Ask (offline phrase parser + local / cloud models), Generate.
+
+**V1.5 — done:** serverless review links with timestamped feedback.
+
+**V2 — needs decisions before building:** accounts / login, cloud projects, real-time
+multi-user editing. These need a hosting provider, an auth choice and a running budget.
