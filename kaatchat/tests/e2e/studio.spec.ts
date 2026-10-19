@@ -282,7 +282,7 @@ test('Studio regressions: first video frame, saved state on reopen, dialogs, com
   // Shortening the comp clamps the playhead; clips stay inside the track.
   await page.keyboard.press('End');
   await setValue(page.locator('.duration-field input'), 4);
-  await expect(page.locator('.v1-tl-time')).toHaveText(/^04:00 \/ 04:00$/);
+  await expect(page.locator('.v1-tl-time')).toHaveText(/^0:04\.00 \/ 0:04\.00$/);
   // A layer longer than the comp must not make the timeline scroll sideways at Fit zoom.
   expect(await page.locator('.v1-tl-grid').evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   expect(errors).toEqual([]);
@@ -329,7 +329,7 @@ test('Studio: Generate builds an editable video offline, and through a local mod
   await expect(page.locator('.modal')).toHaveCount(0);
   await expect(heads).toHaveCount(2);
   await expect(heads.nth(1)).toContainText('Headline');
-  await expect(page.locator('.v1-tl-time')).toContainText('/ 05:00');
+  await expect(page.locator('.v1-tl-time')).toContainText('/ 0:05.00');
   expect(asked).toContain('DESIGNING a complete short motion graphic');
   expect(asked).toContain('a night market teaser');
 
@@ -401,7 +401,7 @@ test('Studio V1.5: share a review link, comment as a reviewer, pin feedback to t
   await page.locator('.v1-tl-feedback-btn').click();
   await expect(page.locator('.v1-tl-fb-item')).toHaveCount(2);
   await page.locator('.v1-tl-fb-at').first().click();
-  await expect(page.locator('.v1-tl-time')).toHaveText(/^01:50 \//);
+  await expect(page.locator('.v1-tl-time')).toHaveText(/^0:01\.50 \//);
   await page.locator('.v1-tl-fb-done input').first().check();
   await expect(page.locator('.v1-tl-comment')).toHaveCount(1);
   await expect(page.locator('.v1-tl-feedback-btn')).toHaveText('Feedback 1/2');
@@ -906,7 +906,7 @@ test('Studio: M adds a marker; click jumps, double-click renames, trims snap to 
   await expect(marker).toHaveCount(1);
   await seek(page, 0.05);
   await marker.click();
-  await expect(page.locator('.v1-tl-time')).toHaveText(/^04:00 \//);
+  await expect(page.locator('.v1-tl-time')).toHaveText(/^0:04\.00 \//);
   await marker.dblclick();
   await page.getByLabel('Marker name').fill('Beat drop');
   await page.keyboard.press('Enter');

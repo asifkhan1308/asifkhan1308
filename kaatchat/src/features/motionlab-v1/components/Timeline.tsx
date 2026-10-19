@@ -58,7 +58,11 @@ export default function V1Timeline() {
     setCurrentTime(Math.max(0, Math.min(1, r)) * comp.duration);
   };
 
-  const fmt = (t: number) => `${Math.floor(t).toString().padStart(2, '0')}:${Math.floor((t * 100) % 100).toString().padStart(2, '0')}`;
+  // m:ss.hh — the old "ss:hh" read like minutes:seconds ("02:50" was 2.5 s).
+  const fmt = (t: number) => {
+    const cs = Math.max(0, Math.round(t * 100));
+    return `${Math.floor(cs / 6000)}:${String(Math.floor(cs / 100) % 60).padStart(2, '0')}.${String(cs % 100).padStart(2, '0')}`;
+  };
 
   /* Zoom: the track column is `zoom ×` the visible width; the grid scrolls
    * horizontally and the layer-name column stays sticky. */
