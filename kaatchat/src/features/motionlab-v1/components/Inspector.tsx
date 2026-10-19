@@ -49,6 +49,40 @@ export default function V1Inspector() {
 
   const resolve = <T,>(ap: AnimatedProperty<T> | undefined) => (ap ? resolveAnimated(ap, currentTime) : undefined);
   const audio = isAudioLayer(layer, project.assets);
+  // Align / distribute (shared by the Transform section and, for a
+  // multi-selection whose primary layer is audio, under the audio note).
+  const alignBlock = (
+    <>
+    {/* Align: one layer → to the frame; several → to each other (Figma).
+        Works for rotated / parented layers. */}
+    <div className="v1-align-row" role="group" aria-label={selCount > 1 ? 'Align selection' : 'Align to frame'}>
+      <span>{selCount > 1 ? `Align ${selCount}` : 'Align'}</span>
+      <div className="v1-align-btns">
+        {ALIGN.map((a) => (
+          <button key={a.edge} type="button" className="v1-align-btn" title={a.title} aria-label={a.title}
+            onClick={() => useV1.getState().alignSelected(a.edge)}>
+            <svg viewBox="0 0 16 16" aria-hidden>{a.icon}</svg>
+          </button>
+        ))}
+      </div>
+    </div>
+    {selCount > 2 && (
+      <div className="v1-align-row" role="group" aria-label="Distribute selection">
+        <span>Distribute</span>
+        <div className="v1-align-btns">
+          <button type="button" className="v1-align-btn" title="Distribute horizontally" aria-label="Distribute horizontally"
+            onClick={() => useV1.getState().distributeSelected('x')}>
+            <svg viewBox="0 0 16 16" aria-hidden><rect x="1" y="5" width="3" height="6" /><rect x="6.5" y="5" width="3" height="6" /><rect x="12" y="5" width="3" height="6" /></svg>
+          </button>
+          <button type="button" className="v1-align-btn" title="Distribute vertically" aria-label="Distribute vertically"
+            onClick={() => useV1.getState().distributeSelected('y')}>
+            <svg viewBox="0 0 16 16" aria-hidden><rect x="5" y="1" width="6" height="3" /><rect x="5" y="6.5" width="6" height="3" /><rect x="5" y="12" width="6" height="3" /></svg>
+          </button>
+        </div>
+      </div>
+    )}
+    </>
+  );
   return (
     <div className="v1-inspector">
       {selCount > 1 && (
@@ -66,7 +100,10 @@ export default function V1Inspector() {
       </div>
 
       {audio ? (
-        <div className="v1-audio-note">Audio layer — sound only, nothing on the canvas. Use the Audio section to set volume and fades; trim and move it on the timeline.</div>
+        <>
+          <div className="v1-audio-note">Audio layer — sound only, nothing on the canvas. Use the Audio section to set volume and fades; trim and move it on the timeline.</div>
+          {selCount > 1 && <section className="v1-section">{alignBlock}</section>}
+        </>
       ) : (
       <section className="v1-section">
         <div className="v1-section-head">Transform</div>
@@ -113,34 +150,7 @@ export default function V1Inspector() {
           </select>
         </label>
 
-        {/* Align: one layer → to the frame; several → to each other (Figma).
-            Works for rotated / parented layers. */}
-        <div className="v1-align-row" role="group" aria-label={selCount > 1 ? 'Align selection' : 'Align to frame'}>
-          <span>{selCount > 1 ? `Align ${selCount}` : 'Align'}</span>
-          <div className="v1-align-btns">
-            {ALIGN.map((a) => (
-              <button key={a.edge} type="button" className="v1-align-btn" title={a.title} aria-label={a.title}
-                onClick={() => useV1.getState().alignSelected(a.edge)}>
-                <svg viewBox="0 0 16 16" aria-hidden>{a.icon}</svg>
-              </button>
-            ))}
-          </div>
-        </div>
-        {selCount > 2 && (
-          <div className="v1-align-row" role="group" aria-label="Distribute selection">
-            <span>Distribute</span>
-            <div className="v1-align-btns">
-              <button type="button" className="v1-align-btn" title="Distribute horizontally" aria-label="Distribute horizontally"
-                onClick={() => useV1.getState().distributeSelected('x')}>
-                <svg viewBox="0 0 16 16" aria-hidden><rect x="1" y="5" width="3" height="6" /><rect x="6.5" y="5" width="3" height="6" /><rect x="12" y="5" width="3" height="6" /></svg>
-              </button>
-              <button type="button" className="v1-align-btn" title="Distribute vertically" aria-label="Distribute vertically"
-                onClick={() => useV1.getState().distributeSelected('y')}>
-                <svg viewBox="0 0 16 16" aria-hidden><rect x="5" y="1" width="6" height="3" /><rect x="5" y="6.5" width="6" height="3" /><rect x="5" y="12" width="6" height="3" /></svg>
-              </button>
-            </div>
-          </div>
-        )}
+        {alignBlock}
 
         <PropRow layer={layer} currentTime={currentTime} label="Position" path="position">
           <NumberPair

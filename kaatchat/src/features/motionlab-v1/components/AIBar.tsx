@@ -57,7 +57,8 @@ export default function AIBar({ onOpenGenerate }: Props) {
       const r = applyAIActions(actions);
       if (!r.applied && !r.skipped.length) setStatus('No actions returned.');
       else {
-        setStatus(`Applied ${r.applied} action${r.applied === 1 ? '' : 's'}${r.skipped.length ? ` · skipped ${r.skipped.length}` : ''} — ⌘Z undoes it all.`);
+        // Partial success still says why something was skipped (first reason).
+        setStatus(`Applied ${r.applied} action${r.applied === 1 ? '' : 's'}${r.skipped.length ? ` · skipped ${r.skipped.length} (${r.skipped[0]})` : ''} — ⌘Z undoes it all.`);
         if (r.skipped.length) setErr(r.applied ? '' : `Couldn't apply: ${r.skipped.join('; ')}`);
       }
       setPrompt('');

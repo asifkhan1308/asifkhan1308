@@ -61,3 +61,17 @@ describe('MOTIONLAB V1 multi-select', () => {
     expect(st().project.layers).toHaveLength(3);
   });
 });
+
+describe('MOTIONLAB V1 selection after undo', () => {
+  it('undoing the creation of the selected layer clears the stale selection', () => {
+    st().replaceProject(defaultProject());
+    const a = st().addRectangle();
+    st().addEllipse();                                                     // selected (primary)
+    st().undo();                                                           // ellipse gone
+    expect(st().selectedLayerId).toBeNull();
+    st().selectLayer(a);
+    st().toggleSelect(a);                                                  // deselect
+    st().selectAll();
+    expect(selectionOf(st())).toEqual([a]);
+  });
+});

@@ -296,6 +296,13 @@ export function selectionOf(s: Pick<MotionLabV1State, 'selectedIds' | 'selectedL
   return s.project.layers.filter((l) => ids.includes(l.id)).map((l) => l.id);
 }
 
+function liveSelection(s: MotionLabV1State, p: Project) {
+  const ids = new Set(p.layers.map((l) => l.id));
+  const selectedIds = s.selectedIds.filter((id) => ids.has(id));
+  const selectedLayerId = s.selectedLayerId && ids.has(s.selectedLayerId) ? s.selectedLayerId : selectedIds[selectedIds.length - 1] ?? null;
+  return { selectedIds, selectedLayerId };
+}
+
 function boxOf(s: MotionLabV1State, id: string) {
   const layer = s.project.layers.find((l) => l.id === id);
   const world = layer && worldCorners(layer, s.currentTime, s.project.assets, s.project.layers);
@@ -985,13 +992,15 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
     if (get().project !== before) history.push(get().project, label, !mergeable);
   },
 
+  // Undo / redo also drop selections of layers that no longer exist, so
+  // the next ⌘C / Delete doesn't silently act on nothing.
   undo: () => {
     const prev = history.undo();
-    if (prev) history.silence(() => set({ project: prev, isDirty: true }));
+    if (prev) history.silence(() => set((s) => ({ project: prev, isDirty: true, ...liveSelection(s, prev) })));
   },
   redo: () => {
     const next = history.redo();
-    if (next) history.silence(() => set({ project: next, isDirty: true }));
+    if (next) history.silence(() => set((s) => ({ project: next, isDirty: true, ...liveSelection(s, next) })));
   },
   canUndo: () => history.canUndo(),
   canRedo: () => history.canRedo(),
