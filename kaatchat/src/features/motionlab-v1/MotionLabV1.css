@@ -986,3 +986,14 @@
    Render / Generate / Send feedback white-on-white in dark mode). */
 .motionlab-v1 .btn-primary { color: var(--v1-bg); }
 .motionlab-v1 .btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Null layers: editor-only marker (never rendered or exported) */
+.v1-null-mark { pointer-events: none; }
+.v1-null-mark { mix-blend-mode: difference; } /* white that inverts: visible on dark and light comps, stays monochrome */
+.v1-null-mark polygon, .v1-null-mark line { fill: none; stroke: #fff; stroke-width: 1.5; vector-effect: non-scaling-stroke; stroke-dasharray: 6 4; }
+
+/* Parenting */
+.v1-parent-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; font-size: 11.5px; color: var(--v1-text-2); }
+.v1-parent-select { flex: 1; max-width: 180px; font: inherit; font-size: 12px; color: var(--v1-text); background: var(--v1-surface-2); border: 1px solid var(--v1-line); border-radius: 4px; padding: 3px 6px; }
+.v1-tl-parent { text-transform: none; letter-spacing: 0; color: var(--v1-text-2); }
+.v1-tl-layer-type { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -23,6 +23,7 @@ import {
   newTextLayer,
 } from './engine/defaults';
 import { createHistory } from './engine/history';
+import { decompose, invert, IDENTITY, mul, worldMatrix, wouldCycle } from './engine/matrix';
 import {
   autosave as persistAutosave,
   loadProject as persistLoad,
@@ -101,6 +102,10 @@ interface MotionLabV1State extends UIState {
   addComments: (list: ReviewComment[]) => number;   // returns how many were new
   setCommentResolved: (id: string, resolved: boolean) => void;
   removeComment: (id: string) => void;
+
+  /** Parent a layer (null = unparent). Keeps it visually in place. Returns
+   *  false when the parent would create a loop. */
+  setParent: (id: string, parentId: string | null) => boolean;
 
   /** Run several edits as ONE undo step (e.g. a whole ✦ Ask command). */
   batch: (fn: () => void, label?: string) => void;
@@ -204,6 +209,30 @@ function setAnimated(layer: Layer, path: string, next: AnimatedProperty<unknown>
   return layer;
 }
 
+/* Re-parent while keeping the layer where it is on screen (at `time`):
+ * newLocal = inverse(newParentWorld) · oldWorld, decomposed back into the
+ * layer's position / rotation / scale. Only un-animated props are rewritten;
+ * keyframed ones keep their keys (they are relative to the new parent now). */
+function reparent(layers: Layer[], id: string, parentId: string | null, time: number): Layer[] {
+  const layer = layers.find((l) => l.id === id);
+  if (!layer) return layers;
+  const oldWorld = worldMatrix(layer, layers, time);
+  const parent = parentId ? layers.find((l) => l.id === parentId) : undefined;
+  const inv = invert(parent ? worldMatrix(parent, layers, time) : IDENTITY);
+  const next: Layer = { ...layer, parentId: parent ? parent.id : undefined };
+  if (inv) {
+    const d = decompose(mul(inv, oldWorld), resolveAnimated(layer.transform.anchor, time));
+    const tr = { ...layer.transform };
+    const still = (k: 'position' | 'rotation' | 'scale') => !tr[k].keyframes?.length;
+    const round = (v: number) => Math.round(v * 1000) / 1000;
+    if (still('position')) tr.position = { ...tr.position, default: [round(d.position[0]), round(d.position[1])] };
+    if (still('rotation')) tr.rotation = { ...tr.rotation, default: round(d.rotation) };
+    if (still('scale')) tr.scale = { ...tr.scale, default: [round(d.scale[0]), round(d.scale[1])] };
+    next.transform = tr;
+  }
+  return layers.map((l) => (l.id === id ? next : l));
+}
+
 export const useV1 = create<MotionLabV1State>((set, get) => ({
   project: initialProject,
   selectedLayerId: null,
@@ -301,10 +330,23 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
     }),
 
   removeLayer: (id) =>
-    set((s) => ({
-      project: touch({ ...s.project, layers: s.project.layers.filter((l) => l.id !== id) }),
-      selectedLayerId: s.selectedLayerId === id ? null : s.selectedLayerId,
-    })),
+    set((s) => {
+      // Children of a deleted parent are released where they currently are.
+      let layers = s.project.layers;
+      for (const child of layers.filter((l) => l.parentId === id)) layers = reparent(layers, child.id, null, s.currentTime);
+      return {
+        project: touch({ ...s.project, layers: layers.filter((l) => l.id !== id) }),
+        selectedLayerId: s.selectedLayerId === id ? null : s.selectedLayerId,
+      };
+    }),
+
+  setParent: (id, parentId) => {
+    const layers = get().project.layers;
+    if (parentId && (wouldCycle(id, parentId, layers) || !layers.some((l) => l.id === parentId))) return false;
+    if ((layers.find((l) => l.id === id)?.parentId ?? null) === parentId) return true;
+    set((s) => ({ project: touch({ ...s.project, layers: reparent(s.project.layers, id, parentId, s.currentTime) }) }));
+    return true;
+  },
 
   reorderLayer: (id, toIndex) =>
     set((s) => {

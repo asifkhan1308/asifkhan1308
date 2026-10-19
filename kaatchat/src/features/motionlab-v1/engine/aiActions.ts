@@ -45,6 +45,7 @@ Actions:
   { "op": "set_text", "text": string }                                      // text layers
   { "op": "set_color", "color": "#rrggbb" }                                 // text / shape fill
   { "op": "comp", "duration": <sec> }
+  { "op": "parent", "to": "<layer id or name>" | null }                    // move/rotate/scale with that layer (usually a null)
 <prop> is one of: ${AI_PATHS.join(', ')}.
 position / scale / anchor / size values are [x, y]; others are numbers. Opacity is 0..1, scale 1 = 100%.
 Positions are in composition pixels (0,0 = top-left). Times are seconds on the composition timeline.
@@ -157,6 +158,19 @@ export function applyAIActions(actions: unknown): AIResult {
           const t = num(raw.time);
           if (t === null || t <= layer.startTime || t >= end) { skip('split time must be inside the clip'); break; }
           s.splitLayerAt(layer.id, t);
+          res.applied++;
+          break;
+        }
+        case 'parent': {
+          if (raw.to === null || raw.to === '' || raw.to === 'none') {
+            s.setParent(layer.id, null);
+            res.applied++;
+            break;
+          }
+          const ref = String(raw.to ?? '').trim().toLowerCase();
+          const p = s.project.layers.find((l) => l.id === raw.to) ?? s.project.layers.find((l) => l.name.toLowerCase() === ref);
+          if (!p) { skip(`no layer "${String(raw.to)}" to parent to`); break; }
+          if (!s.setParent(layer.id, p.id)) { skip('that would make a parenting loop'); break; }
           res.applied++;
           break;
         }

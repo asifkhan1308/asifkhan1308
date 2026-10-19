@@ -1,6 +1,7 @@
 import { useV1 } from '../store';
 import { resolveAnimated } from '../engine/interp';
 import type { AnimatedProperty, Easing, Layer, V2 } from '../types';
+import { wouldCycle } from '../engine/matrix';
 
 type AnimPath =
   | 'position' | 'scale' | 'rotation' | 'anchor' | 'opacity'
@@ -46,6 +47,24 @@ export default function V1Inspector() {
 
       <section className="v1-section">
         <div className="v1-section-head">Transform</div>
+
+        {/* Parenting: this layer moves, rotates and scales with its parent. */}
+        <label className="v1-parent-row">
+          <span>Parent</span>
+          <select
+            className="v1-parent-select"
+            aria-label="Parent layer"
+            value={layer.parentId ?? ''}
+            onChange={(e) => useV1.getState().setParent(layer.id, e.target.value || null)}
+          >
+            <option value="">None</option>
+            {project.layers
+              .filter((l) => !wouldCycle(layer.id, l.id, project.layers))
+              .map((l) => (
+                <option key={l.id} value={l.id}>{l.type === 'null' ? '✦ ' : ''}{l.name}</option>
+              ))}
+          </select>
+        </label>
 
         <PropRow layer={layer} currentTime={currentTime} label="Position" path="position">
           <NumberPair

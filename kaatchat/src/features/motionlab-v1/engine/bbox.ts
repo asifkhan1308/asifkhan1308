@@ -1,6 +1,7 @@
 import type { Asset, Layer, Project, V2 } from '../types';
 import { resolveAnimated } from './interp';
 import { isLayerActive, resolveTransform } from './compose';
+import { applyLinear, apply, invert, parentMatrix, worldMatrix } from './matrix';
 
 /* ──────────────────────────────────────────────────────────────────────────
  * Layer bounding boxes in composition space.
@@ -78,29 +79,24 @@ export interface WorldBox {
   scale: V2;
   /** Resolved anchor. */
   anchor: V2;
+  /** Convert a drag delta in composition space into the parent's space, so a
+   *  parented layer follows the pointer. Identity when there is no parent. */
+  toParent: (d: V2) => V2;
 }
 
-export function worldCorners(layer: Layer, time: number, assets: Asset[]): WorldBox | null {
-  if (layer.type === 'null') return null; // handles don't apply to anchors
+export function worldCorners(layer: Layer, time: number, assets: Asset[], layers?: Layer[]): WorldBox | null {
   const t = resolveTransform(layer.transform, time);
   const [lw, lh] = intrinsicSize(layer, time, assets);
-  const rad = (t.rotation * Math.PI) / 180;
-  const cosA = Math.cos(rad);
-  const sinA = Math.sin(rad);
+  const W = worldMatrix(layer, layers, time);
+  const pInv = invert(parentMatrix(layer, layers, time));
 
   // Text draws with the baseline at local origin; shift the local rect up
   // one line so the selection box wraps the glyphs, not the baseline.
   const localTop = layer.type === 'text' ? -resolveAnimated(layer.fontSize, time) * 0.8 : 0;
   const localLeft = textLeft(layer, lw);
 
-  const toWorld = (lx: number, ly: number): V2 => {
-    // local → anchor-shift → scale → rotate → translate
-    const sx = (lx - t.anchor[0]) * t.scale[0];
-    const sy = (ly - t.anchor[1]) * t.scale[1];
-    const rx = sx * cosA - sy * sinA;
-    const ry = sx * sinA + sy * cosA;
-    return [t.position[0] + rx, t.position[1] + ry];
-  };
+  // local → anchor-shift → scale → rotate → translate → parents
+  const toWorld = (lx: number, ly: number): V2 => apply(W, [lx, ly]);
 
   const tl = toWorld(localLeft, localTop);
   const tr = toWorld(localLeft + lw, localTop);
@@ -116,27 +112,16 @@ export function worldCorners(layer: Layer, time: number, assets: Asset[]): World
     position: t.position,
     scale: t.scale,
     anchor: t.anchor,
+    toParent: (d) => (pInv ? applyLinear(pInv, d) : d),
   };
 }
 
 /* Convert a point in composition space into the layer's local-pixel space
- * (undoing position · rotation · scale · −anchor). Returns null for a layer
- * we don't give a selection box (null layers today). */
-function toLocal(layer: Layer, time: number, p: V2): V2 | null {
-  if (layer.type === 'null') return null;
-  const t = resolveTransform(layer.transform, time);
-  // Inverse-transform: subtract position, rotate by -rotation, divide by
-  // scale, then add anchor back so the result is in the local rect we draw.
-  const dx = p[0] - t.position[0];
-  const dy = p[1] - t.position[1];
-  const rad = (-t.rotation * Math.PI) / 180;
-  const cosA = Math.cos(rad);
-  const sinA = Math.sin(rad);
-  const rx = dx * cosA - dy * sinA;
-  const ry = dx * sinA + dy * cosA;
-  const sx = t.scale[0] === 0 ? 0 : rx / t.scale[0];
-  const sy = t.scale[1] === 0 ? 0 : ry / t.scale[1];
-  return [sx + t.anchor[0], sy + t.anchor[1]];
+ * (undoing parents · position · rotation · scale · −anchor). Null when the
+ * transform is degenerate (e.g. scaled to 0). */
+function toLocal(layer: Layer, time: number, p: V2, layers?: Layer[]): V2 | null {
+  const inv = invert(worldMatrix(layer, layers, time));
+  return inv ? apply(inv, p) : null;
 }
 
 /* Hit-test the composition at `point`. Walks layers top-down (last draws on
@@ -151,14 +136,13 @@ function toLocal(layer: Layer, time: number, p: V2): V2 | null {
 export function pickLayerAt(project: Project, time: number, point: V2): string | null {
   for (let i = project.layers.length - 1; i >= 0; i--) {
     const layer = project.layers[i];
-    if (layer.type === 'null') continue;
     if (!isLayerActive(layer, time)) continue;
     if (layer.locked) continue;
     const [lw, lh] = intrinsicSize(layer, time, project.assets);
     const localTop = layer.type === 'text'
       ? -resolveAnimated(layer.fontSize, time) * 0.8
       : 0;
-    const local = toLocal(layer, time, point);
+    const local = toLocal(layer, time, point, project.layers);
     if (!local) continue;
     const left = textLeft(layer, lw);
     if (local[0] >= left && local[0] <= left + lw && local[1] >= localTop && local[1] <= localTop + lh) {

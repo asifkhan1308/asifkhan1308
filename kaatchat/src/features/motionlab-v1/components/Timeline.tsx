@@ -510,7 +510,10 @@ function LayerRowImpl({
               onDoubleClick={(e) => { e.stopPropagation(); onStartRename(); }}
             >{layer.name}</div>
           )}
-          <div className="v1-tl-layer-type">{layer.type}</div>
+          <div className="v1-tl-layer-type">
+            {/* Parented layers show their parent here (type stays in the tooltip + Inspector). */}
+            {layer.parentId ? <ParentTag id={layer.parentId} type={layer.type} /> : layer.type}
+          </div>
         </div>
         <div className="v1-tl-row-actions">
           <button className="btn-icon xs" onClick={(e) => { e.stopPropagation(); onSplit(); }} title="Split at playhead (K)">⫲</button>
@@ -575,6 +578,12 @@ const LayerRow = memo(LayerRowImpl, (a, b) =>
   a.renaming === b.renaming &&
   a.snap.enabled === b.snap.enabled &&
   nowKey(a) === nowKey(b));
+
+/** "↳ Parent name" next to a child's type label. Subscribes to the name only. */
+function ParentTag({ id, type }: { id: string; type: string }) {
+  const name = useV1((s) => s.project.layers.find((l) => l.id === id)?.name);
+  return name ? <span className="v1-tl-parent" title={`${type} · parented to ${name}`}>↳ {name}</span> : <>{type}</>;
+}
 
 /** Sorted, de-duplicated keyframe times per layer object (cached: layers are immutable). */
 const keyTimesCache = new WeakMap<Layer, number[]>();

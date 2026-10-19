@@ -1,4 +1,5 @@
 import type { Asset, Effects, Layer, Project, Transform, V2 } from '../types';
+import { worldMatrix } from './matrix';
 import { resolveAnimated } from './interp';
 
 /* Resolve effects into a CSS filter string + the two overlay amounts
@@ -92,11 +93,9 @@ export function composeFrame(
     // Apply colour/brightness/contrast/blur as a canvas filter for the whole
     // layer draw (cheap compared to per-pixel work; honoured by Chromium/Safari).
     if (fx.filter !== 'none') ctx.filter = fx.filter;
-    ctx.translate(t.position[0], t.position[1]);
-    if (t.rotation) ctx.rotate((t.rotation * Math.PI) / 180);
-    if (t.scale[0] !== 1 || t.scale[1] !== 1) ctx.scale(t.scale[0], t.scale[1]);
-    // Anchor is subtracted after transforms so rotation + scale pivot around it.
-    ctx.translate(-t.anchor[0], -t.anchor[1]);
+    // parentWorld · translate(position) · rotate · scale · translate(−anchor):
+    // anchor last so rotation + scale pivot around it; parents carry children.
+    ctx.transform(...worldMatrix(layer, layers, time));
 
     switch (layer.type) {
       case 'text':

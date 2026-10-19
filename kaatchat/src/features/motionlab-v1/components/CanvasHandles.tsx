@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { useV1 } from '../store';
 import { pickLayerAt, worldCorners } from '../engine/bbox';
+import { isLayerActive } from '../engine/compose';
 import ContextMenu from './ContextMenu';
 import { addLayerMenu, layerMenu } from './menuBuilders';
 import type { V2 } from '../types';
@@ -37,7 +38,23 @@ export default function V1CanvasHandles() {
 
   const layer = project.layers.find((l) => l.id === selectedId);
   const comp = project.composition;
-  const box = layer ? worldCorners(layer, time, project.assets) : null;
+  const box = layer ? worldCorners(layer, time, project.assets, project.layers) : null;
+  // Null layers never render; the editor shows them as dashed squares (like
+  // After Effects) so they can be found, picked and dragged.
+  const nullMarks = project.layers
+    .filter((l) => l.type === 'null' && isLayerActive(l, time))
+    .map((l) => ({ id: l.id, b: worldCorners(l, time, project.assets, project.layers) }))
+    .filter((x): x is { id: string; b: NonNullable<typeof box> } => !!x.b)
+    .map(({ id, b }) => {
+      const [a, c, d, e] = b.corners;
+      return (
+        <g key={id} className="v1-null-mark" aria-hidden>
+          <polygon points={`${a.join(',')} ${c.join(',')} ${d.join(',')} ${e.join(',')}`} />
+          <line x1={a[0]} y1={a[1]} x2={d[0]} y2={d[1]} />
+          <line x1={c[0]} y1={c[1]} x2={e[0]} y2={e[1]} />
+        </g>
+      );
+    });
   const selectLayer = useV1((s) => s.selectLayer);
   const [menu, setMenu] = useState<{ x: number; y: number; layerId: string | null } | null>(null);
 
@@ -71,18 +88,17 @@ export default function V1CanvasHandles() {
     // JUST selected, not the one that was selected when the closure ran.
     const state = useV1.getState();
     const l = state.project.layers.find((x) => x.id === layerId);
-    if (!l || l.locked || l.type === 'null') return;
-    const b = worldCorners(l, state.currentTime, state.project.assets);
+    if (!l || l.locked) return;
+    const b = worldCorners(l, state.currentTime, state.project.assets, state.project.layers);
     if (!b) return;
     (ev.target as Element).setPointerCapture(ev.pointerId);
     const start = toComp(ev);
     const startPos: V2 = [...b.position];
     const onMove = (me: PointerEvent) => {
       const cur = toComp(me);
-      state.setPropertyBase<V2>(l.id, 'position', [
-        startPos[0] + (cur[0] - start[0]),
-        startPos[1] + (cur[1] - start[1]),
-      ]);
+      // World-space drag → the parent's space, so parented layers track the pointer.
+      const d = b.toParent([cur[0] - start[0], cur[1] - start[1]]);
+      state.setPropertyBase<V2>(l.id, 'position', [startPos[0] + d[0], startPos[1] + d[1]]);
     };
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
@@ -139,7 +155,8 @@ export default function V1CanvasHandles() {
       const dy = cur[1] - start[1];
 
       if (kind === 'body') {
-        setPropertyBase<V2>(layer.id, 'position', [startPos[0] + dx, startPos[1] + dy]);
+        const d = box.toParent([dx, dy]);
+        setPropertyBase<V2>(layer.id, 'position', [startPos[0] + d[0], startPos[1] + d[1]]);
       } else if (kind === 'rot') {
         const a0 = Math.atan2(start[1] - center[1], start[0] - center[0]);
         const a1 = Math.atan2(cur[1] - center[1], cur[0] - center[0]);
@@ -177,7 +194,7 @@ export default function V1CanvasHandles() {
     void patchLayer;
   };
 
-  if (!layer || !box || layer.locked || layer.type === 'null') {
+  if (!layer || !box || layer.locked) {
     // Still render the picker so clicks on the canvas can pick a layer even
     // when nothing is selected (or a locked / null layer is selected).
     return (
@@ -197,6 +214,7 @@ export default function V1CanvasHandles() {
             className="v1-sel-picker"
             onPointerDown={onBackdropDown}
           />
+          {nullMarks}
         </svg>
         <ContextMenu
           anchor={menu ? { x: menu.x, y: menu.y } : null}
@@ -237,6 +255,7 @@ export default function V1CanvasHandles() {
         className="v1-sel-picker"
         onPointerDown={onBackdropDown}
       />
+      {nullMarks}
       {/* Selection outline */}
       <polygon
         className="v1-sel-outline"

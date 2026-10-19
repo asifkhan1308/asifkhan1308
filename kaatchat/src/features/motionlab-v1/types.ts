@@ -76,6 +76,9 @@ interface LayerBase {
   transform: Transform;
   /** Optional per-layer effects. Absent = neutral (no cost at render). */
   effects?: Effects;
+  /** Parent layer (usually a null): this layer's transform is applied inside
+   *  the parent's, like After Effects parenting. Absent = no parent. */
+  parentId?: string;
 }
 
 export interface MediaLayer extends LayerBase {

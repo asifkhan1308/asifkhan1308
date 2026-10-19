@@ -417,3 +417,44 @@ test('Studio V1.5: share a review link, comment as a reviewer, pin feedback to t
   await expect(rev.locator('.v1-review-empty')).toContainText('incomplete or damaged');
   expect(errors).toEqual([]);
 });
+
+test('Studio: parenting — a rectangle follows its null on canvas and in the export', async ({ page }) => {
+  await page.goto('/#/studio');
+  await setValue(page.locator('.duration-field input'), 2);
+  await page.locator('.v1-tool', { hasText: 'Rect' }).click();       // white box at the centre
+  await page.locator('.v1-tool', { hasText: 'Null' }).click();
+  const heads = page.locator('.v1-tl-layer-row-head');
+  await heads.nth(0).click();                                          // select the rectangle
+  // Options for the rectangle: None, then the null (it can't parent to itself).
+  await expect(page.locator('.v1-parent-select option')).toHaveCount(2);
+  await page.locator('.v1-parent-select').selectOption({ index: 1 });
+  await expect(heads.nth(0)).toContainText('↳');
+  const px = (x: number, y: number) => page.evaluate(([cx, cy]) => {
+    const c = document.querySelector('.v1-canvas') as HTMLCanvasElement;
+    const k = c.width / 1920;
+    return [...c.getContext('2d')!.getImageData(Math.round(cx * k), Math.round(cy * k), 1, 1).data][0];
+  }, [x, y]);
+  expect(await px(960, 540)).toBeGreaterThan(200);                     // box drawn at centre
+  // Move ONLY the null, +500 px right.
+  await heads.nth(1).click();
+  const posX = page.locator('.v1-inspector .v1-section').first().locator('.v1-field input').first();
+  const nx = Number(await posX.inputValue());
+  await setValue(posX, nx + 500);
+  await expect.poll(() => px(1460, 540)).toBeGreaterThan(200);         // the child came along
+  expect(await px(960 - 250, 540)).toBeLessThan(60);                    // and left its old spot
+
+  // Export: the exported frame shows the child at the parented place too.
+  await page.locator('.btn-export').click();
+  const render = page.locator('.modal .btn-primary');
+  await expect(render).toHaveText('Render', { timeout: 30_000 });
+  const dl = page.waitForEvent('download', { timeout: 120_000 });
+  await render.click();
+  const path = test.info().outputPath('parented.mp4');
+  await (await dl).saveAs(path);
+  const lum = (x: number, y: number) => {
+    const r = spawnSync(ffmpeg, ['-v', 'error', '-i', path, '-vf', `select='eq(n\\,10)',crop=4:4:${x}:${y}`, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'gray', '-']);
+    return r.stdout.reduce((a, b) => a + b, 0) / Math.max(1, r.stdout.length);
+  };
+  expect(lum(1458, 538)).toBeGreaterThan(200);
+  expect(lum(708, 538)).toBeLessThan(60);
+});
