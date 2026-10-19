@@ -93,12 +93,20 @@ export default function MotionLabV1({ feedback }: { feedback?: string } = {}) {
       }
       // Copy/paste keyframes — only outside text fields so normal text
       // copy/paste keeps working while typing.
-      if (mod && !inField && selectedLayerId && (e.key.toLowerCase() === 'c' || e.key.toLowerCase() === 'v')) {
+      // ⌘C copies the selected layer's keyframes at the playhead when it has
+      // some (as before); otherwise it copies the selected layer(s).
+      // ⌘V pastes whatever was copied last — layers paste even with nothing
+      // selected (e.g. into another project).
+      if (mod && !inField && e.key.toLowerCase() === 'c' && selectedLayerId) {
         e.preventDefault();
         const st = useV1.getState();
-        if (e.key.toLowerCase() === 'c') st.copyKeyframesAt(selectedLayerId, currentTime);
-        else st.pasteKeyframesAt(selectedLayerId, currentTime);
+        if (!st.copyKeyframesAt(selectedLayerId, currentTime)) st.copyLayers(selectionOf(st));
         return;
+      }
+      if (mod && !inField && e.key.toLowerCase() === 'v') {
+        const st = useV1.getState();
+        if (st.lastCopied() === 'layers' && st.hasLayerClipboard()) { e.preventDefault(); st.pasteLayers(); return; }
+        if (selectedLayerId) { e.preventDefault(); st.pasteKeyframesAt(selectedLayerId, currentTime); return; }
       }
       if (mod && e.key.toLowerCase() === 'n') {
         e.preventDefault();

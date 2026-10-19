@@ -741,3 +741,29 @@ test('Studio: glow and drop shadow render around a layer', async ({ page }) => {
   expect(out(958, 714)).toBeGreaterThan(50);                              // shadow below it
   expect(out(40, 40)).toBeLessThan(20);                                   // corner stays dark
 });
+
+test('Studio: ⌘C / ⌘V copies layers, and still copies keyframes when there are some at the playhead', async ({ page }) => {
+  await page.goto('/#/studio');
+  const heads = page.locator('.v1-tl-layer-row-head');
+  await page.locator('.v1-tool', { hasText: 'Ellipse' }).click();
+  await page.locator('.v1-tool', { hasText: 'Rect' }).click();
+  // Two layers selected, no keyframes → layers are copied and pasted on top.
+  await heads.nth(0).click();
+  await heads.nth(1).click({ modifiers: ['Shift'] });
+  await page.locator('.v1-canvas-wrap').hover();
+  await page.keyboard.press('ControlOrMeta+c');
+  await page.keyboard.press('ControlOrMeta+v');
+  await expect(heads).toHaveCount(4);
+  await expect(page.locator('.v1-tl-layer-row-head.selected')).toHaveCount(2); // the pasted pair
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(heads).toHaveCount(2);
+
+  // With a keyframe at the playhead, ⌘C copies keyframes (unchanged behaviour).
+  await heads.nth(1).click();
+  await transform(page).locator('.v1-diamond').nth(4).click();            // opacity key at 0 s
+  await page.keyboard.press('ControlOrMeta+c');
+  await heads.nth(0).click();
+  await page.keyboard.press('ControlOrMeta+v');
+  await expect(heads).toHaveCount(2);                                    // no layers pasted
+  await expect(page.locator('.v1-tl-layer-row-track').nth(0).locator('.v1-tl-kf')).toHaveCount(1);
+});

@@ -91,6 +91,13 @@ interface MotionLabV1State extends UIState {
   copyKeyframesAt: (layerId: string, time: number) => number;
   pasteKeyframesAt: (layerId: string, time: number) => number;
   hasKeyframeClipboard: () => boolean;
+  /** Layer clipboard: copies layers (+ the media they use); paste works in
+   *  any project. Links (parent / matte) inside the copied set are kept. */
+  copyLayers: (ids: string[]) => number;
+  pasteLayers: () => number;
+  hasLayerClipboard: () => boolean;
+  /** Which clipboard ⌘V should use: whatever was copied last. */
+  lastCopied: () => 'keyframes' | 'layers' | null;
   /** Easing INTO the keyframe at `time` (how the segment arriving there moves). */
   setKeyframeEasing: (layerId: string, path: string, time: number, easing: Easing, bezier?: Bezier) => void;
   /** Insert-or-replace a keyframe with an explicit value (never toggles). */
@@ -180,6 +187,9 @@ const ALL_ANIM_PATHS: string[] = [
 const KF_EPS = 0.01;
 type KfClip = { path: string; value: unknown; easing?: Easing; bezier?: Bezier }[];
 let kfClipboard: KfClip | null = null;
+let layerClipboard: { layers: Layer[]; assets: Asset[] } | null = null;
+let lastCopied: 'keyframes' | 'layers' | null = null;
+const newLayerId = () => `l_${Math.random().toString(36).slice(2, 9)}`;
 
 /* Locate the AnimatedProperty that a path name refers to on a layer. */
 function getAnimated(layer: Layer, path: string): AnimatedProperty<unknown> | null {
@@ -731,7 +741,7 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
       const k = getAnimated(l, path)?.keyframes?.find((x) => Math.abs(x.time - time) < KF_EPS);
       if (k) clip.push({ path, value: JSON.parse(JSON.stringify(k.value)), easing: k.easing, bezier: k.bezier ? [...k.bezier] as Bezier : undefined });
     }
-    if (clip.length) kfClipboard = clip;
+    if (clip.length) { kfClipboard = clip; lastCopied = 'keyframes'; }
     return clip.length;
   },
 
@@ -873,6 +883,44 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
     })),
   removeComment: (id) =>
     set((s) => ({ project: touch({ ...s.project, comments: (s.project.comments ?? []).filter((c) => c.id !== id) }) })),
+
+  copyLayers: (ids) => {
+    const p = get().project;
+    const layers = p.layers.filter((l) => ids.includes(l.id));
+    if (!layers.length) return 0;
+    const assetIds = new Set(layers.map((l) => (l.type === 'media' || l.type === 'image' ? l.assetId : '')).filter(Boolean));
+    layerClipboard = {
+      layers: JSON.parse(JSON.stringify(layers)) as Layer[],
+      assets: p.assets.filter((a) => assetIds.has(a.id)).map((a) => ({ ...a })),
+    };
+    lastCopied = 'layers';
+    return layers.length;
+  },
+  pasteLayers: () => {
+    const clip = layerClipboard;
+    if (!clip?.layers.length) return 0;
+    const map = new Map(clip.layers.map((l) => [l.id, newLayerId()]));
+    const pasted: Layer[] = clip.layers.map((src) => {
+      const l = JSON.parse(JSON.stringify(src)) as Layer;
+      l.id = map.get(src.id)!;
+      // Keep links within the pasted set; drop ones that would point elsewhere.
+      l.parentId = src.parentId && map.has(src.parentId) ? map.get(src.parentId) : undefined;
+      l.matte = src.matte && map.has(src.matte.layerId) ? { ...src.matte, layerId: map.get(src.matte.layerId)! } : undefined;
+      return l;
+    });
+    set((s) => {
+      const have = new Set(s.project.assets.map((a) => a.id));
+      const assets = [...s.project.assets, ...clip.assets.filter((a) => !have.has(a.id))];
+      return {
+        project: touch({ ...s.project, assets, layers: [...s.project.layers, ...pasted] }),
+        selectedIds: pasted.map((l) => l.id),
+        selectedLayerId: pasted[pasted.length - 1].id,
+      };
+    });
+    return pasted.length;
+  },
+  hasLayerClipboard: () => !!layerClipboard?.layers.length,
+  lastCopied: () => lastCopied,
 
   batch: (fn, label = 'Edit') => {
     const before = get().project;

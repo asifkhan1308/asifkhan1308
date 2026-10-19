@@ -1,4 +1,4 @@
-import { useV1 } from '../store';
+import { selectionOf, useV1 } from '../store';
 import { anim } from '../engine/interp';
 import type { MenuItem } from './ContextMenu';
 import type { Layer } from '../types';
@@ -45,6 +45,8 @@ export function layerMenu(layerId: string, extra?: { onRename?: () => void }): M
       disabled: !s.hasKeyframeClipboard(),
       run: () => s.pasteKeyframesAt(layer.id, s.currentTime),
     },
+    { label: 'Copy layer', run: () => s.copyLayers(selectionOf(s).includes(layer.id) ? selectionOf(s) : [layer.id]) },
+    { label: 'Paste layers', disabled: !s.hasLayerClipboard(), run: () => s.pasteLayers() },
     { divider: true, label: '' },
     { label: layer.visible ? 'Hide' : 'Show', run: () => setVisible(layer.id, !layer.visible) },
     ...(layer.type === 'media'
@@ -75,6 +77,7 @@ export function layerMenu(layerId: string, extra?: { onRename?: () => void }): M
 export function addLayerMenu(): MenuItem[] {
   const s = useV1.getState();
   return [
+    ...(s.hasLayerClipboard() ? [{ label: 'Paste layers', shortcut: '⌘V', run: () => s.pasteLayers() }, { divider: true, label: '' }] : []),
     { label: 'Add text layer', run: () => s.addTextLayer() },
     { label: 'Add rectangle', run: () => s.addRectangle() },
     { label: 'Add ellipse', run: () => s.addEllipse() },
