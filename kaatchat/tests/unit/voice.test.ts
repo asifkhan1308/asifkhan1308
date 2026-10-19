@@ -109,5 +109,7 @@ describe('voice isolation', () => {
     expect(rmsDb(x, 2000, pad - 2000) - rmsDb(y, 2000 + L, pad - 2000 + L)).toBeGreaterThan(25);
     // …and the speech keeps its level (within 3 dB of the clean voice).
     expect(Math.abs(rmsDb(sp, 0, sp.length) - rmsDb(y, pad + L, pad + sp.length + L))).toBeLessThan(3);
-  });
+    // Shells out to espeak-ng + ffmpeg: a cold start alone took ~3.6 s here, too
+    // close to the 5 s default under a busy full run. The checks are unchanged.
+  }, 30_000);
 });

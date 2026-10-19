@@ -5,7 +5,7 @@ const parameters: ParameterConfig[] = [
 ];
 const animationFunction = (ctx: CanvasRenderingContext2D, media: any, params: any, progress: number) => {
   const w = ctx.canvas.width, h = ctx.canvas.height;
-  let scale = 1 + (params.zoomAmount - 1) * Math.sin(progress * Math.PI) ** 2;
+  const scale = 1 + (params.zoomAmount - 1) * Math.sin(progress * Math.PI) ** 2;
   ctx.save();
   ctx.translate(w / 2, h / 2);
   ctx.scale(scale, scale);

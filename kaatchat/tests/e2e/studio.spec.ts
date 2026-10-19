@@ -287,3 +287,58 @@ test('Studio regressions: first video frame, saved state on reopen, dialogs, com
   expect(await page.locator('.v1-tl-grid').evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   expect(errors).toEqual([]);
 });
+
+test('Studio: Generate builds an editable video offline, and through a local model', async ({ page }) => {
+  await page.goto('/#/studio');
+  const heads = page.locator('.v1-tl-layer-row-head');
+
+  // Offline template (no AI connected).
+  await page.getByRole('button', { name: 'Generate ▸' }).click();
+  await expect(page.locator('.v1-gen-engine')).toContainText('Offline template');
+  await page.locator('.v1-gen-input').fill('a 6 second intro for "Asif\'s Bakery" with "Fresh every morning", gold accents');
+  await page.locator('.v1-gen-go').click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(heads).toHaveCount(4);
+  await expect(heads.nth(2)).toContainText('Title');
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(heads).toHaveCount(0);
+
+  // Local engine: a stand-in Ollama server answers; the real provider code runs.
+  await page.evaluate(() => localStorage.setItem('kaatchat.ai.settings', JSON.stringify({
+    active: 'local',
+    providers: { local: { enabled: true, model: 'llama3.2', baseUrl: 'http://localhost:11434', api: 'ollama' } },
+  })));
+  let asked = '';
+  await page.route('http://localhost:11434/api/chat', async (route) => {
+    asked = route.request().postData() ?? '';
+    const actions = [
+      { op: 'comp', duration: 5 },
+      { op: 'add_layer', type: 'rectangle', name: 'Sky' },
+      { op: 'set', path: 'size', value: [1920, 1080] },
+      { op: 'set_color', color: '#112244' },
+      { op: 'add_layer', type: 'text', name: 'Headline', text: 'Night Market' },
+      { op: 'preset', name: 'slide_in_up', at: 0.3 },
+      { op: 'teleport' },
+    ];
+    await route.fulfill({ json: { message: { content: '```json\n' + JSON.stringify({ actions }) + '\n```' } } });
+  });
+  await page.getByRole('button', { name: 'Generate ▸' }).click();
+  await expect(page.locator('.v1-gen-engine')).toContainText('Local AI');
+  await page.locator('.v1-gen-input').fill('a night market teaser');
+  await page.locator('.v1-gen-go').click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(heads).toHaveCount(2);
+  await expect(heads.nth(1)).toContainText('Headline');
+  await expect(page.locator('.v1-tl-time')).toContainText('/ 05:00');
+  expect(asked).toContain('DESIGNING a complete short motion graphic');
+  expect(asked).toContain('a night market teaser');
+
+  // A broken reply is reported in the dialog, not applied.
+  await page.unroute('http://localhost:11434/api/chat');
+  await page.route('http://localhost:11434/api/chat', (route) => route.fulfill({ json: { message: { content: 'Sorry, I cannot help.' } } }));
+  await page.getByRole('button', { name: 'Generate ▸' }).click();
+  await page.locator('.v1-gen-input').fill('anything');
+  await page.locator('.v1-gen-go').click();
+  await expect(page.locator('.v1-gen-err')).toContainText('JSON');
+  await expect(heads).toHaveCount(2);
+});

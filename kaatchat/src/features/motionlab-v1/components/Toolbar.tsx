@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useV1 } from '../store';
 import { importFile } from '../../../engine/media';
 import type { Asset } from '../types';
@@ -14,8 +14,17 @@ export default function V1Toolbar() {
   const activeTool = useV1((s) => s.activeTool);
   const setActiveTool = useV1((s) => s.setActiveTool);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Inline status instead of a blocking browser alert(): errors stay 6 s
+  // (click to dismiss), "Importing…" shows while a large file is probed.
+  const [notice, setNotice] = useState<{ text: string; err: boolean } | null>(null);
+  useEffect(() => {
+    if (!notice?.err) return;
+    const t = setTimeout(() => setNotice(null), 6000);
+    return () => clearTimeout(t);
+  }, [notice]);
 
   const importMedia = async (file: File) => {
+    setNotice({ text: `Importing ${file.name}…`, err: false });
     try {
       // Engine import: probes real duration/dimensions and persists the bytes
       // in the shared media store, so the clip survives reload (rehydrateMedia).
@@ -34,8 +43,9 @@ export default function V1Toolbar() {
       addAsset(asset);
       if (asset.kind === 'video') addMediaLayer(asset);
       else addImageLayer(asset);
+      setNotice(null);
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Could not import this file.');
+      setNotice({ text: e instanceof Error ? e.message : 'Could not import this file.', err: true });
     }
   };
 
@@ -75,6 +85,16 @@ export default function V1Toolbar() {
           if (e.target) e.target.value = '';
         }}
       />
+      {notice && (
+        <div
+          className={`v1-notice${notice.err ? ' err' : ''}`}
+          role={notice.err ? 'alert' : 'status'}
+          onClick={() => setNotice(null)}
+          title="Click to dismiss"
+        >
+          {notice.text}
+        </div>
+      )}
     </div>
   );
 }

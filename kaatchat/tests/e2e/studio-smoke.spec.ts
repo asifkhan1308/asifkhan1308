@@ -17,6 +17,7 @@ async function setValue(loc: import('@playwright/test').Locator, v: string | num
 function watch(page: Page, tag: string) {
   page.on('pageerror', (e) => note(`[${tag}] pageerror: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error') note(`[${tag}] console.error: ${m.text().slice(0, 200)}`); });
+  page.on('dialog', (d) => { note(`[${tag}] blocking browser dialog: ${d.message()}`); void d.dismiss(); });
 }
 const time = (page: Page) => page.locator('.v1-tl-time').innerText();
 const clips = (page: Page) => page.locator('.v1-tl-clip').evaluateAll((els) => els.map((e) => [parseFloat((e as HTMLElement).style.left), parseFloat((e as HTMLElement).style.width)]));
@@ -84,7 +85,7 @@ test('Studio smoke: edge cases across the editor raise no errors', async ({ page
   writeFileSync(bad, 'hello');
   await page.locator('.v1-toolbar input[type=file]').setInputFiles(bad);
   await page.waitForTimeout(1000);
-  note(`(info) after importing .txt: layers=${await page.locator('.v1-tl-layer-row-head').count()} toast/err=${(await page.locator('.v1-toast, .v1-error, [role=alert]').allInnerTexts()).join('|')}`);
+  await expect(page.locator('.v1-notice.err')).toContainText('notes.txt');
 
   // 7. Import image + video, then save, reload, reopen; check audio settings survive.
   await page.locator('.v1-toolbar input[type=file]').setInputFiles(fx.talk);

@@ -2,17 +2,14 @@ import { useEffect, useState } from 'react';
 import { loadAISettings, saveAISettings } from '../../../ai/settings';
 import { detectLocalServers, PROVIDERS, type FoundServer } from '../../../ai/providers';
 import type { ProviderId } from '../../../ai/types';
+import { generateFromPrompt } from '../engine/generate';
 
-/* Generate modal — Stage-1 scaffolding.
- * Picks the backend the user wants for AI generation (local vs cloud) and
- * routes through Kaatchat's existing provider abstraction. Local uses the
- * user's own RAM via Ollama / LM Studio / llama.cpp. Cloud uses whichever
- * provider's key the user has configured in Settings.
- *
- * Actual clip-generation plumbing (text-to-video, text-to-image) lands in
- * a later stage — this slice ships the picker + status surface so Studio
- * users can see what their options are and switch active provider without
- * leaving the editor. */
+/* Generate modal.
+ * "Describe your video" → an editable motion graphic on the timeline, built
+ * by the engine picked below (see engine/generate.ts). Local uses the user's
+ * own RAM via Ollama / LM Studio / llama.cpp; cloud uses whichever provider's
+ * key the user configured; with neither, an offline template runs for free.
+ * Language models design the layers/animation; they don't render pixels. */
 
 interface Row {
   id: ProviderId | 'local-detected';
@@ -28,6 +25,23 @@ export default function GenerateModal({ onClose }: { onClose: () => void }) {
   const [settings, setSettings] = useState(loadAISettings());
   const [detected, setDetected] = useState<FoundServer[] | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [prompt, setPrompt] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [genErr, setGenErr] = useState('');
+  const engineName = settings.active === 'builtin' ? 'Offline template (free, no AI)' : PROVIDERS[settings.active].name;
+  const generate = async () => {
+    if (!prompt.trim() || busy) return;
+    setBusy(true);
+    setGenErr('');
+    try {
+      await generateFromPrompt(prompt.trim());
+      onClose();
+    } catch (e) {
+      setGenErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', h);
@@ -51,12 +65,11 @@ export default function GenerateModal({ onClose }: { onClose: () => void }) {
   }, []);
 
   const rows: Row[] = [];
-  // The built-in Anthropic path is always available via Kaatchat's bundled
-  // auth — show it as "Ready" so new users have a working default.
+  // Built-in = the offline mode (templates + phrase parser); always available.
   rows.push({
     id: 'builtin',
-    title: 'Built-in · Claude',
-    sub: "Fastest to try. Routed through Kaatchat's bundled AI. No key required.",
+    title: 'Built-in · Offline',
+    sub: 'Free, on this device, no AI model: templates and common commands.',
     ready: true,
     providerId: 'builtin',
   });
@@ -116,10 +129,32 @@ export default function GenerateModal({ onClose }: { onClose: () => void }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>Generate — pick the engine</h2>
+          <h2>Generate a video</h2>
           <button className="btn-close" onClick={onClose}>✕</button>
         </div>
         <div className="modal-content">
+          <div className="v1-gen-prompt">
+            <textarea
+              className="v1-gen-input"
+              placeholder={'Describe your video — e.g. a 6 second intro for "Asif\'s Bakery" with "Fresh every morning", gold accents'}
+              value={prompt}
+              rows={3}
+              autoFocus
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void generate(); }}
+            />
+            <div className="v1-gen-actions">
+              <span className="v1-gen-engine">Engine: {engineName}</span>
+              <button className="btn-primary v1-gen-go" onClick={() => void generate()} disabled={busy || !prompt.trim()}>
+                {busy ? 'Generating…' : 'Generate'}
+              </button>
+            </div>
+            {genErr && <div className="v1-gen-err" role="alert">{genErr}</div>}
+            <p className="v1-gen-note">
+              Builds editable layers, text and animation on your timeline (one ⌘Z undoes it). Local and cloud engines
+              design it with AI; language models don't render video pixels.
+            </p>
+          </div>
           <div className="v1-gen-rows">
             {rows.map((r, i) => (
               <button
@@ -142,9 +177,8 @@ export default function GenerateModal({ onClose }: { onClose: () => void }) {
             ))}
           </div>
           <p style={{ fontSize: 11, color: 'var(--v1-text-3)', margin: 0 }}>
-            Stage 1 wires the engine picker. Clip generation (text-to-image,
-            text-to-video) is wired to the chosen engine in the next slice —
-            local engines run on your own RAM, cloud engines through your key.
+            Pick the engine: local runs on your own RAM (Ollama / LM Studio), cloud uses your key,
+            and the offline template needs neither.
           </p>
         </div>
         <div className="modal-footer">

@@ -22,6 +22,13 @@ export default tseslint.config(
     },
   },
   {
+    // Legacy template-based MOTIONLAB (pre-V1). Its template plug-in API
+    // takes loosely-typed media/params; the V1 Studio (motionlab-v1) keeps
+    // the full rule set.
+    files: ['src/features/motionlab/**/*.{ts,tsx}'],
+    rules: { '@typescript-eslint/no-explicit-any': 'off' },
+  },
+  {
     files: ['desktop/**/*.cjs'],
     languageOptions: { sourceType: 'commonjs', globals: { ...globals.node } },
     rules: { '@typescript-eslint/no-require-imports': 'off' },

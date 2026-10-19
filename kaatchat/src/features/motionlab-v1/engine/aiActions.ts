@@ -111,6 +111,14 @@ export function applyAIActions(actions: unknown): AIResult {
           const value = V2_PATHS.has(path) ? v2(raw.value) : num(raw.value);
           if (value === null) { skip(`bad value for ${path}`); break; }
           if (op === 'set') {
+            // Shapes are anchored at their centre; keep a centred shape centred
+            // when it is resized, or it grows towards the bottom-right.
+            if (path === 'size' && (layer.type === 'rectangle' || layer.type === 'ellipse')) {
+              const [w, h] = layer.size.default;
+              const [ax, ay] = layer.transform.anchor.default;
+              const nv = value as [number, number];
+              if (Math.abs(ax - w / 2) < 0.5 && Math.abs(ay - h / 2) < 0.5) s.setPropertyBase(layer.id, 'anchor', [nv[0] / 2, nv[1] / 2]);
+            }
             s.setPropertyBase(layer.id, path as Parameters<typeof s.setPropertyBase>[1], value);
             res.applied++;
           } else {

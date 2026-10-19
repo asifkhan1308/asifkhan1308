@@ -49,7 +49,7 @@ const animationFunction = (ctx: CanvasRenderingContext2D, media: HTMLImageElemen
   const centerY = h / 2;
 
   // Animation timeline
-  let animProgress = progress % 1;
+  const animProgress = progress % 1;
 
   // Floating motion
   const floatAmount = Math.sin(animProgress * Math.PI * 2) * params.floatDistance;
@@ -57,7 +57,7 @@ const animationFunction = (ctx: CanvasRenderingContext2D, media: HTMLImageElemen
   // Scale animation
   const scaleStart = 0.8;
   const scalePeak = params.scale;
-  let scale = scaleStart + (scalePeak - scaleStart) * Math.sin(animProgress * Math.PI);
+  const scale = scaleStart + (scalePeak - scaleStart) * Math.sin(animProgress * Math.PI);
 
   // Rotation
   const rotation = (params.rotation * Math.PI) / 180 + animProgress * Math.PI * 0.5;
