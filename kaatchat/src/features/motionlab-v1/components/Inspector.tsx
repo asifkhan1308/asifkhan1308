@@ -8,7 +8,7 @@ import type { AlignEdge } from '../engine/guides';
 type AnimPath =
   | 'position' | 'scale' | 'rotation' | 'anchor' | 'opacity'
   | 'size' | 'cornerRadius' | 'fontSize' | 'reveal'
-  | 'brightness' | 'contrast' | 'saturation' | 'blur' | 'vignette' | 'grain' | 'tintAmount';
+  | 'brightness' | 'contrast' | 'saturation' | 'blur' | 'vignette' | 'grain' | 'tintAmount' | 'shadow' | 'glow';
 
 /* Align-to-frame buttons: a frame edge/centre line + the box that snaps to it. */
 const ALIGN: Array<{ edge: AlignEdge; title: string; icon: React.ReactNode }> = [
@@ -20,7 +20,7 @@ const ALIGN: Array<{ edge: AlignEdge; title: string; icon: React.ReactNode }> = 
   { edge: 'bottom', title: 'Align bottom', icon: <><line x1="1" y1="14" x2="15" y2="14" /><rect x="4" y="3" width="8" height="9" /></> },
 ];
 
-const EFFECT_PATHS: AnimPath[] = ['brightness', 'contrast', 'saturation', 'blur', 'vignette', 'grain', 'tintAmount'];
+const EFFECT_PATHS: AnimPath[] = ['brightness', 'contrast', 'saturation', 'blur', 'vignette', 'grain', 'tintAmount', 'shadow', 'glow'];
 
 export default function V1Inspector() {
   const project = useV1((s) => s.project);
@@ -238,7 +238,7 @@ export default function V1Inspector() {
               {EFFECT_PATHS.map((p) => (
                 <PropRow layer={layer} currentTime={currentTime}
                   key={p}
-                  label={p === 'tintAmount' ? 'Tint' : p[0].toUpperCase() + p.slice(1)}
+                  label={p === 'tintAmount' ? 'Tint' : p === 'shadow' ? 'Drop shadow' : p[0].toUpperCase() + p.slice(1)}
                   path={p}
                 >
                   <SliderField
@@ -262,10 +262,19 @@ export default function V1Inspector() {
                   onChange={(e) => setEffectTintColor(layer.id, e.target.value)}
                 />
               </div>
+              <div className="v1-prop">
+                <div className="v1-prop-head"><span className="v1-prop-label">Shadow / glow colour</span></div>
+                <div className="v1-color-pair">
+                  <input type="color" className="color-input" aria-label="Shadow colour" value={layer.effects.shadowColor ?? '#000000'}
+                    onChange={(e) => patchLayer(layer.id, { effects: { ...layer.effects!, shadowColor: e.target.value } })} />
+                  <input type="color" className="color-input" aria-label="Glow colour" value={layer.effects.glowColor ?? '#ffffff'}
+                    onChange={(e) => patchLayer(layer.id, { effects: { ...layer.effects!, glowColor: e.target.value } })} />
+                </div>
+              </div>
             </>
           ) : (
             <div className="v1-inspector-empty" style={{ padding: 8, fontSize: 11.5 }}>
-              Neutral. Click + Enable to add brightness, contrast, saturation, blur, vignette, grain and tint — all keyframable.
+              Neutral. Click + Enable to add brightness, contrast, saturation, blur, vignette, grain, tint, drop shadow and glow — all keyframable.
             </div>
           )}
         </section>
@@ -439,6 +448,8 @@ function animatedPropertyFor(layer: Layer, path: AnimPath): AnimatedProperty<unk
     case 'vignette':
     case 'grain':
     case 'tintAmount':
+    case 'shadow':
+    case 'glow':
       if (!layer.effects) return;
       return (layer.effects as unknown as Record<string, AnimatedProperty<unknown>>)[path];
   }

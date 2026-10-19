@@ -16,7 +16,7 @@ const LAYER_TYPES = ['text', 'rectangle', 'ellipse', 'null'] as const;
 /** Prop paths the model may set / keyframe directly. */
 export const AI_PATHS = [
   'position', 'scale', 'rotation', 'anchor', 'opacity', 'size', 'cornerRadius', 'fontSize',
-  'brightness', 'contrast', 'saturation', 'blur', 'vignette', 'grain', 'tintAmount',
+  'brightness', 'contrast', 'saturation', 'blur', 'vignette', 'grain', 'tintAmount', 'shadow', 'glow',
 ] as const;
 const V2_PATHS = new Set(['position', 'scale', 'anchor', 'size']);
 

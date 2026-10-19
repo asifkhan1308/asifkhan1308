@@ -33,6 +33,8 @@ export function layerKeyTimes(layer: Layer): number[] {
   if (layer.type === 'rectangle' || layer.type === 'ellipse') add(layer.size);
   if (layer.type === 'rectangle') add(layer.cornerRadius);
   if (layer.type === 'text') { add(layer.fontSize); add(layer.reveal); }
+  // Effect keyframes show on the timeline too (and move with diamond drags).
+  if (layer.effects) for (const v of Object.values(layer.effects)) if (v && typeof v === 'object') add(v);
   return out;
 }
 

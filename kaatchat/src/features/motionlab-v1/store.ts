@@ -168,7 +168,7 @@ const scheduleAutosave = (project: Project) => {
   }, AUTOSAVE_DEBOUNCE);
 };
 
-const EFFECT_KEYS: EffectProp[] = ['brightness', 'contrast', 'saturation', 'blur', 'vignette', 'grain', 'tintAmount'];
+const EFFECT_KEYS: EffectProp[] = ['brightness', 'contrast', 'saturation', 'blur', 'vignette', 'grain', 'tintAmount', 'shadow', 'glow'];
 
 /* Every animatable path a layer may carry. Timeline keyframe ops walk this
  * list so a diamond on the track moves/copies all props keyed at that time. */
@@ -206,7 +206,8 @@ function getAnimated(layer: Layer, path: string): AnimatedProperty<unknown> | nu
     default:
       if (EFFECT_KEYS.includes(path as EffectProp)) {
         if (!layer.effects) return null;
-        return (layer.effects as unknown as Record<string, AnimatedProperty<unknown>>)[path] ?? null;
+        // Effects added later (shadow, glow) may be missing on older saves: 0.
+        return (layer.effects as unknown as Record<string, AnimatedProperty<unknown>>)[path] ?? { default: 0 };
       }
       return null;
   }

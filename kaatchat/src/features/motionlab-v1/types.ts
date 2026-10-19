@@ -52,6 +52,11 @@ export interface Effects {
   grain: AnimatedProperty<number>;      // 0..1
   tintColor: RGBA;
   tintAmount: AnimatedProperty<number>; // 0..1 mix
+  /* Optional (added later; older saved effects simply lack them = 0). */
+  shadow?: AnimatedProperty<number>;    // 0..1 drop-shadow strength
+  shadowColor?: RGBA;
+  glow?: AnimatedProperty<number>;      // 0..1 outer-glow strength
+  glowColor?: RGBA;
 }
 export const EFFECT_PROPS = [
   'brightness',
@@ -61,6 +66,8 @@ export const EFFECT_PROPS = [
   'vignette',
   'grain',
   'tintAmount',
+  'shadow',
+  'glow',
 ] as const;
 export type EffectProp = (typeof EFFECT_PROPS)[number];
 

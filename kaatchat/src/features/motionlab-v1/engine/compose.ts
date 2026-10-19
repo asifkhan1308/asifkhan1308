@@ -6,12 +6,16 @@ import { resolveAnimated } from './interp';
  * (vignette, grain) that are drawn separately in composition space. */
 function resolveEffectsFilter(e: Effects | undefined, time: number, pixelScale = 1): {
   filter: string;
+  shadow: number;
+  shadowColor: string;
+  glow: number;
+  glowColor: string;
   vignette: number;
   grain: number;
   tintColor: string;
   tintAmount: number;
 } {
-  if (!e) return { filter: 'none', vignette: 0, grain: 0, tintColor: '#ffffff', tintAmount: 0 };
+  if (!e) return { filter: 'none', shadow: 0, shadowColor: '#000000', glow: 0, glowColor: '#ffffff', vignette: 0, grain: 0, tintColor: '#ffffff', tintAmount: 0 };
   const b = resolveAnimated(e.brightness, time);
   const c = resolveAnimated(e.contrast, time);
   const s = resolveAnimated(e.saturation, time);
@@ -23,6 +27,10 @@ function resolveEffectsFilter(e: Effects | undefined, time: number, pixelScale =
   if (bl > 0) parts.push(`blur(${bl * 20 * pixelScale}px)`); // filters ignore the ctx transform
   return {
     filter: parts.length ? parts.join(' ') : 'none',
+    shadow: e.shadow ? Math.max(0, Math.min(1, resolveAnimated(e.shadow, time))) : 0,
+    shadowColor: e.shadowColor ?? '#000000',
+    glow: e.glow ? Math.max(0, Math.min(1, resolveAnimated(e.glow, time))) : 0,
+    glowColor: e.glowColor ?? '#ffffff',
     vignette: resolveAnimated(e.vignette, time),
     grain: resolveAnimated(e.grain, time),
     tintColor: e.tintColor,
@@ -96,6 +104,37 @@ export function composeFrame(
     // parentWorld · translate(position) · rotate · scale · translate(−anchor):
     // anchor last so rotation + scale pivot around it; parents carry children.
     c.transform(...worldMatrix(layer, layers, time));
+    // Shadows are in device pixels (they ignore the transform): scale them.
+    const px = opts.pixelScale ?? 1;
+    if (fx.glow > 0) {
+      // Glow-only pass: draw far off-canvas and throw the shadow back on, so
+      // only the glow lands (no double-drawn layer), then the normal draw.
+      const OFF = 100000;
+      const m = c.getTransform();
+      c.setTransform(new DOMMatrix().translate(OFF, 0).multiply(m));
+      c.shadowColor = withAlpha(fx.glowColor, Math.min(1, fx.glow * 1.2));
+      c.shadowBlur = 70 * fx.glow * px;
+      c.shadowOffsetX = -OFF;
+      c.shadowOffsetY = 0;
+      drawPixels(c, layer);
+      c.setTransform(m);
+    }
+    if (fx.shadow > 0) {
+      c.shadowColor = withAlpha(fx.shadowColor, 0.65 * fx.shadow);
+      c.shadowBlur = 40 * fx.shadow * px;
+      c.shadowOffsetX = 0;
+      c.shadowOffsetY = 20 * fx.shadow * px;
+    } else {
+      c.shadowColor = 'transparent';
+      c.shadowBlur = 0;
+      c.shadowOffsetX = 0;
+      c.shadowOffsetY = 0;
+    }
+    drawPixels(c, layer);
+    c.restore();
+  };
+
+  const drawPixels = (c: CanvasRenderingContext2D, layer: Layer) => {
     switch (layer.type) {
       case 'text':
         drawText(c, layer, time);
@@ -114,7 +153,6 @@ export function composeFrame(
       default:
         break;
     }
-    c.restore();
   };
 
   for (const layer of draw) {
@@ -161,6 +199,15 @@ export function composeFrame(
     if (fx.grain > 0) drawGrain(ctx, fx.grain, w, h, time);
     if (fx.vignette > 0) drawVignette(ctx, fx.vignette, w, h);
   }
+}
+
+/** '#rrggbb' / '#rgb' + alpha → rgba(); other CSS colours pass through. */
+function withAlpha(color: string, a: number): string {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
+  if (!m) return color;
+  const h = m[1].length === 3 ? m[1].split('').map((ch) => ch + ch).join('') : m[1];
+  const n = parseInt(h, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${Math.max(0, Math.min(1, a))})`;
 }
 
 /* Two reusable off-screen buffers for track mattes (no per-frame allocation).

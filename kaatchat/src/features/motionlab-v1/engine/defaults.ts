@@ -22,6 +22,10 @@ export const neutralEffects = (): Effects => ({
   grain: anim<number>(0),
   tintColor: '#ffffff',
   tintAmount: anim<number>(0),
+  shadow: anim<number>(0),
+  shadowColor: '#000000',
+  glow: anim<number>(0),
+  glowColor: '#ffffff',
 });
 
 const uid = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2, 9)}`;

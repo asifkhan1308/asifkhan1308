@@ -696,3 +696,48 @@ test('Studio: shift-clicking timeline rows does not highlight page text', async 
   await heads.nth(1).click({ modifiers: ['Shift'] });
   expect(await page.evaluate(() => String(window.getSelection() ?? ''))).toBe('');
 });
+
+test('Studio: glow and drop shadow render around a layer', async ({ page }) => {
+  await page.goto('/#/studio');
+  await page.locator('.v1-tool', { hasText: 'Rect' }).click();           // white 576×324 at the centre
+  await page.locator('.v1-inspector').getByRole('button', { name: '+ Enable' }).click();
+  const lum = (x: number, y: number) => page.evaluate(([cx, cy]) => {
+    const c = document.querySelector('.v1-canvas') as HTMLCanvasElement;
+    const k = c.width / 1920;
+    return c.getContext('2d')!.getImageData(Math.round(cx * k), Math.round(cy * k), 1, 1).data[0];
+  }, [x, y]);
+  const slider = (label: string) => page.locator('.v1-prop', { hasText: label }).locator('input[type=range]');
+  // Just outside the rectangle's right edge (x 1248) — dark before.
+  expect(await lum(1268, 540)).toBeLessThan(10);
+  await setValue(slider('Glow'), 1);
+  await expect.poll(() => lum(1268, 540)).toBeGreaterThan(60);           // glow lights it up
+  await setValue(slider('Glow'), 0);
+  await expect.poll(() => lum(1268, 540)).toBeLessThan(10);
+
+  // White drop shadow: shows below the box (y 702+), not above it (y < 378).
+  await page.getByLabel('Shadow colour').evaluate((el) => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, '#ffffff');
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await setValue(slider('Drop shadow'), 1);
+  await expect.poll(() => lum(960, 716)).toBeGreaterThan(60);
+  expect(await lum(960, 364)).toBeLessThan(40);
+
+  // The export (an OffscreenCanvas context) renders glow + shadow too.
+  await setValue(page.locator('.duration-field input'), 1);
+  await setValue(slider('Glow'), 1);
+  await page.locator('.btn-export').click();
+  const render = page.locator('.modal .btn-primary');
+  await expect(render).toHaveText('Render', { timeout: 30_000 });
+  const dl = page.waitForEvent('download', { timeout: 120_000 });
+  await render.click();
+  const path = test.info().outputPath('glow.mp4');
+  await (await dl).saveAs(path);
+  const out = (x: number, y: number) => {
+    const r = spawnSync(ffmpeg, ['-v', 'error', '-i', path, '-vf', `select='eq(n\\,3)',crop=4:4:${x}:${y}`, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'gray', '-']);
+    return r.stdout.reduce((a, b) => a + b, 0) / Math.max(1, r.stdout.length);
+  };
+  expect(out(1266, 538)).toBeGreaterThan(50);                             // glow beside the box
+  expect(out(958, 714)).toBeGreaterThan(50);                              // shadow below it
+  expect(out(40, 40)).toBeLessThan(20);                                   // corner stays dark
+});

@@ -1021,3 +1021,4 @@
 /* Shift-click on rows selects layers, not page text. */
 .v1-tl-layer-row-head, .v1-tl-layer-row-track, .v1-tl-ruler { user-select: none; -webkit-user-select: none; }
 .v1-tl-rename { user-select: text; -webkit-user-select: text; }
+.v1-color-pair { display: flex; gap: 8px; }
