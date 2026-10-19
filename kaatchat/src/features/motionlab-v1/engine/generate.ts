@@ -42,8 +42,181 @@ export function promptCopy(prompt: string): { title: string; sub: string | null 
   return { title, sub: null };
 }
 
-/** Offline template: an animated title card built only from validated actions. */
+/* ───── Offline templates ─────
+ * Picked from the prompt's words; the title card is the default. All are
+ * built only from validated actions, so they're fully editable layers. */
+
+export type TemplateKind = 'title' | 'lower-third' | 'quote' | 'countdown' | 'cta';
+
+export const TEMPLATES: Array<{ kind: TemplateKind; label: string; example: string }> = [
+  { kind: 'title', label: 'Title card', example: 'a 6 second intro for "Asif\'s Bakery" with "Fresh every morning", gold accents' },
+  { kind: 'lower-third', label: 'Lower third', example: 'lower third for "Sara Khan" "Head of Design"' },
+  { kind: 'quote', label: 'Quote', example: 'quote "Make it simple, but significant." "Don Draper"' },
+  { kind: 'countdown', label: 'Countdown', example: 'countdown from 3, blue' },
+  { kind: 'cta', label: 'Call to action', example: 'subscribe button "Subscribe" "New videos every Friday", red' },
+];
+
+export function templateKindOf(prompt: string): TemplateKind {
+  const p = prompt.toLowerCase();
+  if (/\blower[-\s]?third|\bname\s*(?:tag|plate)|\bchyron\b/.test(p)) return 'lower-third';
+  if (/\bquote\b|\bquotation\b/.test(p)) return 'quote';
+  if (/\bcount\s*down\b|\b3[\s,.]+2[\s,.]+1\b/.test(p)) return 'countdown';
+  if (/\bsubscribe\b|\bfollow\b|\bsign\s*up\b|\bcall to action\b|\bcta\b|\bbuy now\b|\bshop now\b/.test(p)) return 'cta';
+  return 'title';
+}
+
+const accentOf = (prompt: string, fallback: string) =>
+  Object.entries(COLOR_WORDS).find(([w]) => new RegExp(`\\b${w}\\b`, 'i').test(prompt))?.[1] ?? fallback;
+
+/** Offline template chosen from the prompt (title card by default). */
 export function templateActions(prompt: string, comp: { width: number; height: number }): AIAction[] {
+  switch (templateKindOf(prompt)) {
+    case 'lower-third': return lowerThird(prompt, comp);
+    case 'quote': return quoteCard(prompt, comp);
+    case 'countdown': return countdown(prompt, comp);
+    case 'cta': return callToAction(prompt, comp);
+    default: return titleCard(prompt, comp);
+  }
+}
+
+function lowerThird(prompt: string, comp: { width: number; height: number }): AIAction[] {
+  const W = comp.width, H = comp.height, s = Math.min(W, H) / 1080;
+  const { title, sub } = promptCopy(prompt);
+  const accent = accentOf(prompt, '#ffffff');
+  const x = Math.round(W * 0.08), y = Math.round(H * 0.8);
+  return [
+    { op: 'comp', duration: 5 },
+    { op: 'add_layer', type: 'rectangle', name: 'Panel' },
+    { op: 'set', path: 'size', value: [Math.round(620 * s), Math.round(130 * s)] },
+    { op: 'set', path: 'position', value: [x + Math.round(310 * s), y] },
+    { op: 'set', path: 'cornerRadius', value: Math.round(10 * s) },
+    { op: 'set_color', color: '#111113' },
+    { op: 'preset', name: 'slide_in_left', at: 0.2, duration: 0.6 },
+    { op: 'preset', name: 'fade_out', duration: 0.5 },
+    { op: 'add_layer', type: 'rectangle', name: 'Accent' },
+    { op: 'set', path: 'size', value: [Math.round(8 * s), Math.round(130 * s)] },
+    { op: 'set', path: 'position', value: [x + Math.round(4 * s), y] },
+    { op: 'set_color', color: accent },
+    { op: 'preset', name: 'fade_in', at: 0.5, duration: 0.3 },
+    { op: 'preset', name: 'fade_out', duration: 0.5 },
+    { op: 'add_layer', type: 'text', name: 'Name', text: title },
+    { op: 'text_align', align: 'left' },
+    { op: 'set', path: 'fontSize', value: Math.round(48 * s) },
+    { op: 'set', path: 'position', value: [x + Math.round(36 * s), y - Math.round(4 * s)] },
+    { op: 'set_color', color: '#ffffff' },
+    { op: 'preset', name: 'typewriter', at: 0.6, duration: 0.6 },
+    { op: 'preset', name: 'fade_out', duration: 0.5 },
+    ...(sub ? [
+      { op: 'add_layer', type: 'text', name: 'Role', text: sub },
+      { op: 'text_align', align: 'left' },
+      { op: 'set', path: 'fontSize', value: Math.round(28 * s) },
+      { op: 'set', path: 'position', value: [x + Math.round(36 * s), y + Math.round(38 * s)] },
+      { op: 'set_color', color: '#a1a1a6' },
+      { op: 'preset', name: 'fade_in', at: 1.0, duration: 0.5 },
+      { op: 'preset', name: 'fade_out', duration: 0.5 },
+    ] as AIAction[] : []),
+  ];
+}
+
+function quoteCard(prompt: string, comp: { width: number; height: number }): AIAction[] {
+  const W = comp.width, H = comp.height, s = Math.min(W, H) / 1080;
+  const { title, sub } = promptCopy(prompt);
+  const text = title.startsWith('“') || title.startsWith('"') ? title : `“${title}”`;
+  return [
+    { op: 'comp', duration: 6 },
+    { op: 'add_layer', type: 'rectangle', name: 'Background' },
+    { op: 'set', path: 'size', value: [W, H] },
+    { op: 'set', path: 'position', value: [W / 2, H / 2] },
+    { op: 'set', path: 'cornerRadius', value: 0 },
+    { op: 'set_gradient', from: '#1c1c1e', to: '#000000', angle: 90 },
+    { op: 'add_layer', type: 'text', name: 'Quote', text },
+    { op: 'set', path: 'fontSize', value: Math.round((text.length > 40 ? 64 : 84) * s) },
+    { op: 'set', path: 'position', value: [W / 2, Math.round(H / 2 - 10 * s)] },
+    { op: 'set_color', color: '#ffffff' },
+    { op: 'preset', name: 'words_in', at: 0.3, duration: 1.6 },
+    { op: 'preset', name: 'fade_out', duration: 0.6 },
+    ...(sub ? [
+      { op: 'add_layer', type: 'text', name: 'Author', text: `— ${sub}` },
+      { op: 'set', path: 'fontSize', value: Math.round(36 * s) },
+      { op: 'set', path: 'position', value: [W / 2, Math.round(H / 2 + 110 * s)] },
+      { op: 'set_color', color: accentOf(prompt, '#a1a1a6') },
+      { op: 'preset', name: 'fade_in', at: 2.1, duration: 0.6 },
+      { op: 'preset', name: 'fade_out', duration: 0.6 },
+    ] as AIAction[] : []),
+  ];
+}
+
+function countdown(prompt: string, comp: { width: number; height: number }): AIAction[] {
+  const W = comp.width, H = comp.height, s = Math.min(W, H) / 1080;
+  const from = Math.max(1, Math.min(10, Number(prompt.match(/\bfrom\s+(\d+)/i)?.[1] ?? 3)));
+  const accent = accentOf(prompt, '#ffffff');
+  const out: AIAction[] = [
+    { op: 'comp', duration: from + 1 },
+    { op: 'add_layer', type: 'ellipse', name: 'Ring' },
+    { op: 'set', path: 'size', value: [Math.round(420 * s), Math.round(420 * s)] },
+    { op: 'set', path: 'position', value: [W / 2, H / 2] },
+    { op: 'set_color', color: '#0b0b0c' },
+    { op: 'set_stroke', color: accent, width: Math.max(2, Math.round(10 * s)) },
+  ];
+  for (let i = 0; i < from; i++) {
+    const n = from - i;
+    out.push(
+      { op: 'add_layer', type: 'text', name: `Count ${n}`, text: String(n) },
+      { op: 'set', path: 'fontSize', value: Math.round(220 * s) },
+      { op: 'set', path: 'position', value: [W / 2, Math.round(H / 2 + 78 * s)] },
+      { op: 'set_color', color: '#ffffff' },
+      { op: 'move', start: i },
+      { op: 'trim', start: i, end: i + 1 },
+      { op: 'preset', name: 'pop', at: i, duration: 0.35 },
+      { op: 'preset', name: 'fade_out', duration: 0.2 },
+    );
+  }
+  const { title } = promptCopy(prompt.replace(/countdown|from\s+\d+/gi, ''));
+  out.push(
+    { op: 'add_layer', type: 'text', name: 'Go', text: /["“]/.test(prompt) ? title : 'GO!' },
+    { op: 'set', path: 'fontSize', value: Math.round(180 * s) },
+    { op: 'set', path: 'position', value: [W / 2, Math.round(H / 2 + 64 * s)] },
+    { op: 'set_color', color: accent },
+    { op: 'move', start: from },
+    { op: 'trim', start: from, end: from + 1 },
+    { op: 'preset', name: 'pop', at: from, duration: 0.4 },
+  );
+  return out;
+}
+
+function callToAction(prompt: string, comp: { width: number; height: number }): AIAction[] {
+  const W = comp.width, H = comp.height, s = Math.min(W, H) / 1080;
+  const q = [...prompt.matchAll(/"([^"]+)"|“([^”]+)”/g)].map((m) => (m[1] ?? m[2]).trim()).filter(Boolean);
+  const label = q[0] ?? (/\bfollow\b/i.test(prompt) ? 'Follow' : /\bsign\s*up\b/i.test(prompt) ? 'Sign up' : 'Subscribe');
+  const accent = accentOf(prompt, '#ff3b30');
+  return [
+    { op: 'comp', duration: 4 },
+    { op: 'add_layer', type: 'rectangle', name: 'Button' },
+    { op: 'set', path: 'size', value: [Math.round((140 + label.length * 30) * s), Math.round(120 * s)] },
+    { op: 'set', path: 'position', value: [W / 2, H / 2] },
+    { op: 'set', path: 'cornerRadius', value: Math.round(60 * s) },
+    { op: 'set_color', color: accent },
+    { op: 'preset', name: 'pop', at: 0.2, duration: 0.6 },
+    { op: 'preset', name: 'fade_out', duration: 0.4 },
+    { op: 'add_layer', type: 'text', name: 'Label', text: label },
+    { op: 'set', path: 'fontSize', value: Math.round(56 * s) },
+    { op: 'set', path: 'position', value: [W / 2, Math.round(H / 2 + 20 * s)] },
+    { op: 'set_color', color: '#ffffff' },
+    { op: 'preset', name: 'pop', at: 0.35, duration: 0.6 },
+    { op: 'preset', name: 'fade_out', duration: 0.4 },
+    ...(q[1] ? [
+      { op: 'add_layer', type: 'text', name: 'Note', text: q[1] },
+      { op: 'set', path: 'fontSize', value: Math.round(34 * s) },
+      { op: 'set', path: 'position', value: [W / 2, Math.round(H / 2 + 130 * s)] },
+      { op: 'set_color', color: '#d1d1d6' },
+      { op: 'preset', name: 'fade_in', at: 0.9, duration: 0.5 },
+      { op: 'preset', name: 'fade_out', duration: 0.4 },
+    ] as AIAction[] : []),
+  ];
+}
+
+/** Title card: background, accent bar, title (pop) and optional subtitle. */
+function titleCard(prompt: string, comp: { width: number; height: number }): AIAction[] {
   const W = comp.width, H = comp.height, cx = W / 2, cy = H / 2;
   const d = prompt.match(/(\d+(?:\.\d+)?)\s*(?:s|sec|secs|seconds?)\b/i);
   const duration = Math.max(2, Math.min(60, d ? Number(d[1]) : 6));

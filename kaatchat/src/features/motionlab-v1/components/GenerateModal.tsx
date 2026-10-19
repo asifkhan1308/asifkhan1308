@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { loadAISettings, saveAISettings } from '../../../ai/settings';
 import { detectLocalServers, PROVIDERS, type FoundServer } from '../../../ai/providers';
 import type { ProviderId } from '../../../ai/types';
-import { generateFromPrompt } from '../engine/generate';
+import { generateFromPrompt, TEMPLATES } from '../engine/generate';
 
 /* Generate modal.
  * "Describe your video" → an editable motion graphic on the timeline, built
@@ -143,6 +143,13 @@ export default function GenerateModal({ onClose }: { onClose: () => void }) {
               onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void generate(); }}
             />
+            <div className="v1-gen-chips" role="group" aria-label="Start from a template">
+              {TEMPLATES.map((t) => (
+                <button key={t.kind} type="button" className="v1-gen-chip" onClick={() => setPrompt(t.example)} title={t.example}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
             <div className="v1-gen-actions">
               <span className="v1-gen-engine">Engine: {engineName}</span>
               <button className="btn-primary v1-gen-go" onClick={() => void generate()} disabled={busy || !prompt.trim()}>

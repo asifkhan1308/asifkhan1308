@@ -43,6 +43,7 @@ Actions:
   { "op": "delete" }
   { "op": "rename", "name": string }
   { "op": "set_text", "text": string }                                      // text layers
+  { "op": "text_align", "align": "left"|"center"|"right" }                  // text layers; position is the anchor edge
   { "op": "set_color", "color": "#rrggbb" }                                 // text / shape fill (solid)
   { "op": "set_gradient", "from": "#rrggbb", "to": "#rrggbb", "angle"?: <deg> } // linear gradient fill; 0° = left→right
   { "op": "set_stroke", "color": "#rrggbb" | null, "width"?: <px> }          // outline (null = off)
@@ -244,6 +245,14 @@ export function applyAIActions(actions: unknown): AIResult {
           s.patchLayer(layer.id, { text: raw.text } as Partial<Layer>);
           res.applied++;
           break;
+        case 'text_align': {
+          if (layer.type !== 'text') { skip('not a text layer'); break; }
+          const a = String(raw.align ?? '');
+          if (a !== 'left' && a !== 'center' && a !== 'right') { skip('align must be left, center or right'); break; }
+          s.patchLayer(layer.id, { align: a } as Partial<Layer>);
+          res.applied++;
+          break;
+        }
         case 'set_color': {
           const c = typeof raw.color === 'string' ? raw.color.trim() : '';
           if (!/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(c)) { skip('color must be #rrggbb'); break; }

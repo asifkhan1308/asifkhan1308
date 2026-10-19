@@ -1056,3 +1056,6 @@
 .v1-tl-marker-edit { position: absolute; top: 2px; z-index: 4; width: 110px; font: inherit; font-size: 10.5px; padding: 1px 4px; border: 1px solid var(--v1-text); border-radius: 3px; background: var(--v1-surface); color: var(--v1-text); }
 .v1-prop-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .v1-prop-pair label { display: flex; flex-direction: column; gap: 4px; }
+.v1-gen-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.v1-gen-chip { font: inherit; font-size: 11px; color: var(--v1-text); background: var(--v1-surface-2); border: 1px solid var(--v1-line); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+.v1-gen-chip:hover { border-color: var(--v1-text); }

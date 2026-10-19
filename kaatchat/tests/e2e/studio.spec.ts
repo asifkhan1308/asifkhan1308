@@ -958,3 +958,30 @@ test('Studio: stroke, font family and letter spacing', async ({ page }) => {
   await page.getByLabel('Font family').selectOption({ label: 'Serif' });
   await expect.poll(async () => Buffer.compare(await shot(), before)).not.toBe(0);
 });
+
+test('Studio: the preview keeps the composition aspect ratio (no stretching)', async ({ page }) => {
+  const ratio = async () => { const b = (await page.locator('.v1-canvas').boundingBox())!; return b.width / b.height; };
+  for (const vp of [{ width: 1440, height: 900 }, { width: 1280, height: 720 }]) {
+    await page.setViewportSize(vp);
+    await page.goto('/#/studio');
+    await page.locator('.v1-topbar select').first().selectOption({ label: 'HD 1920×1080' }); // same-URL goto keeps the project
+    await expect.poll(ratio).toBeCloseTo(1920 / 1080, 2);
+    await page.locator('.v1-topbar select').first().selectOption({ label: 'Vertical 1080×1920' });
+    await expect.poll(ratio).toBeCloseTo(1080 / 1920, 2);
+    await page.locator('.v1-topbar select').first().selectOption({ label: 'Square 1080×1080' });
+    await expect.poll(ratio).toBeCloseTo(1, 2);
+  }
+});
+
+test('Studio: Generate offline templates from the chips', async ({ page }) => {
+  await page.goto('/#/studio');
+  const heads = page.locator('.v1-tl-layer-row-head');
+  for (const [chip, layers] of [['Lower third', 4], ['Quote', 3], ['Countdown', 5], ['Call to action', 3]] as const) {
+    await page.getByRole('button', { name: 'Generate ▸' }).click();
+    await page.locator('.v1-gen-chip', { hasText: chip }).click();
+    await page.locator('.v1-gen-go').click();
+    await expect(heads).toHaveCount(layers);
+    await page.keyboard.press('ControlOrMeta+z');                         // one undo removes it
+    await expect(heads).toHaveCount(0);
+  }
+});
