@@ -426,8 +426,8 @@ test('Studio: parenting — a rectangle follows its null on canvas and in the ex
   const heads = page.locator('.v1-tl-layer-row-head');
   await heads.nth(0).click();                                          // select the rectangle
   // Options for the rectangle: None, then the null (it can't parent to itself).
-  await expect(page.locator('.v1-parent-select option')).toHaveCount(2);
-  await page.locator('.v1-parent-select').selectOption({ index: 1 });
+  await expect(page.getByLabel('Parent layer').locator('option')).toHaveCount(2);
+  await page.getByLabel('Parent layer').selectOption({ index: 1 });
   await expect(heads.nth(0)).toContainText('↳');
   const px = (x: number, y: number) => page.evaluate(([cx, cy]) => {
     const c = document.querySelector('.v1-canvas') as HTMLCanvasElement;
