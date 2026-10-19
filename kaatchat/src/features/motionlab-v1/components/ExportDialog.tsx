@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useV1 } from '../store';
 import { useMediaElements } from '../engine/useMedia';
 import { exportProjectToVideo } from '../engine/exportVideo';
@@ -12,6 +12,12 @@ export default function V1ExportDialog({ onClose }: { onClose: () => void }) {
   const [format, setFormat] = useState<'mp4' | 'webm'>('mp4');
   const [quality, setQuality] = useState<'low' | 'medium' | 'high' | 'ultra'>('high');
   const [state, setState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+  // Escape closes, except mid-render (Close is disabled then too).
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape' && state !== 'running') onClose(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [state, onClose]);
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState('');
   const [error, setError] = useState<string | null>(null);

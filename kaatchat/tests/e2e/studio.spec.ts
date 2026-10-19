@@ -244,3 +244,46 @@ test('Studio: ✦ Ask works offline — add, style, animate and trim in one undo
   await ask.press('Enter');
   await expect(page.locator('.v1-ai-status.err')).toContainText('Offline mode');
 });
+
+test('Studio regressions: first video frame, saved state on reopen, dialogs, comp duration', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const centre = () => page.evaluate(() => {
+    const c = document.querySelector('.v1-canvas') as HTMLCanvasElement;
+    return [...c.getContext('2d')!.getImageData(c.width >> 1, c.height >> 1, 1, 1).data].slice(0, 3);
+  });
+  await page.goto('/#/studio');
+  await page.locator('.v1-tool', { hasText: 'Rect' }).click();          // white box under the video
+  await page.locator('.v1-toolbar input[type=file]').setInputFiles(fx.talk);
+  // The imported video's first frame paints without moving the playhead (was: the box showed through).
+  await expect.poll(centre, { timeout: 10_000 }).not.toEqual([255, 255, 255]);
+
+  // Saved, then reopened → still "Saved", not "Unsaved".
+  await page.locator('.v1-menu-trigger').click();
+  await page.locator('.v1-menu-item', { hasText: 'Save' }).first().click();
+  await expect(page.locator('.v1-save-badge')).toContainText('Saved');
+  await page.waitForTimeout(1600); // past the autosave debounce
+  await page.reload();
+  await page.locator('.v1-menu-trigger').click();
+  await page.locator('.v1-menu-recent-main').first().click();
+  await expect(page.locator('.v1-tl-layer-row-head')).toHaveCount(2);
+  await expect(page.locator('.v1-save-badge')).toContainText('Saved');
+  await expect.poll(centre, { timeout: 10_000 }).not.toEqual([255, 255, 255]);
+
+  // Dialogs: Escape closes; Delete behind a dialog does not delete the selected layer.
+  await page.locator('.v1-tl-layer-row-head').first().click();
+  await page.locator('.btn-export').click();
+  await expect(page.locator('.modal')).toBeVisible();
+  await page.keyboard.press('Delete');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(page.locator('.v1-tl-layer-row-head')).toHaveCount(2);
+
+  // Shortening the comp clamps the playhead; clips stay inside the track.
+  await page.keyboard.press('End');
+  await setValue(page.locator('.duration-field input'), 4);
+  await expect(page.locator('.v1-tl-time')).toHaveText(/^04:00 \/ 04:00$/);
+  // A layer longer than the comp must not make the timeline scroll sideways at Fit zoom.
+  expect(await page.locator('.v1-tl-grid').evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  expect(errors).toEqual([]);
+});

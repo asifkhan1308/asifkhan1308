@@ -122,6 +122,8 @@ const touch = (p: Project): Project => ({ ...p, updatedAt: Date.now() });
 const initialProject = defaultProject();
 const history = createHistory(initialProject);
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+/** True while a project is being opened: that swap is not an edit. */
+let opening = false;
 const AUTOSAVE_DEBOUNCE = 1200;
 const scheduleAutosave = (project: Project) => {
   if (autosaveTimer) clearTimeout(autosaveTimer);
@@ -217,7 +219,15 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
   setCompositionFps: (fps) =>
     set((s) => ({ project: touch({ ...s.project, composition: { ...s.project.composition, fps } }) })),
   setCompositionDuration: (duration) =>
-    set((s) => ({ project: touch({ ...s.project, composition: { ...s.project.composition, duration } }) })),
+    set((s) => {
+      if (!Number.isFinite(duration) || duration <= 0) return s;
+      // Layers past the new end are kept (non-destructive, like AE); only the
+      // playhead must stay inside the comp.
+      return {
+        project: touch({ ...s.project, composition: { ...s.project.composition, duration } }),
+        currentTime: Math.min(s.currentTime, duration),
+      };
+    }),
 
   addTextLayer: () => {
     const l = newTextLayer(get().project.composition);
@@ -649,24 +659,35 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
 
   saveToStorage: async () => {
     const p = get().project;
+    // The pending autosave holds this same project; writing it after the
+    // save would make reopening think there are unsaved changes.
+    if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
     await persistSave(p);
     set({ savedAt: Date.now(), isDirty: false });
   },
 
   loadFromStorage: async (id: string) => {
     const { saved, autosave } = await persistLoad(id);
-    const pick = autosave && (!saved || autosave.savedAt > saved.savedAt) ? autosave : saved;
+    const newer = !!autosave && (!saved || autosave.savedAt > saved.savedAt);
+    // An autosave identical to the save is not an unsaved change.
+    const differs = newer && (!saved || JSON.stringify(autosave!.project) !== JSON.stringify(saved.project));
+    const pick = newer ? autosave : saved;
     if (!pick) throw new Error('Project not found in local storage.');
     const rehydrated = await rehydrateMedia(pick.project);
     history.clear(rehydrated);
-    set({
-      project: rehydrated,
-      selectedLayerId: null,
-      currentTime: 0,
-      isPlaying: false,
-      savedAt: saved?.savedAt ?? null,
-      isDirty: !!autosave && (!saved || autosave.savedAt > saved.savedAt),
-    });
+    opening = true; // opening a project is not an edit (no dirty flag, no history entry)
+    try {
+      set({
+        project: rehydrated,
+        selectedLayerId: null,
+        currentTime: 0,
+        isPlaying: false,
+        savedAt: saved?.savedAt ?? null,
+        isDirty: differs,
+      });
+    } finally {
+      opening = false;
+    }
   },
 
   replaceProject: (project: Project) => {
@@ -681,6 +702,7 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
  * don't re-enter the stack. */
 useV1.subscribe((state, prev) => {
   if (state.project !== prev.project) {
+    if (opening) return;
     history.push(state.project);
     scheduleAutosave(state.project);
     if (!state.isDirty) useV1.setState({ isDirty: true });

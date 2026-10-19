@@ -32,6 +32,8 @@ function db(): Promise<IDBDatabase> {
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error ?? new Error('Could not open local storage.'));
+      // Another tab holding an older version open would otherwise hang us forever.
+      req.onblocked = () => reject(new Error('Local storage is busy in another tab. Close other MOTIONLAB tabs and try again.'));
     });
     dbp.catch(() => (dbp = null));
   }
@@ -103,7 +105,7 @@ export async function loadProject(
 export async function listProjects(): Promise<ProjectSummary[]> {
   const d = await db();
   const items: ProjectSummary[] = [];
-  await new Promise<void>((resolve) => {
+  await new Promise<void>((resolve, reject) => {
     const t = d.transaction(['projects', 'autosave'], 'readonly');
     const proj = t.objectStore('projects');
     const auto = t.objectStore('autosave');
@@ -134,7 +136,10 @@ export async function listProjects(): Promise<ProjectSummary[]> {
       items.sort((x, y) => y.savedAt - x.savedAt);
       resolve();
     };
-    t.onerror = () => resolve();
+    // Surface failures instead of silently showing "No saved projects"; an
+    // aborted transaction used to leave this promise pending forever.
+    t.onerror = () => reject(t.error ?? new Error('Could not read saved projects.'));
+    t.onabort = () => reject(t.error ?? new Error('Reading saved projects was interrupted. Try again.'));
   });
   return items;
 }

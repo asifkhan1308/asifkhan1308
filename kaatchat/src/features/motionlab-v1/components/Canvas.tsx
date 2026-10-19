@@ -47,7 +47,9 @@ export default function V1Canvas() {
   }, [project, comp, scale, currentTime, mediaBy, isPlaying]);
 
   // A paused seek decodes asynchronously; redraw once the frame is ready so
-  // scrubbing a video shows the right frame, not the previous one.
+  // scrubbing a video shows the right frame, not the previous one. Also
+  // redraw when media first becomes drawable (fresh import / reopen), or the
+  // first frame stays blank until the playhead moves.
   useEffect(() => {
     const redraw = () => {
       const c = canvasRef.current;
@@ -58,9 +60,10 @@ export default function V1Canvas() {
       ctx.setTransform(k, 0, 0, c!.height / s.project.composition.height, 0, 0);
       composeFrame(ctx, s.project, s.currentTime, { mediaBy, pixelScale: k });
     };
-    const vids = [...mediaBy.values()].filter((e): e is HTMLVideoElement => e instanceof HTMLVideoElement);
-    vids.forEach((v) => v.addEventListener('seeked', redraw));
-    return () => vids.forEach((v) => v.removeEventListener('seeked', redraw));
+    const els = [...mediaBy.values()];
+    const events = ['seeked', 'loadeddata', 'load'];
+    els.forEach((el) => events.forEach((ev) => el.addEventListener(ev, redraw)));
+    return () => els.forEach((el) => events.forEach((ev) => el.removeEventListener(ev, redraw)));
   }, [mediaBy]);
 
   return (

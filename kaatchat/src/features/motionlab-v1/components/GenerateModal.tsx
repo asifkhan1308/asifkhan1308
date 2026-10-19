@@ -28,6 +28,11 @@ export default function GenerateModal({ onClose }: { onClose: () => void }) {
   const [settings, setSettings] = useState(loadAISettings());
   const [detected, setDetected] = useState<FoundServer[] | null>(null);
   const [scanning, setScanning] = useState(false);
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onClose]);
 
   const rescan = async () => {
     setScanning(true);

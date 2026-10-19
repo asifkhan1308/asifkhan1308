@@ -42,6 +42,9 @@ export default function MotionLabV1() {
       // Mod shortcuts always run (users expect Cmd+S/Z to work while typing).
       // Non-mod shortcuts (Space, Delete, arrows) stay out of text fields.
       if (inField && !mod) return;
+      // A dialog owns the keyboard: Delete / Space / ⌘Z must not edit the
+      // project hidden behind it.
+      if (document.querySelector('.modal-overlay')) return;
       if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) redo();

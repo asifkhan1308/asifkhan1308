@@ -38,9 +38,14 @@ export function useMediaElements(assets: Asset[]): Map<string, HTMLImageElement 
             const v = document.createElement('video');
             v.muted = true;
             v.playsInline = true;
+            // Chromium doesn't present a frame for an off-DOM video until it
+            // has been seeked once, so drawImage() right after loadeddata
+            // paints nothing. One tiny seek makes the first frame drawable.
             v.onloadeddata = () => {
-              next.set(a.id, v);
-              resolve();
+              v.onloadeddata = null;
+              const ready = () => { v.removeEventListener('seeked', ready); next.set(a.id, v); resolve(); };
+              v.addEventListener('seeked', ready);
+              v.currentTime = 0.001;
             };
             v.onerror = () => resolve();
             v.src = a.url;
