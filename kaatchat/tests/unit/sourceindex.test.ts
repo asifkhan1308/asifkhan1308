@@ -35,11 +35,17 @@ describe('SourceIndex', () => {
     const clips: Clip[] = Array.from({ length: 2000 }, (_, i) => ({ id: `c${i}`, assetId: 'A', in: i * 1.8, out: i * 1.8 + 1.2, gainDb: 0 }) as Clip);
     const idx = new SourceIndex(clips);
     const qs = Array.from({ length: 2000 }, (_, q) => (q * 1.77) % 3600);
+    // Best of several runs: a busy CI machine can stall any single run, but
+    // not every one, so the fastest run reflects the code, not the load.
     const time = (f: (t: number) => unknown) => {
       for (const t of qs.slice(0, 200)) f(t); // warm up the JIT
-      const t0 = performance.now();
-      for (const t of qs) f(t);
-      return performance.now() - t0;
+      let best = Infinity;
+      for (let run = 0; run < 7; run++) {
+        const t0 = performance.now();
+        for (const t of qs) f(t);
+        best = Math.min(best, performance.now() - t0);
+      }
+      return best;
     };
     const indexed = time((t) => idx.first('A', t));
     const scanned = time((t) => sourceToTimeline(clips, 'A', t));
