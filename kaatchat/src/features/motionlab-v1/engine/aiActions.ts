@@ -46,7 +46,8 @@ Actions:
   { "op": "set_color", "color": "#rrggbb" }                                 // text / shape fill
   { "op": "comp", "duration": <sec> }
   { "op": "parent", "to": "<layer id or name>" | null }
-  { "op": "matte", "to": "<layer id or name>" | null, "inverted"?: boolean } // show this layer only through (or outside) that layer                    // move/rotate/scale with that layer (usually a null)
+  { "op": "matte", "to": "<layer id or name>" | null, "inverted"?: boolean }
+  { "op": "align", "edge": "left"|"hcenter"|"right"|"top"|"vcenter"|"bottom" }       // to the frame // show this layer only through (or outside) that layer                    // move/rotate/scale with that layer (usually a null)
 <prop> is one of: ${AI_PATHS.join(', ')}.
 position / scale / anchor / size values are [x, y]; others are numbers. Opacity is 0..1, scale 1 = 100%.
 Positions are in composition pixels (0,0 = top-left). Times are seconds on the composition timeline.
@@ -180,6 +181,13 @@ export function applyAIActions(actions: unknown): AIResult {
           const p = s.project.layers.find((l) => l.id === raw.to) ?? s.project.layers.find((l) => l.name.toLowerCase() === ref);
           if (!p) { skip(`no layer "${String(raw.to)}" to parent to`); break; }
           if (!s.setParent(layer.id, p.id)) { skip('that would make a parenting loop'); break; }
+          res.applied++;
+          break;
+        }
+        case 'align': {
+          const edge = String(raw.edge ?? '');
+          if (!['left', 'hcenter', 'right', 'top', 'vcenter', 'bottom'].includes(edge)) { skip(`unknown edge "${edge}"`); break; }
+          s.alignToFrame(layer.id, edge as 'left');
           res.applied++;
           break;
         }

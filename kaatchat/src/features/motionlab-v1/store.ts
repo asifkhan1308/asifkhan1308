@@ -26,6 +26,8 @@ import {
 } from './engine/defaults';
 import { createHistory } from './engine/history';
 import { decompose, invert, IDENTITY, mul, worldMatrix, wouldCycle } from './engine/matrix';
+import { worldCorners } from './engine/bbox';
+import { aabb, alignDelta, type AlignEdge } from './engine/guides';
 import {
   autosave as persistAutosave,
   loadProject as persistLoad,
@@ -110,6 +112,8 @@ interface MotionLabV1State extends UIState {
   setParent: (id: string, parentId: string | null) => boolean;
   /** Track matte (null = none). Returns false for a missing / self source. */
   setMatte: (id: string, matte: { layerId: string; mode: MatteMode } | null) => boolean;
+  /** Align a layer's on-screen box to the composition frame (Figma-style). */
+  alignToFrame: (id: string, edge: AlignEdge) => void;
 
   /** Run several edits as ONE undo step (e.g. a whole ✦ Ask command). */
   batch: (fn: () => void, label?: string) => void;
@@ -345,6 +349,18 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
         selectedLayerId: s.selectedLayerId === id ? null : s.selectedLayerId,
       };
     }),
+
+  alignToFrame: (id, edge) => {
+    const s = get();
+    const layer = s.project.layers.find((l) => l.id === id);
+    if (!layer) return;
+    const b = worldCorners(layer, s.currentTime, s.project.assets, s.project.layers);
+    if (!b) return;
+    const d = b.toParent(alignDelta(aabb(b.corners), edge, s.project.composition));
+    const [x, y] = resolveAnimated(layer.transform.position, s.currentTime);
+    const r = (v: number) => Math.round(v * 100) / 100;
+    s.setPropertyBase<V2>(id, 'position', [r(x + d[0]), r(y + d[1])]);
+  },
 
   setMatte: (id, matte) => {
     const layers = get().project.layers;

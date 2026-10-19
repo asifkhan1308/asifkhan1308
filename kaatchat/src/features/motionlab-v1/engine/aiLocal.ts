@@ -30,7 +30,7 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
   // placeholders, split, then restore.
   const saved: string[] = [];
   const masked = prompt.replace(/"[^"]*"|“[^”]*”/g, (q) => `\uE000${saved.push(q) - 1}\uE000`);
-  const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent|mask|matte|use)))\s*/i);
+  const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent|mask|matte|use|align|center|centre)))\s*/i);
 
   for (const part of clauses) {
     const c = part.replace(/\uE000(\d+)\uE000/g, (_, i) => saved[Number(i)]).trim();
@@ -84,6 +84,15 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
     if (/^split\b/.test(l)) {
       m = l.match(new RegExp(String.raw`at\s+${SEC}`));
       out.push({ op: 'split', time: m ? secs(m[1], m[2]) : playhead });
+      continue;
+    }
+    if (/^(?:center|centre)\s+(?:it|this)?\s*$|^(?:center|centre)\s+(?:it\s+|this\s+)?(?:on|in)\s+(?:the\s+)?(?:frame|screen|canvas)/.test(l)) {
+      out.push({ op: 'align', edge: 'hcenter' }, { op: 'align', edge: 'vcenter' });
+      continue;
+    }
+    if ((m = l.match(/^align\s+(?:it\s+|this\s+)?(?:to\s+(?:the\s+)?)?(left|right|top|bottom|middle|center|centre)\b/))) {
+      const e = m[1];
+      out.push(e === 'center' || e === 'centre' ? { op: 'align', edge: 'hcenter' } : e === 'middle' ? { op: 'align', edge: 'vcenter' } : { op: 'align', edge: e });
       continue;
     }
     // Must run before the delete rule: "remove the matte" is not "delete the layer".

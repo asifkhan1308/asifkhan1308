@@ -565,3 +565,17 @@ test('Studio: track mattes — alpha and inverted, on canvas and in the export',
   expect(lum(958, 538)).toBeLessThan(40);
   expect(lum(1188, 538)).toBeGreaterThan(200);
 });
+
+test('Studio: align to frame buttons', async ({ page }) => {
+  await page.goto('/#/studio');
+  await page.locator('.v1-tool', { hasText: 'Rect' }).click();          // 576×324, anchored at its centre
+  const pos = transform(page).locator('.v1-field input');
+  await page.getByRole('button', { name: 'Align left' }).click();
+  await expect(pos.nth(0)).toHaveValue('288');
+  await page.getByRole('button', { name: 'Align bottom' }).click();
+  await expect(pos.nth(1)).toHaveValue('918');
+  await page.getByRole('button', { name: 'Align horizontal centres' }).click();
+  await page.getByRole('button', { name: 'Align vertical centres' }).click();
+  await expect(pos.nth(0)).toHaveValue('960');
+  await expect(pos.nth(1)).toHaveValue('540');
+});

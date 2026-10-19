@@ -1009,3 +1009,10 @@
 .v1-curve-line { fill: none; stroke: var(--v1-text); stroke-width: 2; }
 .v1-curve-handle { fill: var(--v1-surface); stroke: var(--v1-text); stroke-width: 2; cursor: grab; }
 .v1-curve-code { font: 10.5px ui-monospace, Menlo, monospace; color: var(--v1-text-2); }
+
+/* Align to frame */
+.v1-align-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; font-size: 11.5px; color: var(--v1-text-2); }
+.v1-align-btns { display: flex; gap: 2px; }
+.v1-align-btn { width: 26px; height: 24px; padding: 0; display: grid; place-items: center; background: var(--v1-surface-2); border: 1px solid var(--v1-line); border-radius: 4px; cursor: pointer; color: var(--v1-text); }
+.v1-align-btn:hover { background: var(--v1-line); }
+.v1-align-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.4; }

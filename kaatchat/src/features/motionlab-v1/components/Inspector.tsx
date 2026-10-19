@@ -3,11 +3,22 @@ import { useV1 } from '../store';
 import { cubicBezier, resolveAnimated } from '../engine/interp';
 import type { AnimatedProperty, Bezier, Easing, Layer, MatteMode, V2 } from '../types';
 import { wouldCycle } from '../engine/matrix';
+import type { AlignEdge } from '../engine/guides';
 
 type AnimPath =
   | 'position' | 'scale' | 'rotation' | 'anchor' | 'opacity'
   | 'size' | 'cornerRadius' | 'fontSize'
   | 'brightness' | 'contrast' | 'saturation' | 'blur' | 'vignette' | 'grain' | 'tintAmount';
+
+/* Align-to-frame buttons: a frame edge/centre line + the box that snaps to it. */
+const ALIGN: Array<{ edge: AlignEdge; title: string; icon: React.ReactNode }> = [
+  { edge: 'left', title: 'Align left', icon: <><line x1="2" y1="1" x2="2" y2="15" /><rect x="4" y="4" width="9" height="8" /></> },
+  { edge: 'hcenter', title: 'Align horizontal centres', icon: <><line x1="8" y1="1" x2="8" y2="15" /><rect x="3.5" y="4" width="9" height="8" /></> },
+  { edge: 'right', title: 'Align right', icon: <><line x1="14" y1="1" x2="14" y2="15" /><rect x="3" y="4" width="9" height="8" /></> },
+  { edge: 'top', title: 'Align top', icon: <><line x1="1" y1="2" x2="15" y2="2" /><rect x="4" y="4" width="8" height="9" /></> },
+  { edge: 'vcenter', title: 'Align vertical centres', icon: <><line x1="1" y1="8" x2="15" y2="8" /><rect x="4" y="3.5" width="8" height="9" /></> },
+  { edge: 'bottom', title: 'Align bottom', icon: <><line x1="1" y1="14" x2="15" y2="14" /><rect x="4" y="3" width="8" height="9" /></> },
+];
 
 const EFFECT_PATHS: AnimPath[] = ['brightness', 'contrast', 'saturation', 'blur', 'vignette', 'grain', 'tintAmount'];
 
@@ -90,6 +101,19 @@ export default function V1Inspector() {
             ))}
           </select>
         </label>
+
+        {/* Align the layer's on-screen box to the frame (works for rotated / parented layers). */}
+        <div className="v1-align-row" role="group" aria-label="Align to frame">
+          <span>Align</span>
+          <div className="v1-align-btns">
+            {ALIGN.map((a) => (
+              <button key={a.edge} type="button" className="v1-align-btn" title={a.title} aria-label={a.title}
+                onClick={() => useV1.getState().alignToFrame(layer.id, a.edge)}>
+                <svg viewBox="0 0 16 16" aria-hidden>{a.icon}</svg>
+              </button>
+            ))}
+          </div>
+        </div>
 
         <PropRow layer={layer} currentTime={currentTime} label="Position" path="position">
           <NumberPair

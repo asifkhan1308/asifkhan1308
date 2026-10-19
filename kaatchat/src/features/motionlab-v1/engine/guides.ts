@@ -47,3 +47,17 @@ export function snapMove(box: Box, d: V2, t: Targets, thr: number): SnapResult {
   const sy = axis(box.minY, box.maxY, d[1], t.y, thr);
   return { d: [d[0] + sx.off, d[1] + sy.off], gx: sx.guide, gy: sy.guide };
 }
+
+export type AlignEdge = 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom';
+
+/** World-space move that puts a box's edge / centre on the frame's. */
+export function alignDelta(box: Box, edge: AlignEdge, comp: { width: number; height: number }): V2 {
+  switch (edge) {
+    case 'left': return [-box.minX, 0];
+    case 'hcenter': return [comp.width / 2 - (box.minX + box.maxX) / 2, 0];
+    case 'right': return [comp.width - box.maxX, 0];
+    case 'top': return [0, -box.minY];
+    case 'vcenter': return [0, comp.height / 2 - (box.minY + box.maxY) / 2];
+    case 'bottom': return [0, comp.height - box.maxY];
+  }
+}
