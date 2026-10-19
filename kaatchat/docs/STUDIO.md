@@ -52,6 +52,9 @@ Press **?** in the editor for every shortcut and gesture.
 ## Look
 
 - **Fill**: solid colour or a two-colour **gradient** with an angle (shapes and text).
+- **Stroke** (outline): colour and width for shapes and text.
+- **Text**: font (Sans, Rounded, Serif, Mono, Condensed, Display), weight, size, letter spacing,
+  line height, alignment.
 - **Effects** (Inspector → + Enable), all keyframable: brightness, contrast, saturation,
   blur, vignette, grain, tint, **drop shadow**, **glow**.
 - **Motion blur** (top bar): averages sub-frames across a 90–360° shutter. Shown on paused
