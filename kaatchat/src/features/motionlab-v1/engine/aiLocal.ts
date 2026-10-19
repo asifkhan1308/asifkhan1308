@@ -9,6 +9,7 @@ import type { AIAction, Preset } from './aiActions';
  * ────────────────────────────────────────────────────────────────────────── */
 
 const COLORS: Record<string, string> = {
+  navy: '#0b1a33', cream: '#f5efe0', beige: '#e8dcc4',
   black: '#000000', white: '#ffffff', red: '#ff3b30', orange: '#ff9500', yellow: '#ffcc00', green: '#34c759',
   blue: '#0a84ff', purple: '#af52de', pink: '#ff2d55', gray: '#8e8e93', grey: '#8e8e93', teal: '#30b0c7',
 };
@@ -70,6 +71,11 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
     if (/\b(?:pop|bounce)\b/.test(l)) { preset('pop'); continue; }
     if (/\bspin\b|\brotate\s+(?:it\s+)?(?:a\s+)?full\b|\b360\b/.test(l)) { preset('spin'); continue; }
 
+    // background: "make the background navy" / "background white" / "bg #111"
+    if ((m = l.match(/^(?:make\s+the\s+|set\s+the\s+|change\s+the\s+)?(?:background|bg)(?:\s+(?:colou?r))?\s+(?:to\s+)?(#[0-9a-f]{3,8}|[a-z]+)\s*$/))) {
+      const col = m[1].startsWith('#') ? m[1] : COLORS[m[1]];
+      if (col) { out.push({ op: 'comp', background: col }); continue; }
+    }
     // looks: "make it cinematic", "vintage look", "black and white", "no look"
     if ((m = l.match(/\b(cinematic|vintage|retro|black\s*(?:and|&)\s*white|b\s*&\s*w|monochrome|greyscale|grayscale|dreamy|punchy|vivid|neon)\b/))) {
       const w = m[1].replace(/\s+/g, ' ');

@@ -55,6 +55,8 @@ interface MotionLabV1State extends UIState {
   setCompositionSize: (w: number, h: number) => void;
   setCompositionFps: (fps: Project['composition']['fps']) => void;
   setCompositionDuration: (seconds: number) => void;
+  /** Composition background colour (#rrggbb). */
+  setBackground: (color: string) => void;
   /** Work area start / end (B / N at the playhead); null clears it. */
   setWorkArea: (wa: { start?: number; end?: number } | null) => void;
   /** Motion blur on/off and shutter (fraction of a frame, 0.5 = 180°). */
@@ -328,6 +330,10 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
 
   setCompositionSize: (width, height) =>
     set((s) => ({ project: touch({ ...s.project, composition: { ...s.project.composition, width, height } }) })),
+  setBackground: (color) => {
+    if (!/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(color.trim())) return;
+    set((s) => ({ project: touch({ ...s.project, composition: { ...s.project.composition, background: color.trim() } }) }));
+  },
   setWorkArea: (wa) =>
     set((s) => {
       const c = s.project.composition;

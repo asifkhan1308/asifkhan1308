@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useV1 } from '../store';
 import { useMediaElements } from '../engine/useMedia';
 import { exportProjectToVideo } from '../engine/exportVideo';
+import { composeFrameBlurred } from '../engine/compose';
+import { seekMediaForExport } from '../engine/mediaSync';
 
 export default function V1ExportDialog({ onClose }: { onClose: () => void }) {
   const project = useV1((s) => s.project);
@@ -25,6 +27,27 @@ export default function V1ExportDialog({ onClose }: { onClose: () => void }) {
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  // Still frame at the playhead, at full composition resolution.
+  const savePng = async () => {
+    const { width, height } = project.composition;
+    const c = document.createElement('canvas');
+    c.width = width;
+    c.height = height;
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+    const t = useV1.getState().currentTime;
+    await seekMediaForExport(project, t, mediaBy);
+    composeFrameBlurred(ctx, project, t, { mediaBy });
+    const blob = await new Promise<Blob | null>((res) => c.toBlob(res, 'image/png'));
+    if (!blob) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const safe = project.name.replace(/[^\p{L}\p{N} _-]+/gu, '').trim() || 'motionlab';
+    a.download = `${safe} ${t.toFixed(2)}s.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  };
 
   const run = async () => {
     setState('running');
@@ -105,6 +128,10 @@ export default function V1ExportDialog({ onClose }: { onClose: () => void }) {
         </div>
         <div className="modal-footer">
           <button className="btn-secondary" onClick={onClose} disabled={state === 'running'}>Close</button>
+          <button className="btn-secondary v1-save-png" onClick={() => void savePng()} disabled={state === 'running' || !mediaReady}
+            title="The frame at the playhead, full resolution (thumbnails, posters)">
+            Save frame as PNG
+          </button>
           <button className="btn-primary" onClick={run} disabled={state === 'running' || project.layers.length === 0 || !mediaReady}>
             {!mediaReady ? 'Loading media…' : state === 'running' ? 'Rendering…' : state === 'done' ? 'Done ✓' : 'Render'}
           </button>

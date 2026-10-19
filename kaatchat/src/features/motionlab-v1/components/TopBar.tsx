@@ -82,6 +82,15 @@ export default function V1TopBar({ onExport, onShare, onKeys }: Props) {
           />
           <span>s</span>
         </label>
+        <label className="v1-bg-field" title="Background colour">
+          <span>BG</span>
+          <input
+            type="color"
+            aria-label="Background colour"
+            value={/^#[0-9a-f]{6}$/i.test(comp.background) ? comp.background : '#000000'}
+            onChange={(e) => useV1.getState().setBackground(e.target.value)}
+          />
+        </label>
         {/* Motion blur: export always; canvas shows it on paused frames. */}
         <button
           type="button"

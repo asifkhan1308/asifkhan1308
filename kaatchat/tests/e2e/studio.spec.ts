@@ -1062,3 +1062,33 @@ test('Studio: work area — B / N, looped playback, and a range export with corr
   await page.locator('.v1-tl-workarea').dblclick();
   await expect(page.locator('.v1-tl-workarea')).toHaveCount(0);
 });
+
+test('Studio: background colour, and Save frame as PNG at full resolution', async ({ page }) => {
+  await page.goto('/#/studio');
+  await page.getByLabel('Background colour').evaluate((el) => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, '#204080');
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  const corner = () => page.evaluate(() => {
+    const c = document.querySelector('.v1-canvas') as HTMLCanvasElement;
+    return [...c.getContext('2d')!.getImageData(3, 3, 1, 1).data].slice(0, 3);
+  });
+  await expect.poll(corner).toEqual([32, 64, 128]);
+  await page.locator('.v1-tool', { hasText: 'Ellipse' }).click();
+  await page.locator('.btn-export').click();
+  const dl = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Save frame as PNG' }).click();
+  const d = await dl;
+  expect(d.suggestedFilename()).toMatch(/\.png$/);
+  const path = test.info().outputPath('frame.png');
+  await d.saveAs(path);
+  const px = (x: number, y: number) => {
+    const r = spawnSync(ffmpeg, ['-v', 'error', '-i', path, '-vf', `crop=2:2:${x}:${y}`, '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-']);
+    return [...r.stdout.subarray(0, 3)];
+  };
+  const size = spawnSync(ffmpeg, ['-v', 'error', '-i', path, '-f', 'null', '-'], { encoding: 'utf8' });
+  expect(size.status).toBe(0);
+  expect(px(10, 10)).toEqual([32, 64, 128]);                             // background
+  expect(px(960, 540)).toEqual([255, 255, 255]);                         // the white circle at the centre
+  expect(px(1910, 1070)).toEqual([32, 64, 128]);                         // full 1920×1080 frame
+});

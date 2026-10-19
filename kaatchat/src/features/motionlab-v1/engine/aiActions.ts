@@ -61,7 +61,7 @@ Actions:
   { "op": "set_gradient", "from": "#rrggbb", "to": "#rrggbb", "angle"?: <deg> } // linear gradient fill; 0° = left→right
   { "op": "set_stroke", "color": "#rrggbb" | null, "width"?: <px> }          // outline (null = off)
   { "op": "look", "name": ${LOOK_NAMES.map((n) => `"${n}"`).join('|')} }     // effect preset for the layer
-  { "op": "comp", "duration": <sec> }
+  { "op": "comp", "duration"?: <sec>, "background"?: "#rrggbb" }          // at least one
   { "op": "marker", "time"?: <sec>, "label"?: string }                    // timeline marker (default: playhead)
   { "op": "parent", "to": "<layer id or name>" | null }
   { "op": "matte", "to": "<layer id or name>" | null, "inverted"?: boolean }
@@ -119,9 +119,13 @@ export function applyAIActions(actions: unknown): AIResult {
         continue;
       }
       if (op === 'comp') {
-        const d = num(raw.duration);
-        if (d === null || d <= 0 || d > 3600) { skip('duration must be 0–3600 s'); continue; }
-        s.setCompositionDuration(d);
+        const d = raw.duration === undefined ? undefined : num(raw.duration);
+        const bg = typeof raw.background === 'string' ? raw.background.trim() : undefined;
+        if (d === undefined && bg === undefined) { skip('comp needs a duration or background'); continue; }
+        if (d !== undefined && (d === null || d <= 0 || d > 3600)) { skip('duration must be 0–3600 s'); continue; }
+        if (bg !== undefined && !/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(bg)) { skip('background must be #rrggbb'); continue; }
+        if (d != null) s.setCompositionDuration(d);
+        if (bg) s.setBackground(bg);
         res.applied++;
         continue;
       }
