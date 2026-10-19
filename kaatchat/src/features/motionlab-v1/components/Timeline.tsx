@@ -1,5 +1,6 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useV1 } from '../store';
+import { selectionOf, useV1 } from '../store';
+import { useShallow } from 'zustand/react/shallow';
 import ContextMenu from './ContextMenu';
 import { clipExtras, layerMenu } from './menuBuilders';
 import { layerKeyTimes, snapSpan, snapTargets, snapTime } from '../engine/snap';
@@ -23,7 +24,8 @@ export default function V1Timeline() {
   const setCurrentTime = useV1((s) => s.setCurrentTime);
   const isPlaying = useV1((s) => s.isPlaying);
   const setIsPlaying = useV1((s) => s.setIsPlaying);
-  const selectedId = useV1((s) => s.selectedLayerId);
+  // Multi-select: every selected row highlights; shift / ⌘-click toggles.
+  const selection = useV1(useShallow((s) => selectionOf(s)));
   const selectLayer = useV1((s) => s.selectLayer);
   const setVisible = useV1((s) => s.setVisible);
   const setLocked = useV1((s) => s.setLocked);
@@ -269,8 +271,11 @@ export default function V1Timeline() {
               duration={comp.duration}
               currentTime={currentTime}
               snap={snap}
-              selected={layer.id === selectedId}
-              onSelect={() => selectLayer(layer.id)}
+              selected={selection.includes(layer.id)}
+              onSelect={(e) => {
+                if (e && (e.shiftKey || e.metaKey || e.ctrlKey)) useV1.getState().toggleSelect(layer.id);
+                else selectLayer(layer.id);
+              }}
               onToggleVisible={() => setVisible(layer.id, !layer.visible)}
               onToggleLock={() => setLocked(layer.id, !layer.locked)}
               onToggleSolo={() => setSolo(layer.id, !layer.solo)}
@@ -346,7 +351,7 @@ function LayerRowImpl({
   currentTime: number;
   snap: SnapCtx;
   selected: boolean;
-  onSelect: () => void;
+  onSelect: (e?: React.MouseEvent) => void;
   onToggleVisible: () => void;
   onToggleLock: () => void;
   onToggleSolo: () => void;

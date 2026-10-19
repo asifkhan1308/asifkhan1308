@@ -626,3 +626,73 @@ test('Studio: keyboard shortcuts leave a focused dropdown alone', async ({ page 
   await expect(page.locator('.v1-tl-time')).toHaveText(before);          // playhead didn't move
   await expect(page.locator('.v1-tl-layer-row-head')).toHaveCount(1);
 });
+
+test('Studio: multi-select — shift-click, group drag, align, distribute, delete as one undo', async ({ page }) => {
+  await page.goto('/#/studio');
+  const pos = transform(page).locator('.v1-field input');
+  const heads = page.locator('.v1-tl-layer-row-head');
+  const xs = [300, 1000, 1500];
+  for (let i = 0; i < 3; i++) {
+    await page.locator('.v1-tool', { hasText: 'Ellipse' }).click();
+    await setValue(pos.nth(0), xs[i]);
+    await setValue(pos.nth(1), 300 + i * 200);
+  }
+  // Shift-click all three rows.
+  await heads.nth(0).click();
+  await heads.nth(1).click({ modifiers: ['Shift'] });
+  await heads.nth(2).click({ modifiers: ['Shift'] });
+  await expect(page.locator('.v1-tl-layer-row-head.selected')).toHaveCount(3);
+  await expect(page.locator('.v1-multi-note')).toContainText('3 layers selected');
+
+  const xOf = async (i: number) => { await heads.nth(i).click(); return Number(await pos.nth(0).inputValue()); };
+  const reselect = async () => {
+    await heads.nth(0).click();
+    await heads.nth(1).click({ modifiers: ['Shift'] });
+    await heads.nth(2).click({ modifiers: ['Shift'] });
+  };
+
+  // Align left → all share the leftmost x.
+  await page.getByRole('button', { name: 'Align left' }).click();
+  expect([await xOf(0), await xOf(1), await xOf(2)]).toEqual([300, 300, 300]);
+  await page.keyboard.press('ControlOrMeta+z');                         // one undo restores all
+  expect([await xOf(0), await xOf(1), await xOf(2)]).toEqual(xs);
+
+  // Distribute horizontally: the middle one moves to the midpoint.
+  await reselect();
+  await page.getByRole('button', { name: 'Distribute horizontally' }).click();
+  expect(await xOf(1)).toBe(900);
+
+  // Group drag on the canvas: everything moves by the same amount.
+  await reselect();
+  const before = [await xOf(0), await xOf(1), await xOf(2)];
+  await reselect();
+  const stage = (await page.locator('.v1-canvas').boundingBox())!;
+  const k = stage.width / 1920;
+  const [sx, sy] = [stage.x + 900 * k, stage.y + 500 * k];             // middle ellipse
+  await page.mouse.move(sx, sy);
+  await page.mouse.down();
+  await page.mouse.move(sx + 40, sy + 2, { steps: 5 });
+  await page.mouse.up();
+  const after = [await xOf(0), await xOf(1), await xOf(2)];
+  const d = after.map((v, i) => v - before[i]);
+  expect(d[0]).toBeGreaterThan(50);
+  expect(d[1]).toBeCloseTo(d[0], 0);
+  expect(d[2]).toBeCloseTo(d[0], 0);
+
+  // Delete all three, then one undo brings them back.
+  await reselect();
+  await page.locator('.v1-canvas-wrap').focus().catch(() => {});
+  await page.keyboard.press('Delete');
+  await expect(heads).toHaveCount(0);
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(heads).toHaveCount(3);
+});
+
+test('Studio: shift-clicking timeline rows does not highlight page text', async ({ page }) => {
+  await page.goto('/#/studio');
+  for (let i = 0; i < 2; i++) await page.locator('.v1-tool', { hasText: 'Rect' }).click();
+  const heads = page.locator('.v1-tl-layer-row-head');
+  await heads.nth(0).click();
+  await heads.nth(1).click({ modifiers: ['Shift'] });
+  expect(await page.evaluate(() => String(window.getSelection() ?? ''))).toBe('');
+});

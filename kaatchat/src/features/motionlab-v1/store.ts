@@ -28,7 +28,7 @@ import {
 import { createHistory } from './engine/history';
 import { decompose, invert, IDENTITY, mul, worldMatrix, wouldCycle } from './engine/matrix';
 import { worldCorners } from './engine/bbox';
-import { aabb, alignDelta, type AlignEdge } from './engine/guides';
+import { aabb, alignDelta, type AlignEdge, type Box } from './engine/guides';
 import {
   autosave as persistAutosave,
   loadProject as persistLoad,
@@ -38,6 +38,9 @@ import {
 
 interface UIState {
   selectedLayerId: string | null;
+  /** Multi-selection (Figma-style). The primary layer is selectedLayerId;
+   *  read the effective set with selectionOf(state). */
+  selectedIds: string[];
   currentTime: number;
   isPlaying: boolean;
   activeTool: 'select' | 'text' | 'rectangle' | 'ellipse' | 'media' | 'null';
@@ -98,6 +101,16 @@ interface MotionLabV1State extends UIState {
 
   /* Selection + playhead + playback */
   selectLayer: (id: string | null) => void;
+  /** Shift / ⌘-click: add or remove a layer from the selection. */
+  toggleSelect: (id: string) => void;
+  selectAll: () => void;
+  /** Group operations on the current selection — each is one undo step. */
+  removeSelected: () => void;
+  duplicateSelected: () => void;
+  /** Align: 1 layer → to the frame; 2+ → to the selection's bounds. */
+  alignSelected: (edge: AlignEdge) => void;
+  /** Spread 3+ selected layers evenly between the outermost two. */
+  distributeSelected: (axis: 'x' | 'y') => void;
   setCurrentTime: (t: number) => void;
   setIsPlaying: (b: boolean) => void;
   setActiveTool: (t: UIState['activeTool']) => void;
@@ -252,9 +265,34 @@ function reparent(layers: Layer[], id: string, parentId: string | null, time: nu
   return layers.map((l) => (l.id === id ? next : l));
 }
 
+/** The effective selection: selectedIds when it contains the primary layer
+ *  (else just the primary — older code paths set only selectedLayerId),
+ *  limited to layers that still exist, in stacking order. */
+export function selectionOf(s: Pick<MotionLabV1State, 'selectedIds' | 'selectedLayerId' | 'project'>): string[] {
+  const p = s.selectedLayerId;
+  const ids = p && s.selectedIds.includes(p) ? s.selectedIds : p ? [p] : [];
+  return s.project.layers.filter((l) => ids.includes(l.id)).map((l) => l.id);
+}
+
+function boxOf(s: MotionLabV1State, id: string) {
+  const layer = s.project.layers.find((l) => l.id === id);
+  const world = layer && worldCorners(layer, s.currentTime, s.project.assets, s.project.layers);
+  return world ? { id, world } : null;
+}
+
+/** Shift a layer's position by a parent-space delta (auto-keys if animated). */
+function moveBy(s: MotionLabV1State, id: string, d: V2) {
+  const layer = s.project.layers.find((l) => l.id === id);
+  if (!layer) return;
+  const [x, y] = resolveAnimated(layer.transform.position, s.currentTime);
+  const r = (v: number) => Math.round(v * 100) / 100;
+  s.setPropertyBase<V2>(id, 'position', [r(x + d[0]), r(y + d[1])]);
+}
+
 export const useV1 = create<MotionLabV1State>((set, get) => ({
   project: initialProject,
   selectedLayerId: null,
+  selectedIds: [],
   currentTime: 0,
   isPlaying: false,
   activeTool: 'select',
@@ -753,7 +791,64 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
     return ok;
   },
 
-  selectLayer: (id) => set({ selectedLayerId: id }),
+  selectLayer: (id) => set({ selectedLayerId: id, selectedIds: id ? [id] : [] }),
+  toggleSelect: (id) => {
+    const cur = selectionOf(get());
+    if (cur.includes(id)) {
+      const rest = cur.filter((x) => x !== id);
+      set({ selectedIds: rest, selectedLayerId: rest[rest.length - 1] ?? null });
+    } else {
+      set({ selectedIds: [...cur, id], selectedLayerId: id });
+    }
+  },
+  selectAll: () => {
+    const ids = get().project.layers.map((l) => l.id);
+    set({ selectedIds: ids, selectedLayerId: ids[ids.length - 1] ?? null });
+  },
+  removeSelected: () => {
+    const ids = selectionOf(get());
+    if (!ids.length) return;
+    get().batch(() => ids.forEach((id) => get().removeLayer(id)), 'Delete');
+    set({ selectedIds: [], selectedLayerId: null });
+  },
+  duplicateSelected: () => {
+    const ids = selectionOf(get());
+    if (!ids.length) return;
+    const copies: string[] = [];
+    get().batch(() => ids.forEach((id) => { get().duplicate(id); copies.push(get().selectedLayerId!); }), 'Duplicate');
+    set({ selectedIds: copies, selectedLayerId: copies[copies.length - 1] ?? null });
+  },
+  alignSelected: (edge) => {
+    const s = get();
+    const ids = selectionOf(s);
+    if (ids.length === 1) { s.alignToFrame(ids[0], edge); return; }
+    const boxes = ids.map((id) => boxOf(s, id)).filter((b): b is NonNullable<ReturnType<typeof boxOf>> => !!b);
+    if (boxes.length < 2) return;
+    const all = aabb(boxes.flatMap((b) => b.world.corners));
+    // Align each box against the selection's bounds (a "frame" of that size).
+    s.batch(() => {
+      for (const b of boxes) {
+        const own = aabb(b.world.corners);
+        const local: Box = { minX: own.minX - all.minX, maxX: own.maxX - all.minX, minY: own.minY - all.minY, maxY: own.maxY - all.minY };
+        moveBy(get(), b.id, b.world.toParent(alignDelta(local, edge, { width: all.maxX - all.minX, height: all.maxY - all.minY })));
+      }
+    }, 'Align');
+  },
+  distributeSelected: (axis) => {
+    const s = get();
+    const boxes = selectionOf(s).map((id) => boxOf(s, id)).filter((b): b is NonNullable<ReturnType<typeof boxOf>> => !!b);
+    if (boxes.length < 3) return;
+    const centre = (b: (typeof boxes)[number]) => { const a = aabb(b.world.corners); return axis === 'x' ? (a.minX + a.maxX) / 2 : (a.minY + a.maxY) / 2; };
+    const sorted = [...boxes].sort((a, b) => centre(a) - centre(b));
+    const first = centre(sorted[0]), last = centre(sorted[sorted.length - 1]);
+    const step = (last - first) / (sorted.length - 1);
+    s.batch(() => {
+      sorted.forEach((b, i) => {
+        const d = first + step * i - centre(b);
+        if (Math.abs(d) > 1e-6) moveBy(get(), b.id, b.world.toParent(axis === 'x' ? [d, 0] : [0, d]));
+      });
+    }, 'Distribute');
+  },
   setCurrentTime: (t) => {
     const comp = get().project.composition;
     set({ currentTime: Math.max(0, Math.min(comp.duration, t)) });

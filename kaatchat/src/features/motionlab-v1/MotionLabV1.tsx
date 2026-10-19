@@ -8,7 +8,7 @@ import V1ExportDialog from './components/ExportDialog';
 import AIBar from './components/AIBar';
 import GenerateModal from './components/GenerateModal';
 import ShareDialog from './components/ShareDialog';
-import { useV1 } from './store';
+import { selectionOf, useV1 } from './store';
 import { decodeFeedback } from './engine/share';
 import './MotionLabV1.css';
 
@@ -115,15 +115,26 @@ export default function MotionLabV1({ feedback }: { feedback?: string } = {}) {
           splitLayerAt(selectedLayerId, currentTime);
         }
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Whole selection (one undo step); single layers behave as before.
         if (selectedLayerId) {
           e.preventDefault();
-          removeLayer(selectedLayerId);
+          if (selectionOf(useV1.getState()).length > 1) useV1.getState().removeSelected();
+          else removeLayer(selectedLayerId);
         }
       } else if (mod && e.key.toLowerCase() === 'd') {
         if (selectedLayerId) {
           e.preventDefault();
-          duplicate(selectedLayerId);
+          if (selectionOf(useV1.getState()).length > 1) useV1.getState().duplicateSelected();
+          else duplicate(selectedLayerId);
         }
+      } else if (mod && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        useV1.getState().selectAll();
+      } else if (e.key === 'Escape') {
+        // An open right-click menu owns Escape (clearing the selection first
+        // would re-render it and drop its own Escape listener mid-event).
+        if (document.querySelector('.v1-context-menu')) return;
+        useV1.getState().selectLayer(null);
       } else if (e.key === 'Home') {
         setCurrentTime(0);
       } else if (e.key === 'End') {

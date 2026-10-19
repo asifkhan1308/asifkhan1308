@@ -1016,3 +1016,8 @@
 .v1-align-btn { width: 26px; height: 24px; padding: 0; display: grid; place-items: center; background: var(--v1-surface-2); border: 1px solid var(--v1-line); border-radius: 4px; cursor: pointer; color: var(--v1-text); }
 .v1-align-btn:hover { background: var(--v1-line); }
 .v1-align-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.4; }
+.v1-sel-outline.secondary { stroke-dasharray: 5 4; opacity: .8; }
+.v1-multi-note { font-size: 11px; line-height: 1.4; color: var(--v1-text-2); background: var(--v1-surface-2); border-bottom: 1px solid var(--v1-line); padding: 8px 14px; }
+/* Shift-click on rows selects layers, not page text. */
+.v1-tl-layer-row-head, .v1-tl-layer-row-track, .v1-tl-ruler { user-select: none; -webkit-user-select: none; }
+.v1-tl-rename { user-select: text; -webkit-user-select: text; }

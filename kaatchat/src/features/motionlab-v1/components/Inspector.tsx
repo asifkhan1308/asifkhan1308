@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { useV1 } from '../store';
+import { selectionOf, useV1 } from '../store';
 import { cubicBezier, resolveAnimated } from '../engine/interp';
 import type { AnimatedProperty, Bezier, Easing, Layer, MatteMode, RevealMode, V2 } from '../types';
 import { wouldCycle } from '../engine/matrix';
@@ -32,6 +32,7 @@ export default function V1Inspector() {
   const setEffectTintColor = useV1((s) => s.setEffectTintColor);
 
   const layer = project.layers.find((l) => l.id === selectedId);
+  const selCount = useV1((s) => selectionOf(s).length);
 
   if (!layer) {
     return (
@@ -48,6 +49,11 @@ export default function V1Inspector() {
   const resolve = <T,>(ap: AnimatedProperty<T> | undefined) => (ap ? resolveAnimated(ap, currentTime) : undefined);
   return (
     <div className="v1-inspector">
+      {selCount > 1 && (
+        <div className="v1-multi-note" role="status">
+          {selCount} layers selected — moving, aligning, deleting and duplicating apply to all; the fields below edit “{layer.name}”.
+        </div>
+      )}
       <div className="v1-inspector-header">
         <input
           className="v1-layer-name-input"
@@ -102,18 +108,34 @@ export default function V1Inspector() {
           </select>
         </label>
 
-        {/* Align the layer's on-screen box to the frame (works for rotated / parented layers). */}
-        <div className="v1-align-row" role="group" aria-label="Align to frame">
-          <span>Align</span>
+        {/* Align: one layer → to the frame; several → to each other (Figma).
+            Works for rotated / parented layers. */}
+        <div className="v1-align-row" role="group" aria-label={selCount > 1 ? 'Align selection' : 'Align to frame'}>
+          <span>{selCount > 1 ? `Align ${selCount}` : 'Align'}</span>
           <div className="v1-align-btns">
             {ALIGN.map((a) => (
               <button key={a.edge} type="button" className="v1-align-btn" title={a.title} aria-label={a.title}
-                onClick={() => useV1.getState().alignToFrame(layer.id, a.edge)}>
+                onClick={() => useV1.getState().alignSelected(a.edge)}>
                 <svg viewBox="0 0 16 16" aria-hidden>{a.icon}</svg>
               </button>
             ))}
           </div>
         </div>
+        {selCount > 2 && (
+          <div className="v1-align-row" role="group" aria-label="Distribute selection">
+            <span>Distribute</span>
+            <div className="v1-align-btns">
+              <button type="button" className="v1-align-btn" title="Distribute horizontally" aria-label="Distribute horizontally"
+                onClick={() => useV1.getState().distributeSelected('x')}>
+                <svg viewBox="0 0 16 16" aria-hidden><rect x="1" y="5" width="3" height="6" /><rect x="6.5" y="5" width="3" height="6" /><rect x="12" y="5" width="3" height="6" /></svg>
+              </button>
+              <button type="button" className="v1-align-btn" title="Distribute vertically" aria-label="Distribute vertically"
+                onClick={() => useV1.getState().distributeSelected('y')}>
+                <svg viewBox="0 0 16 16" aria-hidden><rect x="5" y="1" width="6" height="3" /><rect x="5" y="6.5" width="6" height="3" /><rect x="5" y="12" width="6" height="3" /></svg>
+              </button>
+            </div>
+          </div>
+        )}
 
         <PropRow layer={layer} currentTime={currentTime} label="Position" path="position">
           <NumberPair

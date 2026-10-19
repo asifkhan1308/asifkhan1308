@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
-import { useV1 } from '../store';
+import { selectionOf, useV1 } from '../store';
+import { useShallow } from 'zustand/react/shallow';
 import { pickLayerAt, worldCorners, type WorldBox } from '../engine/bbox';
 import { aabb, guideTargets, snapMove } from '../engine/guides';
 import { ancestors } from '../engine/matrix';
@@ -34,6 +35,7 @@ export default function V1CanvasHandles() {
   const project = useV1((s) => s.project);
   const time = useV1((s) => s.currentTime);
   const selectedId = useV1((s) => s.selectedLayerId);
+  const selection = useV1(useShallow((s) => selectionOf(s)));
   const setPropertyBase = useV1((s) => s.setPropertyBase);
   const patchLayer = useV1((s) => s.patchLayer);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -64,17 +66,18 @@ export default function V1CanvasHandles() {
    * 6 screen px whatever the zoom; Alt drags freely. Children of the dragged
    * layer move with it, so they are not targets. */
   const [guides, setGuides] = useState<{ gx: number | null; gy: number | null } | null>(null);
-  const makeSnapper = (layerId: string, start: WorldBox) => {
+  const makeSnapper = (moving: string | string[], start: WorldBox | V2[]) => {
     const st = useV1.getState();
     const t = st.currentTime;
+    const ids = Array.isArray(moving) ? moving : [moving];
     const others = st.project.layers
-      .filter((l) => l.id !== layerId && l.type !== 'null' && isLayerActive(l, t))
-      .filter((l) => !ancestors(l, st.project.layers).some((a) => a.id === layerId))
+      .filter((l) => !ids.includes(l.id) && l.type !== 'null' && isLayerActive(l, t))
+      .filter((l) => !ancestors(l, st.project.layers).some((a) => ids.includes(a.id)))
       .map((l) => worldCorners(l, t, st.project.assets, st.project.layers))
       .filter((b): b is WorldBox => !!b)
       .map((b) => aabb(b.corners));
     const targets = guideTargets(st.project.composition, others);
-    const box = aabb(start.corners);
+    const box = aabb(Array.isArray(start) ? start : start.corners);
     const thr = 6 / (svgRef.current?.getScreenCTM()?.a || 1);
     return (d: V2, free: boolean): V2 => {
       if (free) { setGuides(null); return d; }
@@ -113,20 +116,31 @@ export default function V1CanvasHandles() {
     // state from the store rather than closure so it works on the layer we
     // JUST selected, not the one that was selected when the closure ran.
     const state = useV1.getState();
-    const l = state.project.layers.find((x) => x.id === layerId);
-    if (!l || l.locked) return;
-    const b = worldCorners(l, state.currentTime, state.project.assets, state.project.layers);
-    if (!b) return;
+    // Multi-select: dragging any selected layer moves the whole selection.
+    // A layer whose ancestor is also selected moves with that ancestor only.
+    const sel = selectionOf(state);
+    const group = sel.length > 1 && sel.includes(layerId) ? sel : [layerId];
+    const movers = group
+      .map((id) => state.project.layers.find((x) => x.id === id))
+      .filter((l): l is NonNullable<typeof l> => !!l && !l.locked)
+      .filter((l) => !ancestors(l, state.project.layers).some((a) => group.includes(a.id)))
+      .map((l) => ({ l, b: worldCorners(l, state.currentTime, state.project.assets, state.project.layers) }))
+      .filter((m): m is { l: typeof m.l; b: WorldBox } => !!m.b)
+      .map((m) => ({ id: m.l.id, b: m.b, startPos: [...m.b.position] as V2 }));
+    if (!movers.length) return;
     (ev.target as Element).setPointerCapture(ev.pointerId);
     const start = toComp(ev);
-    const startPos: V2 = [...b.position];
-    const snap = makeSnapper(l.id, b);
+    const snap = makeSnapper(group, movers.flatMap((m) => m.b.corners));
     const onMove = (me: PointerEvent) => {
       const cur = toComp(me);
-      // Snap in world space, then convert to the parent's space so parented
-      // layers track the pointer.
-      const d = b.toParent(snap([cur[0] - start[0], cur[1] - start[1]], me.altKey));
-      state.setPropertyBase<V2>(l.id, 'position', [startPos[0] + d[0], startPos[1] + d[1]]);
+      // Snap in world space, then convert to each layer's parent space so
+      // parented layers track the pointer. One history step per tick.
+      const dw = snap([cur[0] - start[0], cur[1] - start[1]], me.altKey);
+      const apply = () => movers.forEach((m) => {
+        const d = m.b.toParent(dw);
+        state.setPropertyBase<V2>(m.id, 'position', [m.startPos[0] + d[0], m.startPos[1] + d[1]]);
+      });
+      if (movers.length > 1) state.batch(apply, 'Move'); else apply();
     };
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
@@ -140,8 +154,15 @@ export default function V1CanvasHandles() {
   const onBackdropDown = (ev: React.PointerEvent) => {
     const p = toComp(ev);
     const hit = pickLayerAt(project, time, p);
+    if (ev.shiftKey || ev.metaKey || ev.ctrlKey) {
+      // Shift / ⌘-click adds or removes a layer from the selection.
+      if (hit) useV1.getState().toggleSelect(hit);
+      return;
+    }
     if (hit) {
-      selectLayer(hit);
+      // Clicking a layer that's already part of a multi-selection keeps the
+      // selection so the whole group can be dragged.
+      if (!selectionOf(useV1.getState()).includes(hit)) selectLayer(hit);
       // One-gesture click-and-drag like Figma / After Effects.
       dragBodyOf(hit, ev);
     } else {
@@ -153,10 +174,15 @@ export default function V1CanvasHandles() {
     if (!layer || !box || layer.locked) return;
     ev.stopPropagation();
     ev.preventDefault();
+    if (kind === 'body') {
+      // Body drags share the (multi-select aware) path above.
+      if (ev.shiftKey || ev.metaKey || ev.ctrlKey) { useV1.getState().toggleSelect(layer.id); return; }
+      dragBodyOf(layer.id, ev);
+      return;
+    }
     (ev.target as Element).setPointerCapture(ev.pointerId);
 
     const start = toComp(ev);
-    const startPos: V2 = [...box.position];
     const startScale: V2 = [...box.scale];
     const startSizeW: V2 =
       (layer.type === 'rectangle' || layer.type === 'ellipse') ? [...box.local] : [0, 0];
@@ -178,16 +204,10 @@ export default function V1CanvasHandles() {
       case 'r': pivot = [(tl[0] + bl[0]) / 2, (tl[1] + bl[1]) / 2]; break;
     }
 
-    const snapBody = makeSnapper(layer.id, box);
     const onMove = (me: PointerEvent) => {
       const cur = toComp(me);
-      const dx = cur[0] - start[0];
-      const dy = cur[1] - start[1];
 
-      if (kind === 'body') {
-        const d = box.toParent(snapBody([dx, dy], me.altKey));
-        setPropertyBase<V2>(layer.id, 'position', [startPos[0] + d[0], startPos[1] + d[1]]);
-      } else if (kind === 'rot') {
+      if (kind === 'rot') {
         const a0 = Math.atan2(start[1] - center[1], start[0] - center[0]);
         const a1 = Math.atan2(cur[1] - center[1], cur[0] - center[0]);
         const delta = ((a1 - a0) * 180) / Math.PI;
@@ -291,6 +311,23 @@ export default function V1CanvasHandles() {
       {nullMarks}
       {guides?.gx != null && <line className="v1-guide" x1={guides.gx} y1={0} x2={guides.gx} y2={comp.height} />}
       {guides?.gy != null && <line className="v1-guide" x1={0} y1={guides.gy} x2={comp.width} y2={guides.gy} />}
+      {/* Other selected layers: outline + drag area (moves the whole group). */}
+      {selection.filter((id) => id !== layer.id).map((id) => {
+        const l2 = project.layers.find((x) => x.id === id);
+        const b2 = l2 && worldCorners(l2, time, project.assets, project.layers);
+        if (!b2) return null;
+        const pts = b2.corners.map((c) => c.join(',')).join(' ');
+        return (
+          <g key={id}>
+            <polygon className="v1-sel-outline secondary" points={pts} />
+            <polygon className="v1-sel-body" points={pts} onPointerDown={(e) => {
+              e.stopPropagation();
+              if (e.shiftKey || e.metaKey || e.ctrlKey) { useV1.getState().toggleSelect(id); return; }
+              dragBodyOf(id, e);
+            }} />
+          </g>
+        );
+      })}
       {/* Selection outline */}
       <polygon
         className="v1-sel-outline"
