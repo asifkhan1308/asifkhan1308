@@ -1022,3 +1022,13 @@
 .v1-tl-layer-row-head, .v1-tl-layer-row-track, .v1-tl-ruler { user-select: none; -webkit-user-select: none; }
 .v1-tl-rename { user-select: text; -webkit-user-select: text; }
 .v1-color-pair { display: flex; gap: 8px; }
+
+/* Shortcuts sheet */
+.motionlab-v1 .modal.v1-keys { width: min(760px, 94vw); }
+.v1-keys-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 6px 28px; padding: 16px 20px 20px; overflow: auto; }
+.v1-keys-grid h3 { margin: 10px 0 6px; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--v1-text-2); }
+.v1-keys-grid dl { margin: 0; }
+.v1-keys-row { display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: baseline; padding: 4px 0; border-bottom: 1px solid var(--v1-surface-2); font-size: 12px; color: var(--v1-text); }
+.v1-keys-row dd { margin: 0; color: var(--v1-text-2); }
+.v1-keys-row kbd { font: 11px ui-monospace, Menlo, monospace; background: var(--v1-surface-2); border: 1px solid var(--v1-line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; color: var(--v1-text); white-space: nowrap; }
+.v1-keys-btn { font-weight: 600; width: 28px; }

@@ -767,3 +767,18 @@ test('Studio: ⌘C / ⌘V copies layers, and still copies keyframes when there a
   await expect(heads).toHaveCount(2);                                    // no layers pasted
   await expect(page.locator('.v1-tl-layer-row-track').nth(0).locator('.v1-tl-kf')).toHaveCount(1);
 });
+
+test('Studio: ? opens the shortcuts sheet (not while typing); Esc closes it', async ({ page }) => {
+  await page.goto('/#/studio');
+  await page.locator('.v1-canvas-wrap').hover();
+  await page.keyboard.press('?');
+  const sheet = page.getByRole('dialog', { name: 'Keyboard shortcuts' });
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toContainText('Alt + drag');
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+  await page.locator('.v1-ai-input').fill('what is this?');               // typing ? in a field
+  await expect(sheet).toHaveCount(0);
+  await page.getByRole('button', { name: 'Shortcuts and gestures' }).click();
+  await expect(sheet).toBeVisible();
+});

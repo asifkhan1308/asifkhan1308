@@ -8,6 +8,7 @@ import V1ExportDialog from './components/ExportDialog';
 import AIBar from './components/AIBar';
 import GenerateModal from './components/GenerateModal';
 import ShareDialog from './components/ShareDialog';
+import ShortcutsSheet from './components/ShortcutsSheet';
 import { selectionOf, useV1 } from './store';
 import { decodeFeedback } from './engine/share';
 import './MotionLabV1.css';
@@ -21,6 +22,7 @@ export default function MotionLabV1({ feedback }: { feedback?: string } = {}) {
   const [showExport, setShowExport] = useState(false);
   const [showGenerate, setShowGenerate] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showKeys, setShowKeys] = useState(false);
   const [banner, setBanner] = useState<{ text: string; err?: boolean } | null>(null);
 
   // V1.5: a reviewer's feedback link (#/studio/feedback/<code>) — open the
@@ -108,6 +110,11 @@ export default function MotionLabV1({ feedback }: { feedback?: string } = {}) {
         if (st.lastCopied() === 'layers' && st.hasLayerClipboard()) { e.preventDefault(); st.pasteLayers(); return; }
         if (selectedLayerId) { e.preventDefault(); st.pasteKeyframesAt(selectedLayerId, currentTime); return; }
       }
+      if (e.key === '?') {
+        e.preventDefault();
+        setShowKeys(true);
+        return;
+      }
       if (mod && e.key.toLowerCase() === 'n') {
         e.preventDefault();
         newProject();
@@ -159,7 +166,7 @@ export default function MotionLabV1({ feedback }: { feedback?: string } = {}) {
 
   return (
     <div className="motionlab-v1">
-      <V1TopBar onExport={() => setShowExport(true)} onShare={() => setShowShare(true)} />
+      <V1TopBar onExport={() => setShowExport(true)} onShare={() => setShowShare(true)} onKeys={() => setShowKeys(true)} />
       {banner && (
         <div className={`v1-banner${banner.err ? ' err' : ''}`} role="status">
           <span>{banner.text}</span>
@@ -176,6 +183,7 @@ export default function MotionLabV1({ feedback }: { feedback?: string } = {}) {
       {showExport && <V1ExportDialog onClose={() => setShowExport(false)} />}
       {showGenerate && <GenerateModal onClose={() => setShowGenerate(false)} />}
       {showShare && <ShareDialog onClose={() => setShowShare(false)} />}
+      {showKeys && <ShortcutsSheet onClose={() => setShowKeys(false)} />}
     </div>
   );
 }
