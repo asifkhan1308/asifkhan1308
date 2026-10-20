@@ -94,6 +94,7 @@ test('Studio combo: many features together — no errors; export, save / reopen 
   await expect(page.locator('.v1-tl-workarea')).toHaveCount(1);
   await expect(page.locator('.v1-tl-marker')).toHaveCount(1);
   await page.locator('.btn-share').click();
+  await expect(page.locator('.v1-share-link')).toHaveValue(/#\/review\/1\./);   // encoded asynchronously
   const link = await page.locator('.v1-share-link').inputValue();
   await page.keyboard.press('Escape');
   const rev = await context.newPage();
