@@ -1,5 +1,5 @@
 import { useV1 } from '../store';
-import { resolveAnimated } from './interp';
+import { resolveBase } from './interp';
 import type { AnimatedProperty, Layer, V2 } from '../types';
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -32,6 +32,8 @@ export const AI_PATHS = [
   'brightness', 'contrast', 'saturation', 'blur', 'vignette', 'grain', 'tintAmount', 'shadow', 'glow',
 ] as const;
 const V2_PATHS = new Set(['position', 'scale', 'anchor', 'size']);
+/** Default wiggle strength per property, in its own units (px, °, 0–1 for opacity / scale). */
+const WIGGLE_AMOUNT: Partial<Record<string, number>> = { position: 20, rotation: 8, scale: 0.05, opacity: 0.2 };
 
 /** Every action may name a target with "layer" (id, name, or "new" = the
  *  last layer added by this command). Without it: the last added layer,
@@ -60,6 +62,7 @@ Actions:
   { "op": "set_color", "color": "#rrggbb" }                                 // text / shape fill (solid)
   { "op": "set_gradient", "from": "#rrggbb", "to": "#rrggbb", "angle"?: <deg> } // linear gradient fill; 0° = left→right
   { "op": "set_stroke", "color": "#rrggbb" | null, "width"?: <px> }          // outline (null = off)
+  { "op": "wiggle", "path"?: <prop>, "amount"?: number, "freq"?: <per sec> } // smooth random motion; default position; amount 0 removes
   { "op": "look", "name": ${LOOK_NAMES.map((n) => `"${n}"`).join('|')} }     // effect preset for the layer
   { "op": "comp", "duration"?: <sec>, "background"?: "#rrggbb" }          // at least one
   { "op": "marker", "time"?: <sec>, "label"?: string }                    // timeline marker (default: playhead)
@@ -294,6 +297,16 @@ export function applyAIActions(actions: unknown): AIResult {
           res.applied++;
           break;
         }
+        case 'wiggle': {
+          const path = String(raw.path ?? 'position');
+          if (!(AI_PATHS as readonly string[]).includes(path)) { skip(`unknown property "${path}"`); break; }
+          const amount = raw.amount === undefined ? (WIGGLE_AMOUNT[path] ?? 5) : num(raw.amount);
+          const freq = raw.freq === undefined ? 2 : num(raw.freq);
+          if (amount === null || amount < 0 || freq === null || freq <= 0) { skip('wiggle needs amount ≥ 0 and freq > 0'); break; }
+          if (!s.setWiggle(layer.id, path as Parameters<typeof s.setWiggle>[1], amount === 0 ? null : { amount, freq })) { skip(`${layer.type} layers have no ${path}`); break; }
+          res.applied++;
+          break;
+        }
         case 'set_stroke': {
           if (layer.type !== 'text' && layer.type !== 'rectangle' && layer.type !== 'ellipse') { skip(`${layer.type} layers have no stroke`); break; }
           if (raw.color === null || raw.color === 'none') { s.patchLayer(layer.id, { stroke: null } as Partial<Layer>); res.applied++; break; }
@@ -335,7 +348,7 @@ function applyPreset(
   const t0 = clampT(at ?? (intro ? layer.startTime : end - d));
   const t1 = clampT(t0 + d);
   const tr = layer.transform;
-  const at0 = <T,>(p: AnimatedProperty<T>) => resolveAnimated(p, intro ? t1 : t0);
+  const at0 = <T,>(p: AnimatedProperty<T>) => resolveBase(p, intro ? t1 : t0);
   const key = (path: string, t: number, v: unknown) => s.setKeyframeAt(layer.id, path, t, v);
 
   switch (name) {

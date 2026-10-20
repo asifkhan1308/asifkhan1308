@@ -1103,3 +1103,25 @@ test('Studio: Alt + arrows nudge the selection; Shift + arrows step 10 frames', 
   await page.keyboard.press('Shift+ArrowRight');
   await expect(page.locator('.v1-tl-time')).toContainText('0:00.33');
 });
+
+test('Studio: wiggle — ∿ toggles it per property, amount and speed are editable, the canvas moves', async ({ page }) => {
+  await page.goto('/#/studio');
+  await page.locator('.v1-tool', { hasText: 'Rect' }).click();
+  const row = page.locator('.v1-prop', { hasText: 'Position' });
+  await row.locator('.v1-wiggle-btn').click();
+  const amount = page.getByLabel('Position wiggle amount');
+  await expect(amount).toHaveValue('20');
+  await amount.fill('200');
+  await expect(page.getByLabel('Position wiggle speed')).toHaveValue('2');
+  const x = row.locator('.v1-prop-body input').first();
+  const x0 = await x.inputValue();
+  const shot = async () => (await page.locator('.v1-canvas-wrap canvas').first().screenshot()).toString('base64');
+  const a = await shot();
+  await amount.blur();
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Shift+ArrowRight');   // 1 s later
+  await expect(page.locator('.v1-tl-time')).toContainText('0:01.00');
+  await expect.poll(shot).not.toBe(a);                                    // the wiggle moved it
+  await expect(x).toHaveValue(x0);                                        // the edited value is untouched
+  await row.locator('.v1-wiggle-btn').click();
+  await expect(amount).toHaveCount(0);
+});

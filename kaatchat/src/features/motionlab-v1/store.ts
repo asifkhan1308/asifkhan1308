@@ -12,8 +12,9 @@ import type {
   Project,
   TransformProp,
   V2,
+  Wiggle,
 } from './types';
-import { removeKeyframeAt, resolveAnimated, upsertKeyframe } from './engine/interp';
+import { removeKeyframeAt, resolveAnimated, resolveBase, upsertKeyframe } from './engine/interp';
 import {
   defaultProject,
   duplicateLayer,
@@ -81,6 +82,8 @@ interface MotionLabV1State extends UIState {
   /* Animated-property writes (works for transform, shape, text and effect paths) */
   setPropertyBase: <T>(layerId: string, path: TransformProp | EffectProp | 'size' | 'cornerRadius' | 'fontSize' | 'reveal', value: T) => void;
   toggleKeyframe: (layerId: string, path: TransformProp | EffectProp | 'size' | 'cornerRadius' | 'fontSize' | 'reveal', easing?: Easing) => void;
+  /** Wiggle on a property (null removes it). */
+  setWiggle: (layerId: string, path: TransformProp | EffectProp | 'size' | 'cornerRadius' | 'fontSize' | 'reveal', wiggle: Wiggle | null) => boolean;
 
   /* Effects */
   enableEffects: (layerId: string) => void;
@@ -315,7 +318,7 @@ function boxOf(s: MotionLabV1State, id: string) {
 function moveBy(s: MotionLabV1State, id: string, d: V2) {
   const layer = s.project.layers.find((l) => l.id === id);
   if (!layer) return;
-  const [x, y] = resolveAnimated(layer.transform.position, s.currentTime);
+  const [x, y] = resolveBase(layer.transform.position, s.currentTime);
   const r = (v: number) => Math.round(v * 100) / 100;
   s.setPropertyBase<V2>(id, 'position', [r(x + d[0]), r(y + d[1])]);
 }
@@ -484,7 +487,7 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
     const b = worldCorners(layer, s.currentTime, s.project.assets, s.project.layers);
     if (!b) return;
     const d = b.toParent(alignDelta(aabb(b.corners), edge, s.project.composition));
-    const [x, y] = resolveAnimated(layer.transform.position, s.currentTime);
+    const [x, y] = resolveBase(layer.transform.position, s.currentTime);
     const r = (v: number) => Math.round(v * 100) / 100;
     s.setPropertyBase<V2>(id, 'position', [r(x + d[0]), r(y + d[1])]);
   },
@@ -563,6 +566,24 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
       }),
     })),
 
+  setWiggle: (layerId, path, wiggle) => {
+    const layer = get().project.layers.find((l) => l.id === layerId);
+    if (!layer || !getAnimated(layer, path)) return false;
+    set((s) => ({
+      project: touch({
+        ...s.project,
+        layers: s.project.layers.map((l) => {
+          if (l.id !== layerId) return l;
+          const ap = getAnimated(l, path);
+          if (!ap) return l;
+          const { wiggle: _old, ...rest } = ap;
+          return setAnimated(l, path, wiggle ? { ...rest, wiggle: { amount: Math.max(0, wiggle.amount), freq: Math.min(30, Math.max(0.1, wiggle.freq)), seed: wiggle.seed ?? _old?.seed ?? 1 + Math.floor(Math.random() * 9999) } } : rest);
+        }),
+      }),
+    }));
+    return true;
+  },
+
   setKeyframeEasing: (layerId, path, time, easing, bezier) =>
     set((s) => ({
       project: touch({
@@ -596,7 +617,7 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
             const match = existing.find((k) => Math.abs(k.time - time) < 0.01);
             const nextProp = match
               ? removeKeyframeAt(ap, time)
-              : upsertKeyframe(ap, time, resolveAnimated(ap, time), easing);
+              : upsertKeyframe(ap, time, resolveBase(ap, time), easing);
             return setAnimated(l, path, nextProp);
           }),
         }),

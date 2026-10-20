@@ -50,6 +50,10 @@ Press **?** in the editor for every shortcut and gesture.
 - **Presets** via ✦ Ask: fade in/out, slide in from any side, pop, spin, typewriter,
   letter by letter, word by word.
 - Drag keyframe diamonds on the timeline to retime them.
+- **Wiggle** (∿ next to a property's ◆): smooth random motion on top of the value — set how far
+  (±px, °, %) and how fast (times a second). It renders the same in the preview and the export,
+  and editing the property still edits the value underneath. ✦ Ask: *wiggle it*, *shake it 40px*,
+  *wiggle the rotation 10 degrees 3 times a second*, *stop wiggling*.
 
 ## Look
 
@@ -84,7 +88,7 @@ Press **?** in the editor for every shortcut and gesture.
   *add a title "…"*, *fade in over 1s*, *slide in from the left*, *make it red*,
   *gradient from blue to purple*, *trim to 3s*, *start at 2s*, *split*, *rename to …*,
   *parent it to …*, *use … as matte*, *center it*, *align left*, *typewriter over 2s*,
-  *add a marker called … at 2s*, *outline it white 4px*, *make it cinematic* (also *vintage*,
+  *add a marker called … at 2s*, *wiggle it*, *outline it white 4px*, *make it cinematic* (also *vintage*,
   *black and white*, *dreamy*, *punchy*, *neon*; *reset the look*), *delete it*.
   Unknown phrases explain themselves.
 - **Local model** (Ollama / LM Studio, on your own machine) or **cloud model** (your key):

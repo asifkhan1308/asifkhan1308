@@ -31,7 +31,7 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
   // placeholders, split, then restore.
   const saved: string[] = [];
   const masked = prompt.replace(/"[^"]*"|“[^”]*”/g, (q) => `\uE000${saved.push(q) - 1}\uE000`);
-  const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent|mask|matte|use|align|center|centre|typewriter|type|reveal|letter|word|gradient|drop|put|outline|stroke|reset|no)))\s*/i);
+  const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent|mask|matte|use|align|center|centre|typewriter|type|reveal|letter|word|gradient|drop|put|outline|stroke|reset|no|wiggle|shake|stop)))\s*/i);
 
   for (const part of clauses) {
     const c = part.replace(/\uE000(\d+)\uE000/g, (_, i) => saved[Number(i)]).trim();
@@ -67,6 +67,23 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
     }
     if (/\btype(?:writer|\s+(?:it\s+)?(?:on|in|out))\b|\btypewriter\b/.test(l)) { preset('typewriter'); continue; }
     if (/\b(?:letter\s+by\s+letter|per[-\s]letter|letters?\s+fade)\b/.test(l)) { preset('letters_in'); continue; }
+    // wiggle: "wiggle it", "shake it 40px", "wiggle the rotation 10 degrees 3 times a second", "stop wiggling"
+    if (/^(?:stop\s+(?:the\s+)?(?:wiggl\w*|shak\w*)|(?:no|remove)\s+(?:the\s+)?wiggle)\b/.test(l)) {
+      const p = l.match(/\b(rotation|scale|opacity|position)\b/)?.[1] ?? 'position';
+      out.push({ op: 'wiggle', path: p, amount: 0 });
+      continue;
+    }
+    if (/\b(?:wiggle|wiggly|shake|jitter)\b/.test(l)) {
+      const p = l.match(/\b(rotat\w*|scale|size|opacity|position)\b/)?.[1];
+      const path = !p ? 'position' : p.startsWith('rotat') ? 'rotation' : p === 'size' ? 'scale' : p;
+      const amt = l.match(/(\d+(?:\.\d+)?)\s*(px|pixels?|°|deg\w*|%)/);
+      const freq = l.match(/(\d+(?:\.\d+)?)\s*(?:times?\s*(?:a|per)\s*sec\w*|x\s*\/\s*s|\/s|hz)\b/);
+      const a: AIAction = { op: 'wiggle', path };
+      if (amt) a.amount = amt[2] === '%' ? Number(amt[1]) / 100 : Number(amt[1]);
+      if (freq) a.freq = Number(freq[1]);
+      out.push(a);
+      continue;
+    }
     if (/\b(?:word\s+by\s+word|per[-\s]word|words?\s+fade)\b/.test(l)) { preset('words_in'); continue; }
     if (/\b(?:pop|bounce)\b/.test(l)) { preset('pop'); continue; }
     if (/\bspin\b|\brotate\s+(?:it\s+)?(?:a\s+)?full\b|\b360\b/.test(l)) { preset('spin'); continue; }

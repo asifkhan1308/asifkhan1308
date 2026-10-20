@@ -18,7 +18,12 @@ export interface Keyframe<T> {
 export interface AnimatedProperty<T> {
   default: T;
   keyframes?: Keyframe<T>[];
+  /** After Effects-style wiggle on top of the value: smooth random drift of
+   *  up to ±amount (property units), `freq` times a second. Deterministic. */
+  wiggle?: Wiggle;
 }
+
+export interface Wiggle { amount: number; freq: number; seed?: number }
 
 /* ───── Scalar + vector helpers ───── */
 export type V2 = [number, number];

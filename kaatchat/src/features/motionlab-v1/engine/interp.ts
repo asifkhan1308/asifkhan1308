@@ -63,7 +63,36 @@ const isV2 = (v: unknown): v is V2 => Array.isArray(v) && v.length === 2 && type
  * the default. If one keyframe, returns its value. Otherwise clamps outside
  * the keyframe range and eases between the two surrounding keyframes.
  */
+/** The rendered value: keyframes / default plus any wiggle. */
 export function resolveAnimated<T>(prop: AnimatedProperty<T>, time: number): T {
+  const base = resolveBase(prop, time);
+  const w = prop.wiggle;
+  if (!w || !(w.amount > 0) || !(w.freq > 0)) return base;
+  const seed = w.seed ?? 1;
+  if (isV2(base)) {
+    const [x, y] = base as unknown as V2;
+    return [x + w.amount * wiggleNoise(time * w.freq, seed), y + w.amount * wiggleNoise(time * w.freq, seed + 101)] as unknown as T;
+  }
+  if (typeof base === 'number') return (base + w.amount * wiggleNoise(time * w.freq, seed)) as unknown as T;
+  return base;
+}
+
+/** Smooth, repeatable noise in [-1, 1]: random values at whole numbers,
+ *  eased between (1D value noise). Same inputs, same output — exports match
+ *  the preview frame for frame. */
+export function wiggleNoise(x: number, seed: number): number {
+  const h = (i: number) => {
+    let n = Math.imul(i ^ Math.imul(seed, 0x9e3779b1), 0x85ebca6b);
+    n = Math.imul(n ^ (n >>> 13), 0xc2b2ae35);
+    return (((n ^ (n >>> 16)) >>> 0) / 0xffffffff) * 2 - 1;
+  };
+  const i = Math.floor(x), f = x - i;
+  const s = f * f * (3 - 2 * f);
+  return h(i) * (1 - s) + h(i + 1) * s;
+}
+
+/** The value without wiggle — what the user edits (Inspector, drags, new keys). */
+export function resolveBase<T>(prop: AnimatedProperty<T>, time: number): T {
   const kfs = prop.keyframes;
   if (!kfs || kfs.length === 0) return prop.default;
   if (kfs.length === 1) return kfs[0].value;

@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { selectionOf, useV1 } from '../store';
-import { cubicBezier, resolveAnimated } from '../engine/interp';
+import { cubicBezier, resolveBase } from '../engine/interp';
 import type { AnimatedProperty, Bezier, Easing, Gradient, Layer, MatteMode, RevealMode, V2 } from '../types';
 import { wouldCycle } from '../engine/matrix';
 import { isAudioLayer } from '../engine/bbox';
@@ -47,7 +47,7 @@ export default function V1Inspector() {
     );
   }
 
-  const resolve = <T,>(ap: AnimatedProperty<T> | undefined) => (ap ? resolveAnimated(ap, currentTime) : undefined);
+  const resolve = <T,>(ap: AnimatedProperty<T> | undefined) => (ap ? resolveBase(ap, currentTime) : undefined);
   const audio = isAudioLayer(layer, project.assets);
   // Align / distribute (shared by the Transform section and, for a
   // multi-selection whose primary layer is audio, under the audio note).
@@ -665,6 +665,10 @@ function CurveEditor({ bez, onChange }: { bez: Bezier; onChange: (b: Bezier) => 
   );
 }
 
+/* Wiggle starting strengths per property (property units: px, °, 0–1). */
+const WIGGLE_DEFAULT: Partial<Record<string, number>> = { position: 20, rotation: 8, scale: 0.05, opacity: 0.2, anchor: 10, fontSize: 4 };
+const PCT_PATHS = new Set<string>(['scale', 'opacity']);
+
 function PropRow({
   layer,
   currentTime,
@@ -680,6 +684,7 @@ function PropRow({
 }) {
   const toggleKeyframe = useV1((s) => s.toggleKeyframe);
   const setKeyframeEasing = useV1((s) => s.setKeyframeEasing);
+  const setWiggle = useV1((s) => s.setWiggle);
   const ap = animatedPropertyFor(layer, path);
   const kfs = ap?.keyframes ?? [];
   // Same 10 ms window the store uses, so "on" always means toggle removes it.
@@ -716,6 +721,13 @@ function PropRow({
         )}
         <button
           type="button"
+          className={`v1-wiggle-btn${ap?.wiggle ? ' on' : ''}`}
+          aria-pressed={!!ap?.wiggle}
+          onClick={() => setWiggle(layer.id, path, ap?.wiggle ? null : { amount: WIGGLE_DEFAULT[path] ?? 5, freq: 2 })}
+          title={ap?.wiggle ? 'Remove wiggle' : 'Wiggle: smooth random motion on top of this value'}
+        >∿</button>
+        <button
+          type="button"
           className={`v1-diamond v1-diamond-${state}`}
           onClick={() => toggleKeyframe(layer.id, path)}
           title={state === 'on' ? 'Remove keyframe at playhead' : 'Add keyframe at playhead'}
@@ -726,6 +738,23 @@ function PropRow({
           bez={atNow.bezier ?? [0.42, 0, 0.58, 1]}
           onChange={(b) => setKeyframeEasing(layer.id, path, atNow.time, 'bezier', b)}
         />
+      )}
+      {ap?.wiggle && (
+        <div className="v1-wiggle-row">
+          <label>
+            Wiggle ±
+            <input type="number" aria-label={`${label} wiggle amount`} min={0} step={PCT_PATHS.has(path) ? 1 : 0.5}
+              value={+(ap.wiggle.amount * (PCT_PATHS.has(path) ? 100 : 1)).toFixed(2)}
+              onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setWiggle(layer.id, path, { ...ap.wiggle!, amount: PCT_PATHS.has(path) ? v / 100 : v }); }} />
+            {PCT_PATHS.has(path) ? '%' : path === 'rotation' ? '°' : 'px'}
+          </label>
+          <label>
+            <input type="number" aria-label={`${label} wiggle speed`} min={0.1} max={30} step={0.5}
+              value={ap.wiggle.freq}
+              onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v > 0) setWiggle(layer.id, path, { ...ap.wiggle!, freq: v }); }} />
+            ×/s
+          </label>
+        </div>
       )}
       <div className="v1-prop-body">{children}</div>
     </div>
