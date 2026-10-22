@@ -117,6 +117,9 @@ export interface MediaLayer extends LayerBase {
   muted?: boolean;
   fadeIn?: number;     // seconds from clip start
   fadeOut?: number;    // seconds before clip end
+  /* Time remapping — optional; absent = normal speed. */
+  speed?: number;      // playback rate, 0.1..8 (source seconds per timeline second)
+  freeze?: boolean;    // hold the frame at sourceIn for the whole clip (silent)
 }
 
 export interface ImageLayer extends LayerBase {

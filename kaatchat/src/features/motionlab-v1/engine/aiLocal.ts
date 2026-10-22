@@ -31,7 +31,7 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
   // placeholders, split, then restore.
   const saved: string[] = [];
   const masked = prompt.replace(/"[^"]*"|“[^”]*”/g, (q) => `\uE000${saved.push(q) - 1}\uE000`);
-  const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent|mask|matte|use|align|center|centre|typewriter|type|reveal|letter|word|gradient|drop|put|outline|stroke|reset|no|wiggle|shake|stop)))\s*/i);
+  const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent|mask|matte|use|align|center|centre|typewriter|type|reveal|letter|word|gradient|drop|put|outline|stroke|reset|no|wiggle|shake|stop|slow|speed|freeze|unfreeze)))\s*/i);
 
   for (const part of clauses) {
     const c = part.replace(/\uE000(\d+)\uE000/g, (_, i) => saved[Number(i)]).trim();
@@ -67,6 +67,20 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
     }
     if (/\btype(?:writer|\s+(?:it\s+)?(?:on|in|out))\b|\btypewriter\b/.test(l)) { preset('typewriter'); continue; }
     if (/\b(?:letter\s+by\s+letter|per[-\s]letter|letters?\s+fade)\b/.test(l)) { preset('letters_in'); continue; }
+    // time remap: "slow it down to half speed", "2x speed", "speed it up 4x", "freeze frame at 2s", "unfreeze"
+    if (/^(?:unfreeze|(?:no|remove)\s+(?:the\s+)?freeze)\b/.test(l)) { out.push({ op: 'freeze', time: null }); continue; }
+    if (/\bfreeze\b/.test(l)) {
+      const at = l.match(/\bat\s+(\d+(?:\.\d+)?)\s*s/);
+      out.push(at ? { op: 'freeze', time: Number(at[1]) } : { op: 'freeze' });
+      continue;
+    }
+    if (/\b(?:slow[\s-]*mo(?:tion)?|slow\s+(?:it\s+)?down|speed\s+(?:it\s+)?up|(?:normal|half|double|quarter)\s+speed|\d+(?:\.\d+)?\s*[x×]\s*speed|speed\s+(?:to\s+)?\d)/.test(l)) {
+      const n = l.match(/(\d+(?:\.\d+)?)\s*[x×%]?/);
+      let v = /\bhalf\b/.test(l) ? 0.5 : /\bquarter\b/.test(l) ? 0.25 : /\bdouble\b/.test(l) ? 2 : /\bnormal\b/.test(l) ? 1 : n ? Number(n[1]) : /slow/.test(l) ? 0.5 : 2;
+      if (n && /%/.test(n[0])) v = Number(n[1]) / 100;
+      out.push({ op: 'speed', speed: v });
+      continue;
+    }
     // wiggle: "wiggle it", "shake it 40px", "wiggle the rotation 10 degrees 3 times a second", "stop wiggling"
     if (/^(?:stop\s+(?:the\s+)?(?:wiggl\w*|shak\w*)|(?:no|remove)\s+(?:the\s+)?wiggle)\b/.test(l)) {
       const p = l.match(/\b(rotation|scale|opacity|position)\b/)?.[1] ?? 'position';

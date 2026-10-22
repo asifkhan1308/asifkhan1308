@@ -602,7 +602,11 @@ function LayerRowImpl({
             onPointerDown={beginClipDrag('in')}
             title="Trim in"
           />
-          <div className="v1-tl-clip-label">{layer.name}</div>
+          <div className="v1-tl-clip-label">
+            {layer.name}
+            {layer.type === 'media' && layer.freeze && <span className="v1-tl-clip-badge">frozen</span>}
+            {layer.type === 'media' && !layer.freeze && layer.speed && layer.speed !== 1 && <span className="v1-tl-clip-badge">{+layer.speed.toFixed(2)}×</span>}
+          </div>
           <div
             className="v1-tl-clip-trim v1-tl-clip-trim-out"
             onPointerDown={beginClipDrag('out')}

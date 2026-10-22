@@ -17,8 +17,15 @@ const isVideo = (e: El): e is HTMLVideoElement =>
 
 /** Composition time → source time inside the clip's trimmed window. */
 export function sourceTimeAt(layer: MediaLayer, time: number): number {
-  const t = layer.sourceIn + (time - layer.startTime);
+  const t = layer.sourceIn + (time - layer.startTime) * clipRate(layer);
   return Math.max(layer.sourceIn, Math.min(layer.sourceOut - 0.001, t));
+}
+
+/** Source seconds per timeline second: 0 for a freeze frame, else the clip speed. */
+export function clipRate(layer: MediaLayer): number {
+  if (layer.freeze) return 0;
+  const s = layer.speed ?? 1;
+  return Number.isFinite(s) && s > 0 ? s : 1;
 }
 
 function activeMediaByAsset(project: Project, time: number): Map<string, MediaLayer> {
@@ -50,9 +57,20 @@ export function syncPreviewMedia(
       // Per-clip volume/fades. HTMLMediaElement volume caps at 1, so >100%
       // boosts are heard in the export only.
       const gain = clipGainAt(layer, time);
+      const rate = clipRate(layer);
+      if (rate === 0) {
+        // Freeze frame: hold the frame, no sound.
+        if (!el.paused) el.pause();
+        el.muted = true;
+        if (Math.abs(el.currentTime - target) > 0.01) el.currentTime = target;
+        continue;
+      }
       el.muted = gain <= 0;
       el.volume = Math.max(0, Math.min(1, gain));
-      if (Math.abs(el.currentTime - target) > 0.25) el.currentTime = target;
+      // Speed changes pitch, as in the export mix (tape-style).
+      if (el.playbackRate !== rate) el.playbackRate = rate;
+      (el as HTMLVideoElement & { preservesPitch?: boolean }).preservesPitch = false;
+      if (Math.abs(el.currentTime - target) > 0.25 * rate) el.currentTime = target;
       if (el.paused) void el.play().catch(() => undefined);
     } else {
       if (!el.paused) el.pause();

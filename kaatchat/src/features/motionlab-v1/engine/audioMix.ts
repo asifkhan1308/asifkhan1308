@@ -65,11 +65,14 @@ export async function mixProjectAudio(project: Project, signal?: AbortSignal): P
   for (const l of used) {
     const buf = decoded.get(l.assetId);
     if (!buf) continue;
+    if (l.freeze) continue;                               // freeze frames are silent
+    const rate = Math.max(0.1, Math.min(8, l.speed ?? 1));
     const offset = Math.max(0, l.sourceIn);
-    const dur = Math.min(l.duration, buf.duration - offset);
+    const dur = Math.min(l.duration, (buf.duration - offset) / rate);   // timeline seconds
     if (dur <= 0) continue;
     const src = ctx.createBufferSource();
     src.buffer = buf;
+    src.playbackRate.value = rate;
     // Volume + fades as a gain envelope in composition time.
     const g = ctx.createGain();
     const t0 = Math.max(0, l.startTime);
@@ -83,7 +86,7 @@ export async function mixProjectAudio(project: Project, signal?: AbortSignal): P
       g.gain.linearRampToValueAtTime(0, t1);
     }
     src.connect(g).connect(ctx.destination);
-    src.start(t0, offset, dur);
+    src.start(t0, offset, dur * rate);                   // duration in source seconds
     audible = true;
   }
   return audible ? ctx.startRendering() : null;

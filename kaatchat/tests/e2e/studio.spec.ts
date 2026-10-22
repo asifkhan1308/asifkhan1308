@@ -31,6 +31,15 @@ function frameHash(file: string, frame: number): string {
   return createHash('md5').update(r.stdout).digest('hex');
 }
 
+/** Mean absolute grey-level difference between two frames of the same crop (0–255). */
+function frameDiff(file: string, a: number, b: number): number {
+  const grab = (n: number) => spawnSync(ffmpeg, ['-v', 'error', '-i', file, '-vf', `select='eq(n\\,${n})',crop=400:400:1400:340`, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'gray', '-']).stdout;
+  const x = grab(a), y = grab(b);
+  let sum = 0;
+  for (let i = 0; i < x.length; i++) sum += Math.abs(x[i] - y[i]);
+  return sum / Math.max(1, x.length);
+}
+
 test('Studio: import, animate, ease, save, export with clip audio, reopen', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -1124,4 +1133,42 @@ test('Studio: wiggle — ∿ toggles it per property, amount and speed are edita
   await expect(x).toHaveValue(x0);                                        // the edited value is untouched
   await row.locator('.v1-wiggle-btn').click();
   await expect(amount).toHaveCount(0);
+});
+
+test('Studio: time remapping — 2× speed plays the footage twice as fast; freeze frame holds it, silently', async ({ page }) => {
+  await page.goto('/#/studio');
+  await setValue(page.locator('.duration-field input'), 4);
+  await page.locator('.v1-toolbar input[type=file]').setInputFiles(fx.talk);   // 10 s, tone at 1–4 s
+  await expect(page.locator('.v1-tl-layer-row-head').first()).toContainText('talk.webm');
+  const time = page.locator('.v1-section', { hasText: 'Speed' });
+  await time.getByRole('button', { name: '2×' }).click();
+  await expect(time.getByRole('button', { name: '2×' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.v1-tl-clip-badge')).toHaveText('2×');
+
+  const exportOnce = async (name: string) => {
+    await page.locator('.btn-export').click();
+    const render = page.locator('.modal .btn-primary');
+    await expect(render).toHaveText('Render', { timeout: 30_000 });
+    const dl = page.waitForEvent('download', { timeout: 150_000 });
+    await render.click();
+    const path = test.info().outputPath(name);
+    await (await dl).saveAs(path);
+    await expect(page.locator('.modal')).toHaveCount(0, { timeout: 5_000 });
+    return path;
+  };
+  const fast = await exportOnce('fast.mp4');
+  // Source tones at 1–4 s and 6–9 s now sit at 0.5–2 s and 3–4.5 s; source 4.2–5.8 s (silent) at 2.1–2.9 s.
+  expect(meanVolume(fast, 2.1, 0.8)).toBeLessThan(meanVolume(fast, 0.8, 1) - 10);
+  expect(meanVolume(fast, 3.1, 0.8)).toBeGreaterThan(meanVolume(fast, 2.1, 0.8) + 10);
+
+  await time.getByRole('button', { name: '1×' }).click();
+  await seek(page, 0.375);                                                     // 1.5 s
+  await time.getByRole('button', { name: 'Freeze frame at playhead' }).click();
+  await expect(page.locator('.v1-tl-clip-badge')).toHaveText('frozen');
+  await expect(time.getByRole('button', { name: 'Frozen' })).toHaveAttribute('aria-pressed', 'true');
+  const held = await exportOnce('held.mp4');
+  expect(frameHash(held, 6)).not.toBe(frameHash(held, 18));                     // moving before the freeze
+  expect(frameDiff(held, 60, 100)).toBeLessThan(1);                              // held after it (encoder noise only)
+  expect(frameDiff(held, 6, 18)).toBeGreaterThan(3);
+  expect(meanVolume(held, 2.2, 1.5)).toBeLessThan(meanVolume(held, 1.1, 0.35) - 10);   // and silent
 });

@@ -9,11 +9,13 @@ import type {
   RevealMode,
   EffectProp,
   Layer,
+  MediaLayer,
   Project,
   TransformProp,
   V2,
   Wiggle,
 } from './types';
+import { clipRate } from './engine/mediaSync';
 import { removeKeyframeAt, resolveAnimated, resolveBase, upsertKeyframe } from './engine/interp';
 import {
   defaultProject,
@@ -94,6 +96,11 @@ interface MotionLabV1State extends UIState {
   trimLayerIn: (id: string, newStartTime: number) => void;   // drag the left edge
   trimLayerOut: (id: string, newEndTime: number) => void;    // drag the right edge
   splitLayerAt: (id: string, time: number) => void;
+  /** Clip speed (0.1–8×). Keeps the same footage, so the clip gets shorter / longer (capped at the comp end). */
+  setClipSpeed: (id: string, speed: number) => void;
+  setFreeze: (id: string, freeze: boolean) => void;
+  /** Split at `time` and freeze the second half on that frame. Returns the frozen clip's id. */
+  freezeFrameAt: (id: string, time: number) => string | null;
 
   /* Keyframe editing on the timeline (all animated props of a layer at once) */
   moveKeyframesAt: (layerId: string, fromTime: number, toTime: number) => void;
@@ -704,7 +711,8 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
               // Advance sourceIn by the trimmed amount so the frame visible
               // at the new start is the same frame that WAS visible at that
               // composition time before the trim.
-              const sourceIn = Math.max(0, l.sourceIn + delta);
+              // (Scaled by the clip speed; a freeze frame keeps its frame.)
+              const sourceIn = Math.max(0, l.sourceIn + delta * clipRate(l));
               const sourceOut = Math.max(sourceIn + minClip, l.sourceOut);
               return { ...l, startTime: start, duration: dur, sourceIn, sourceOut } as Layer;
             }
@@ -728,7 +736,7 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
             const dur = end - start;
             if (l.type === 'media') {
               const delta = dur - l.duration;
-              const sourceOut = Math.max(l.sourceIn + minClip, l.sourceOut + delta);
+              const sourceOut = Math.max(l.sourceIn + minClip, l.sourceOut + delta * clipRate(l));
               return { ...l, duration: dur, sourceOut } as Layer;
             }
             return { ...l, duration: dur } as Layer;
@@ -761,9 +769,10 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
       rightCopy.name = `${l.name} (split)`;
       rightCopy.startTime = l.startTime + splitWithin;
       rightCopy.duration = rightDuration;
-      if (l.type === 'media') {
+      if (l.type === 'media' && !l.freeze) {
         // Divide the source window proportionally so playback stays
-        // seamless across the cut.
+        // seamless across the cut. (A freeze frame holds the same frame on
+        // both sides.)
         const sourceSpan = l.sourceOut - l.sourceIn;
         const sourceMid = l.sourceIn + (sourceSpan * splitWithin) / l.duration;
         (left as Layer & { sourceOut: number }).sourceOut = sourceMid;
@@ -775,6 +784,55 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
       return { project: touch({ ...s.project, layers }) };
     }),
 
+  setClipSpeed: (id, speed) =>
+    set((s) => {
+      const comp = s.project.composition;
+      const minClip = Math.max(0.01, 1 / comp.fps);
+      const v = Math.max(0.1, Math.min(8, Number.isFinite(speed) ? speed : 1));
+      return {
+        project: touch({
+          ...s.project,
+          layers: s.project.layers.map((l) => {
+            if (l.id !== id || l.type !== 'media') return l;
+            if (l.freeze) return { ...l, speed: v === 1 ? undefined : v } as Layer;
+            const span = l.sourceOut - l.sourceIn;
+            const dur = Math.max(minClip, Math.min(span / v, comp.duration - l.startTime));
+            const next = { ...l, duration: dur, sourceOut: l.sourceIn + dur * v } as MediaLayer;
+            if (v === 1) delete next.speed; else next.speed = v;
+            return next;
+          }),
+        }),
+      };
+    }),
+  setFreeze: (id, freeze) =>
+    set((s) => ({
+      project: touch({
+        ...s.project,
+        layers: s.project.layers.map((l) => {
+          if (l.id !== id || l.type !== 'media') return l;
+          const next = { ...l } as MediaLayer;
+          if (freeze) next.freeze = true; else delete next.freeze;
+          return next;
+        }),
+      }),
+    })),
+  freezeFrameAt: (id, time) => {
+    const before = get().project.layers.find((l) => l.id === id);
+    if (!before || before.type !== 'media') return null;
+    let frozen: string | null = null;
+    get().batch(() => {
+      get().splitLayerAt(id, time);
+      const layers = get().project.layers;
+      const i = layers.findIndex((l) => l.id === id);
+      const right = layers[i + 1];
+      if (right && right.type === 'media' && Math.abs(right.startTime - time) < 1e-6) {
+        get().setFreeze(right.id, true);
+        frozen = right.id;
+      }
+    }, 'Freeze frame');
+    if (frozen) set({ selectedLayerId: frozen, selectedIds: [frozen] });
+    return frozen;
+  },
   moveKeyframesAt: (layerId, fromTime, toTime) =>
     set((s) => {
       const to = Math.max(0, Math.min(s.project.composition.duration, toTime));

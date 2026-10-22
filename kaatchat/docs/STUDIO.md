@@ -76,6 +76,12 @@ Press **?** in the editor for every shortcut and gesture.
   Export renders just that range by default (untick *Work area only* for the whole comp).
   Double-click the band to clear it.
 - **K** splits the selected clip at the playhead; drag clip edges to trim.
+- **Speed** (Inspector → *Time*): 0.25× – 4× presets or any value 0.1–8×. The clip keeps the same
+  footage, so it gets shorter or longer on the timeline. Sound follows the speed (pitch changes, like
+  tape). A badge on the clip shows the speed.
+- **Freeze frame at playhead** splits the clip and holds that frame for the rest of it (silent);
+  *Freeze clip* holds a whole clip's first frame. ✦ Ask: *slow motion*, *2x speed*, *speed it up 4x*,
+  *freeze frame at 2s*, *unfreeze*.
 
 ## Audio
 

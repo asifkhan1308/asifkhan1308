@@ -62,6 +62,8 @@ Actions:
   { "op": "set_color", "color": "#rrggbb" }                                 // text / shape fill (solid)
   { "op": "set_gradient", "from": "#rrggbb", "to": "#rrggbb", "angle"?: <deg> } // linear gradient fill; 0° = left→right
   { "op": "set_stroke", "color": "#rrggbb" | null, "width"?: <px> }          // outline (null = off)
+  { "op": "speed", "speed": <0.1..8> }                                    // video / audio clips: 0.5 = slow motion, 2 = double speed
+  { "op": "freeze", "time"?: <sec> | null }                               // video: hold the frame at time (default playhead) for the rest of the clip; null unfreezes
   { "op": "wiggle", "path"?: <prop>, "amount"?: number, "freq"?: <per sec> } // smooth random motion; default position; amount 0 removes
   { "op": "look", "name": ${LOOK_NAMES.map((n) => `"${n}"`).join('|')} }     // effect preset for the layer
   { "op": "comp", "duration"?: <sec>, "background"?: "#rrggbb" }          // at least one
@@ -294,6 +296,24 @@ export function applyAIActions(actions: unknown): AIResult {
           const keys = ['brightness', 'contrast', 'saturation', 'blur', 'vignette', 'grain', 'tintAmount', 'glow', 'shadow'] as const;
           for (const k of keys) s.setPropertyBase(layer.id, k, look[k] ?? 0);
           if (look.tint) s.setEffectTintColor(layer.id, look.tint);
+          res.applied++;
+          break;
+        }
+        case 'speed': {
+          const v = num(raw.speed);
+          if (layer.type !== 'media') { skip(`${layer.type} layers have no speed`); break; }
+          if (v === null || v < 0.1 || v > 8) { skip('speed must be 0.1–8'); break; }
+          s.setClipSpeed(layer.id, v);
+          res.applied++;
+          break;
+        }
+        case 'freeze': {
+          if (layer.type !== 'media' || s.project.assets.find((a) => a.id === layer.assetId)?.kind === 'audio') { skip(`only video clips can freeze`); break; }
+          if (raw.time === null) { s.setFreeze(layer.id, false); res.applied++; break; }
+          const t = raw.time === undefined ? s.currentTime : num(raw.time);
+          if (t === null) { skip('bad freeze time'); break; }
+          if (Math.abs(t - layer.startTime) < 0.02) { s.setFreeze(layer.id, true); res.applied++; break; }
+          if (!s.freezeFrameAt(layer.id, t)) { skip('freeze time must be inside the clip'); break; }
           res.applied++;
           break;
         }

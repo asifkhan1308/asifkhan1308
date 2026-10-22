@@ -21,6 +21,8 @@ const ALIGN: Array<{ edge: AlignEdge; title: string; icon: React.ReactNode }> = 
   { edge: 'bottom', title: 'Align bottom', icon: <><line x1="1" y1="14" x2="15" y2="14" /><rect x="4" y="3" width="8" height="9" /></> },
 ];
 
+const SPEEDS = [0.25, 0.5, 1, 2, 4];
+
 const EFFECT_PATHS: AnimPath[] = ['brightness', 'contrast', 'saturation', 'blur', 'vignette', 'grain', 'tintAmount', 'shadow', 'glow'];
 
 export default function V1Inspector() {
@@ -31,6 +33,9 @@ export default function V1Inspector() {
   const patchLayer = useV1((s) => s.patchLayer);
   const enableEffects = useV1((s) => s.enableEffects);
   const setEffectTintColor = useV1((s) => s.setEffectTintColor);
+  const setClipSpeed = useV1((s) => s.setClipSpeed);
+  const setFreeze = useV1((s) => s.setFreeze);
+  const freezeFrameAt = useV1((s) => s.freezeFrameAt);
 
   const layer = project.layers.find((l) => l.id === selectedId);
   const selCount = useV1((s) => selectionOf(s).length);
@@ -282,6 +287,35 @@ export default function V1Inspector() {
           ) : (
             <div className="v1-inspector-empty" style={{ padding: 8, fontSize: 11.5 }}>
               Neutral. Click + Enable to add brightness, contrast, saturation, blur, vignette, grain, tint, drop shadow and glow — all keyframable.
+            </div>
+          )}
+        </section>
+      )}
+
+      {layer.type === 'media' && (
+        <section className="v1-section" aria-label="Time">
+          <div className="v1-section-head">Time</div>
+          <div className="v1-prop">
+            <div className="v1-prop-head"><span className="v1-prop-label">Speed</span></div>
+            <div className="v1-speed-row">
+              {SPEEDS.map((v) => (
+                <button key={v} type="button" className={`v1-chip${(layer.speed ?? 1) === v ? ' on' : ''}`}
+                  aria-pressed={(layer.speed ?? 1) === v} onClick={() => setClipSpeed(layer.id, v)}>{v}×</button>
+              ))}
+              <NumberField value={layer.speed ?? 1} onChange={(v) => setClipSpeed(layer.id, v)} step={0.05} suffix="×" />
+            </div>
+          </div>
+          {!audio && (
+            <div className="v1-speed-row">
+              <button type="button" className={`v1-chip${layer.freeze ? ' on' : ''}`} aria-pressed={!!layer.freeze}
+                onClick={() => setFreeze(layer.id, !layer.freeze)} title="Hold this clip's first frame (silent)">
+                {layer.freeze ? 'Frozen' : 'Freeze clip'}
+              </button>
+              <button type="button" className="v1-chip"
+                disabled={currentTime <= layer.startTime + 0.02 || currentTime >= layer.startTime + layer.duration - 0.02}
+                onClick={() => freezeFrameAt(layer.id, currentTime)} title="Split here and hold this frame for the rest of the clip">
+                Freeze frame at playhead
+              </button>
             </div>
           )}
         </section>
