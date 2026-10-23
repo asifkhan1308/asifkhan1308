@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import V1TopBar from './components/TopBar';
 import V1Toolbar from './components/Toolbar';
 import V1Canvas from './components/Canvas';
@@ -9,6 +10,8 @@ import AIBar from './components/AIBar';
 import GenerateModal from './components/GenerateModal';
 import ShareDialog from './components/ShareDialog';
 import ShortcutsSheet from './components/ShortcutsSheet';
+import CloudDialog from './components/CloudDialog';
+import { useCloud } from './cloud/useCloud';
 import { selectionOf, useV1 } from './store';
 import { decodeFeedback } from './engine/share';
 import './MotionLabV1.css';
@@ -23,6 +26,18 @@ export default function MotionLabV1({ feedback }: { feedback?: string } = {}) {
   const [showGenerate, setShowGenerate] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showKeys, setShowKeys] = useState(false);
+  const [showCloud, setShowCloud] = useState(false);
+  const cloud = useCloud(useShallow((s) => ({ remote: s.remote, conflict: s.conflict, notice: s.notice, error: s.error })));
+  // V2: restore the cloud session (and finish a sign-in link / Google return).
+  useEffect(() => {
+    void useCloud.getState().init();
+    if (/[?&]code=/.test(location.search)) setShowCloud(true);
+  }, []);
+  useEffect(() => {
+    if (!cloud.notice) return;
+    const t = setTimeout(() => useCloud.setState({ notice: null }), 4000);
+    return () => clearTimeout(t);
+  }, [cloud.notice]);
   const [banner, setBanner] = useState<{ text: string; err?: boolean } | null>(null);
 
   // V1.5: a reviewer's feedback link (#/studio/feedback/<code>) — open the
@@ -90,7 +105,10 @@ export default function MotionLabV1({ feedback }: { feedback?: string } = {}) {
       }
       if (mod && e.key.toLowerCase() === 's') {
         e.preventDefault();
-        void saveToStorage();
+        // Linked to the cloud (and allowed to save): ⌘S saves there too.
+        const cl = useCloud.getState();
+        if (cl.user && cl.link && cl.link.role !== 'viewer') void cl.save();
+        else void saveToStorage();
         return;
       }
       // Copy/paste keyframes — only outside text fields so normal text
@@ -183,7 +201,28 @@ export default function MotionLabV1({ feedback }: { feedback?: string } = {}) {
 
   return (
     <div className="motionlab-v1">
-      <V1TopBar onExport={() => setShowExport(true)} onShare={() => setShowShare(true)} onKeys={() => setShowKeys(true)} />
+      <V1TopBar onExport={() => setShowExport(true)} onShare={() => setShowShare(true)} onKeys={() => setShowKeys(true)} onCloud={() => setShowCloud(true)} />
+      {cloud.remote && (
+        <div className="v1-banner" role="status">
+          <span>{cloud.remote.by} saved a newer version while you were editing.</span>
+          <button className="btn-ghost" onClick={() => void useCloud.getState().loadRemote()}>Load theirs</button>
+          <button className="btn-icon xs" onClick={() => useCloud.getState().dismiss()} title="Keep mine">×</button>
+        </div>
+      )}
+      {cloud.conflict && (
+        <div className="v1-banner err" role="alert">
+          <span>Not saved: {cloud.conflict.by} saved this project after you opened it.</span>
+          <button className="btn-ghost" onClick={() => void useCloud.getState().loadRemote()}>Load theirs</button>
+          <button className="btn-ghost" onClick={() => void useCloud.getState().save(true)}>Overwrite with mine</button>
+        </div>
+      )}
+      {cloud.notice && <div className="v1-banner" role="status"><span>{cloud.notice}</span></div>}
+      {cloud.error && !showCloud && (
+        <div className="v1-banner err" role="alert">
+          <span>Cloud: {cloud.error}</span>
+          <button className="btn-icon xs" onClick={() => useCloud.getState().dismiss()} title="Dismiss">×</button>
+        </div>
+      )}
       {banner && (
         <div className={`v1-banner${banner.err ? ' err' : ''}`} role="status">
           <span>{banner.text}</span>
@@ -200,6 +239,7 @@ export default function MotionLabV1({ feedback }: { feedback?: string } = {}) {
       {showExport && <V1ExportDialog onClose={() => setShowExport(false)} />}
       {showGenerate && <GenerateModal onClose={() => setShowGenerate(false)} />}
       {showShare && <ShareDialog onClose={() => setShowShare(false)} />}
+      {showCloud && <CloudDialog onClose={() => setShowCloud(false)} />}
       {showKeys && <ShortcutsSheet onClose={() => setShowKeys(false)} />}
     </div>
   );

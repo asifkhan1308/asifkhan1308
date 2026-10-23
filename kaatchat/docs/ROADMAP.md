@@ -64,5 +64,7 @@ export with audio, ✦ Ask (offline phrase parser + local / cloud models), Gener
 
 **V1.5 — done:** serverless review links with timestamped feedback.
 
-**V2 — needs decisions before building:** accounts / login, cloud projects, real-time
-multi-user editing. These need a hosting provider, an auth choice and a running budget.
+**V2 — built (free Supabase plan), needs the one-time setup in [CLOUD.md](CLOUD.md):**
+sign-in (email link, Google), cloud projects, sharing by email (edit / view), live updates
+when a collaborator saves, conflict-safe saves. Try it now with Cloud → *Try the demo*.
+Later (paid storage): media sync between devices; live per-layer co-editing with cursors.

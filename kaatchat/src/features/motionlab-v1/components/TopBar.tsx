@@ -1,14 +1,17 @@
 import { useV1 } from '../store';
+import { useCloud } from '../cloud/useCloud';
 import { Logo } from '../../../ui/bits';
 import ProjectMenu from './ProjectMenu';
 
 interface Props {
   onExport: () => void;
   onShare?: () => void;
+  onCloud?: () => void;
   onKeys?: () => void;
 }
 
-export default function V1TopBar({ onExport, onShare, onKeys }: Props) {
+export default function V1TopBar({ onExport, onShare, onKeys, onCloud }: Props) {
+  const cloudLinked = useCloud((s) => !!s.link && !!s.user);
   const projectName = useV1((s) => s.project.name);
   const renameProject = useV1((s) => s.renameProject);
   const comp = useV1((s) => s.project.composition);
@@ -129,6 +132,11 @@ export default function V1TopBar({ onExport, onShare, onKeys }: Props) {
           aria-label="Redo"
         >↷</button>
         {onKeys && <button className="btn-icon v1-keys-btn" onClick={onKeys} title="Shortcuts & gestures (?)" aria-label="Shortcuts and gestures">?</button>}
+        {onCloud && (
+          <button className={`btn-cloud${cloudLinked ? ' on' : ''}`} onClick={onCloud} title={cloudLinked ? 'In the cloud — sharing, saves' : 'Cloud: sign in, save, work together'}>
+            Cloud{cloudLinked ? ' ●' : ''}
+          </button>
+        )}
         {onShare && <button className="btn-share" onClick={onShare} title="Share a review link">Share</button>}
         <button className="btn-export" onClick={onExport}>Export</button>
       </div>

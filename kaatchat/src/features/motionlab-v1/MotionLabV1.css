@@ -907,11 +907,11 @@
 }
 .v1-share-meta { font-size: 11px; color: var(--v1-text-3); margin-top: 6px; }
 .v1-share-warn { font-size: 11.5px; line-height: 1.45; color: var(--v1-text-2); margin-top: 10px; padding: 8px 10px; border-radius: 8px; border: 1px dashed var(--v1-line); }
-.v1-topbar .btn-share {
+.v1-topbar .btn-share, .v1-topbar .btn-cloud {
   background: transparent; color: var(--v1-text); border: 1px solid var(--v1-line); border-radius: 6px;
   padding: 6px 14px; font: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer;
 }
-.v1-topbar .btn-share:hover { background: var(--v1-surface-2); }
+.v1-topbar .btn-share:hover, .v1-topbar .btn-cloud:hover { background: var(--v1-surface-2); }
 .v1-banner {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 16px;
   font-size: 12px; color: var(--v1-surface); background: var(--v1-text);
@@ -1097,3 +1097,24 @@
 .v1-chip.on { background: var(--v1-text); color: var(--v1-bg); border-color: var(--v1-text); }
 .v1-chip:disabled { opacity: 0.4; cursor: default; }
 .v1-tl-clip-badge { margin-left: 6px; font-size: 10px; opacity: 0.75; border: 1px solid currentColor; border-radius: 3px; padding: 0 3px; }
+
+/* V2 Cloud dialog */
+.v1-topbar .btn-cloud.on { border-color: var(--v1-text); }
+.v1-cloud { width: min(560px, calc(100vw - 32px)); }
+.v1-cloud-section { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.v1-cloud-section h3 { font-size: 13px; margin: 0; }
+.v1-cloud-note { font-size: 12px; color: var(--v1-text-3); margin: 0; }
+.v1-cloud-who { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; flex-wrap: wrap; }
+.v1-cloud-badge { margin-left: 8px; font-size: 10px; border: 1px solid var(--v1-line); border-radius: 999px; padding: 1px 8px; color: var(--v1-text-3); }
+.v1-cloud-list, .v1-cloud-members { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow: auto; }
+.v1-cloud-list li, .v1-cloud-members li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--v1-line); border-radius: 8px; }
+.v1-cloud-list li.current { border-color: var(--v1-text); }
+.v1-cloud-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.v1-cloud-row-main b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.v1-cloud-members li span { flex: 1; font-size: 12px; overflow-wrap: anywhere; }
+.v1-cloud-share form { display: flex; gap: 6px; flex-wrap: wrap; }
+.v1-cloud-share .text-input { flex: 1; min-width: 180px; }
+.v1-cloud-reset { align-self: flex-start; font-size: 11px; background: none; border: 0; color: var(--v1-text-3); text-decoration: underline; cursor: pointer; padding: 0; }
+.motionlab-v1 .btn-ghost { background: transparent; color: inherit; border: 1px solid var(--v1-line); border-radius: 5px; padding: 6px 12px; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.motionlab-v1 .btn-ghost:hover:not(:disabled) { border-color: var(--v1-text); }
+.motionlab-v1 .btn-ghost:disabled { opacity: .45; cursor: not-allowed; }

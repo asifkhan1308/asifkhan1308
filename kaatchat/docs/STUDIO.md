@@ -116,6 +116,13 @@ Press **?** in the editor for every shortcut and gesture.
 3. Opening their link pins the comments to your timeline (markers + a *Feedback* list where
    you can jump, resolve or delete).
 
+## Cloud and working together (V2)
+
+- **Cloud** (top bar): sign in with an email link or Google, **Save to cloud**, open your cloud
+  projects and ones shared with you, share by email (*can edit* / *can view*). Saves show up
+  live for everyone with the project open; a save never silently overwrites someone else's.
+- Media files stay on each device. Setup and limits: [CLOUD.md](CLOUD.md).
+
 ## Saving and exporting
 
 - **Save** (⌘S) keeps the project in this browser; autosave runs in the background.
@@ -128,4 +135,4 @@ Press **?** in the editor for every shortcut and gesture.
 
 - Motion blur doesn't sub-sample imported video frames.
 - Review links can't carry imported footage (too big for a link); share an MP4 alongside.
-- No multi-user editing or cloud projects yet (see the roadmap).
+- Cloud projects don't carry imported media; collaborators add the same files on their device.

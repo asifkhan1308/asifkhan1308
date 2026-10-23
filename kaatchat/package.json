@@ -22,6 +22,7 @@
     "@huggingface/transformers": "^4.3.0",
     "@jitsi/rnnoise-wasm": "^0.2.1",
     "@mediabunny/aac-encoder": "^1.60.0",
+    "@supabase/supabase-js": "2.118.0",
     "mediabunny": "^1.60.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

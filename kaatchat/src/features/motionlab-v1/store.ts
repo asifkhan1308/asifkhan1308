@@ -179,6 +179,8 @@ interface MotionLabV1State extends UIState {
   saveToStorage: () => Promise<void>;
   loadFromStorage: (id: string) => Promise<void>;
   replaceProject: (project: Project) => void;
+  /** Open a project that came from elsewhere (the cloud) as saved, not as an edit. */
+  openProjectData: (project: Project) => Promise<void>;
 }
 
 const touch = (p: Project): Project => ({ ...p, updatedAt: Date.now() });
@@ -1137,6 +1139,18 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
         savedAt: saved?.savedAt ?? null,
         isDirty: differs,
       });
+    } finally {
+      opening = false;
+    }
+  },
+
+  openProjectData: async (project) => {
+    const rehydrated = await rehydrateMedia(project);
+    if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
+    history.clear(rehydrated);
+    opening = true;
+    try {
+      set({ project: rehydrated, selectedLayerId: null, selectedIds: [], currentTime: Math.min(get().currentTime, rehydrated.composition.duration), isPlaying: false, savedAt: Date.now(), isDirty: false });
     } finally {
       opening = false;
     }
