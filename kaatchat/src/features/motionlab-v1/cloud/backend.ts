@@ -112,16 +112,21 @@ async function supabaseBackend(c: CloudConfig): Promise<CloudBackend> {
     if (r.error) throw new Error(r.error.message);
     return r.data;
   };
-  const toRow = async (r: Row): Promise<CloudRow> => {
-    const u = await me();
-    const owner = !!u && r.owner === u.id;
-    let role: CloudRow['role'] = 'owner';
-    if (!owner) {
-      const m = must(await sb.from('studio_members').select('role').eq('project_id', r.id).eq('email', u?.email ?? '').maybeSingle()) as { role: 'editor' | 'viewer' } | null;
-      role = m?.role ?? 'viewer';
-    }
-    return { id: r.id, name: r.name, updatedAt: r.updated_at, updatedBy: r.updated_by_email, owner, ownerEmail: r.owner_email, role };
+  /** My role on each project shared with me (one query; policies only return my own rows). */
+  const myRoles = async (u: CloudUser | null, ids: string[]): Promise<Map<string, 'editor' | 'viewer'>> => {
+    if (!u || !ids.length) return new Map();
+    const ms = must(await sb.from('studio_members').select('project_id,role').eq('email', u.email).in('project_id', ids)) as Array<{ project_id: string; role: 'editor' | 'viewer' }>;
+    return new Map(ms.map((m) => [m.project_id, m.role]));
   };
+  const toRows = async (rs: Row[]): Promise<CloudRow[]> => {
+    const u = await me();
+    const roles = await myRoles(u, rs.filter((r) => r.owner !== u?.id).map((r) => r.id));
+    return rs.map((r) => {
+      const owner = !!u && r.owner === u.id;
+      return { id: r.id, name: r.name, updatedAt: r.updated_at, updatedBy: r.updated_by_email, owner, ownerEmail: r.owner_email, role: owner ? 'owner' : roles.get(r.id) ?? 'viewer' };
+    });
+  };
+  const toRow = async (r: Row): Promise<CloudRow> => (await toRows([r]))[0];
   const cols = 'id,name,owner,owner_email,updated_at,updated_by_email';
   return {
     kind: 'supabase',
@@ -142,7 +147,7 @@ async function supabaseBackend(c: CloudConfig): Promise<CloudBackend> {
     async signOut() { await sb.auth.signOut(); },
     async list() {
       const rows = must(await sb.from('studio_projects').select(cols).order('updated_at', { ascending: false }).limit(200)) as Row[];
-      return Promise.all(rows.map(toRow));
+      return toRows(rows);
     },
     async load(id) {
       const r = must(await sb.from('studio_projects').select(`${cols},data`).eq('id', id).single()) as Row;
