@@ -326,6 +326,19 @@ function boxOf(s: MotionLabV1State, id: string) {
 }
 
 /** Shift a layer's position by a parent-space delta (auto-keys if animated). */
+/** Copies get their own random motion: a duplicated wiggling layer shouldn't
+ *  move in lockstep on top of its original (splits keep the seed — same clip). */
+function reseedWiggles<T>(value: T): T {
+  if (Array.isArray(value)) { value.forEach(reseedWiggles); return value; }
+  if (value && typeof value === 'object') {
+    const o = value as Record<string, unknown>;
+    const w = o.wiggle as { seed?: number } | undefined;
+    if (w && typeof w === 'object' && 'amount' in w) w.seed = 1 + Math.floor(Math.random() * 99999);
+    for (const k of Object.keys(o)) if (k !== 'wiggle') reseedWiggles(o[k]);
+  }
+  return value;
+}
+
 function moveBy(s: MotionLabV1State, id: string, d: V2) {
   const layer = s.project.layers.find((l) => l.id === id);
   if (!layer) return;
@@ -461,7 +474,7 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
     set((s) => {
       const src = s.project.layers.find((l) => l.id === id);
       if (!src) return s;
-      const copy = duplicateLayer(src);
+      const copy = reseedWiggles(JSON.parse(JSON.stringify(duplicateLayer(src))) as Layer);
       const idx = s.project.layers.findIndex((l) => l.id === id);
       const layers = [...s.project.layers];
       layers.splice(idx + 1, 0, copy);
@@ -1071,7 +1084,7 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
       // Keep links within the pasted set; drop ones that would point elsewhere.
       l.parentId = src.parentId && map.has(src.parentId) ? map.get(src.parentId) : undefined;
       l.matte = src.matte && map.has(src.matte.layerId) ? { ...src.matte, layerId: map.get(src.matte.layerId)! } : undefined;
-      return l;
+      return reseedWiggles(l);
     });
     set((s) => {
       const have = new Set(s.project.assets.map((a) => a.id));

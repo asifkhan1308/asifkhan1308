@@ -76,3 +76,25 @@ describe('MOTIONLAB V1 wiggle', () => {
     expect(applyAIActions([{ op: 'wiggle', path: 'nope' }]).skipped[0]).toMatch(/unknown property/);
   });
 });
+
+describe('MOTIONLAB V1 wiggle on copies', () => {
+  it('duplicate and paste get their own motion; split halves keep it (same clip)', () => {
+    const id = st().addRectangle();
+    st().setWiggle(id, 'position', { amount: 30, freq: 2, seed: 7 });
+    st().setWiggle(id, 'rotation', { amount: 5, freq: 1, seed: 7 });
+    st().duplicate(id);
+    const dup = st().selectedLayerId!;
+    expect(dup).not.toBe(id);
+    expect(layer(dup).transform.position.wiggle).toMatchObject({ amount: 30, freq: 2 });
+    expect(layer(dup).transform.position.wiggle!.seed).not.toBe(7);
+    expect(layer(dup).transform.rotation.wiggle!.seed).not.toBe(7);
+    expect(layer(id).transform.position.wiggle!.seed).toBe(7);               // original untouched
+    st().copyLayers([id]);
+    st().pasteLayers();
+    const pasted = st().selectedLayerId!;
+    expect(layer(pasted).transform.position.wiggle!.seed).not.toBe(7);
+    st().splitLayerAt(id, layer(id).startTime + layer(id).duration / 2);
+    const halves = st().project.layers.filter((l) => l.name.startsWith(layer(id).name) && l.transform.position.wiggle?.seed === 7);
+    expect(halves.length).toBeGreaterThanOrEqual(2);
+  });
+});
