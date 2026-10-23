@@ -15,14 +15,16 @@ Press **?** in the editor for every shortcut and gesture.
 |---|---|
 | **Top bar** | File menu (new, save, download/import `.kaatchat`, recent projects), size, fps, duration, motion blur, undo/redo, shortcuts **?**, **Share**, **Export** |
 | **✦ Ask bar** | Type what you want ("add a title "Hello" and pop it in"). **Generate ▸** builds a whole video from a description |
-| **Toolbar** (left) | Select, Text, Rect, Ellipse, Media (video, image or audio), Null |
+| **Toolbar** (left) | Select, Text, Rect, Ellipse, Polygon, Star, Media (video, image or audio), Null |
 | **Canvas** | Click to select, drag to move (snaps), corner/edge handles scale, top knob rotates |
 | **Inspector** (right) | Every property of the selected layer, keyframable with the ◆ button |
 | **Timeline** | Layers, clips, keyframe diamonds, markers, review feedback, zoom and snapping |
 
 ## Layers
 
-- **Text, rectangle, ellipse, null, video, image, audio.**
+- **Text, rectangle, ellipse, polygon, star, null, video, image, audio.** Polygons (3–12 sides) and
+  stars (3–12 points, adjustable inner radius) switch kind in Inspector → *Shape*; ✦ Ask: *add a hexagon*,
+  *add a 6-point star*, *add a triangle*.
 - **Select several** with Shift/⌘-click (canvas or timeline); **⌘A** selects all, **Esc** clears.
   Dragging moves the whole group; Delete / ⌘D act on all of them.
 - **Nudge** with Alt + arrow keys (1 px; add Shift for 10 px). Plain ← / → step frames

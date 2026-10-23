@@ -103,7 +103,7 @@ export default function V1Inspector() {
           value={layer.name}
           onChange={(e) => patchLayer(layer.id, { name: e.target.value })}
         />
-        <div className="v1-layer-type">{layer.type}</div>
+        <div className="v1-layer-type">{layer.type === 'ellipse' && layer.sides ? (layer.starInner !== undefined ? 'star' : 'polygon') : layer.type}</div>
       </div>
 
       {audio ? (
@@ -232,6 +232,39 @@ export default function V1Inspector() {
               step={1}
             />
           </PropRow>
+          {layer.type === 'ellipse' && (
+            <>
+              <div className="v1-seg" role="group" aria-label="Shape kind">
+                {(['ellipse', 'polygon', 'star'] as const).map((k) => {
+                  const cur = !layer.sides ? 'ellipse' : layer.starInner !== undefined ? 'star' : 'polygon';
+                  return (
+                    <button key={k} type="button" className={cur === k ? 'on' : ''} aria-pressed={cur === k}
+                      onClick={() => patchLayer(layer.id, k === 'ellipse' ? { sides: undefined, starInner: undefined }
+                        : k === 'polygon' ? { sides: layer.sides ?? 6, starInner: undefined }
+                        : { sides: layer.sides ?? 5, starInner: layer.starInner ?? 0.5 })}>
+                      {k[0].toUpperCase() + k.slice(1)}
+                    </button>
+                  );
+                })}
+              </div>
+              {!!layer.sides && (
+                <div className="v1-pair">
+                  <div className="v1-prop">
+                    <div className="v1-prop-head"><span className="v1-prop-label">{layer.starInner !== undefined ? 'Points' : 'Sides'}</span></div>
+                    <NumberField value={layer.sides} step={1}
+                      onChange={(v) => patchLayer(layer.id, { sides: Math.max(3, Math.min(12, Math.round(v) || 3)) })} />
+                  </div>
+                  {layer.starInner !== undefined && (
+                    <div className="v1-prop">
+                      <div className="v1-prop-head"><span className="v1-prop-label">Inner</span></div>
+                      <NumberField value={Math.round(layer.starInner * 100)} step={5} suffix="%"
+                        onChange={(v) => patchLayer(layer.id, { starInner: Math.max(0.1, Math.min(0.95, v / 100)) })} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
           {layer.type === 'rectangle' && (
             <PropRow layer={layer} currentTime={currentTime} label="Radius" path="cornerRadius">
               <NumberField

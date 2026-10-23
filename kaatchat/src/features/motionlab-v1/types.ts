@@ -180,6 +180,10 @@ export interface EllipseLayer extends LayerBase {
   gradient?: Gradient;
   stroke: RGBA | null;
   strokeWidth: number;
+  /** Polygon (3–12 sides) drawn inside the ellipse's box instead of the ellipse. */
+  sides?: number;
+  /** With `sides`: a star whose inner points sit at this fraction of the radius (0.1–0.95). */
+  starInner?: number;
 }
 
 export interface NullLayer extends LayerBase {

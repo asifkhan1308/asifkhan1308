@@ -447,7 +447,14 @@ function drawEllipse(
 ) {
   const [w, h] = resolveAnimated(layer.size, time);
   ctx.beginPath();
-  ctx.ellipse(w / 2, h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+  const pts = shapePoints(layer, w, h);
+  if (pts) {
+    pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.closePath();
+    ctx.lineJoin = 'round';
+  } else {
+    ctx.ellipse(w / 2, h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+  }
   ctx.fillStyle = paintFor(ctx, layer, 0, 0, w, h);
   ctx.fill();
   if (layer.stroke && layer.strokeWidth > 0) {
@@ -455,6 +462,23 @@ function drawEllipse(
     ctx.strokeStyle = layer.stroke;
     ctx.stroke();
   }
+}
+
+/** Corner points of a polygon / star inside a w × h box (first point at the top), or
+ *  null for a plain ellipse. */
+export function shapePoints(layer: { sides?: number; starInner?: number }, w: number, h: number): Array<[number, number]> | null {
+  const n = Math.round(layer.sides ?? 0);
+  if (!(n >= 3)) return null;
+  const sides = Math.min(12, n);
+  const inner = layer.starInner === undefined ? null : Math.max(0.1, Math.min(0.95, layer.starInner));
+  const count = inner === null ? sides : sides * 2;
+  const out: Array<[number, number]> = [];
+  for (let i = 0; i < count; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI * 2) / count;
+    const r = inner !== null && i % 2 === 1 ? inner : 1;
+    out.push([w / 2 + (Math.cos(a) * r * w) / 2, h / 2 + (Math.sin(a) * r * h) / 2]);
+  }
+  return out;
 }
 
 function drawMedia(

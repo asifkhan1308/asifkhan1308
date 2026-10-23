@@ -1200,3 +1200,30 @@ test('Studio: blend modes mix a layer with what is under it (multiply, screen, a
   await blend.selectOption('normal');
   await expect.poll(near([128, 128, 128])).toBe(true);
 });
+
+test('Studio: polygon and star shapes — toolbar, shape kind, points', async ({ page }) => {
+  await page.goto('/#/studio');
+  await page.getByLabel('Background colour').evaluate((el) => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, '#000000');
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await page.locator('.v1-tool', { hasText: 'Star' }).click();             // white, 324 × 324 at the centre
+  await expect(page.locator('.v1-layer-type')).toHaveText('star');
+  const lum = (x: number, y: number) => page.evaluate(([cx, cy]) => {
+    const c = document.querySelector('.v1-canvas') as HTMLCanvasElement;
+    const k = c.width / 1920;
+    return c.getContext('2d')!.getImageData(Math.round(cx * k), Math.round(cy * k), 1, 1).data[0];
+  }, [x, y]);
+  await expect.poll(() => lum(960, 400)).toBeGreaterThan(200);             // inside the top point
+  expect(await lum(960, 670)).toBeLessThan(40);                            // between the two lower points
+  const kind = page.getByRole('group', { name: 'Shape kind' });
+  await kind.getByRole('button', { name: 'Ellipse' }).click();
+  await expect.poll(() => lum(960, 670)).toBeGreaterThan(200);             // a circle covers it
+  await kind.getByRole('button', { name: 'Polygon' }).click();
+  await expect(page.locator('.v1-layer-type')).toHaveText('polygon');
+  await setValue(page.locator('.v1-prop', { hasText: 'Sides' }).locator('input'), 3);   // triangle, point up
+  await expect.poll(() => lum(960, 670)).toBeLessThan(40);                // below the base (at 0.5 r)
+  expect(await lum(960, 560)).toBeGreaterThan(200);
+  await page.locator('.v1-tool', { hasText: 'Polygon' }).click();
+  await expect(page.locator('.v1-tl-layer-row-head')).toHaveCount(2);
+});

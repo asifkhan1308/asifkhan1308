@@ -25,7 +25,7 @@ export const LOOKS: Record<string, Partial<Record<'brightness' | 'contrast' | 's
   none: {},
 };
 export const LOOK_NAMES = Object.keys(LOOKS);
-const LAYER_TYPES = ['text', 'rectangle', 'ellipse', 'null'] as const;
+const LAYER_TYPES = ['text', 'rectangle', 'ellipse', 'polygon', 'star', 'null'] as const;
 
 /** Prop paths the model may set / keyframe directly. */
 export const AI_PATHS = [
@@ -49,7 +49,7 @@ the selected layer in detail, the playhead time and the user's instruction. Repl
 Each action may include "layer": "<id or exact name>" or "new" (the layer added earlier in this reply).
 Without "layer" it targets the layer added earlier in this reply, else the selected layer.
 Actions:
-  { "op": "add_layer", "type": "text"|"rectangle"|"ellipse"|"null", "text"?: string, "name"?: string }
+  { "op": "add_layer", "type": "text"|"rectangle"|"ellipse"|"polygon"|"star"|"null", "text"?: string, "name"?: string, "sides"?: 3..12 }
   { "op": "set", "path": <prop>, "value": <number|[x,y]> }                 // base value
   { "op": "keyframe", "path": <prop>, "time": <sec>, "value": <number|[x,y]>, "easing"?: "linear"|"ease-in"|"ease-out"|"ease-in-out"|"hold", "bezier"?: [x1,y1,x2,y2] }
   { "op": "preset", "name": ${PRESETS.map((p) => `"${p}"`).join('|')}, "duration"?: <sec>, "at"?: <sec> }
@@ -111,7 +111,8 @@ export function applyAIActions(actions: unknown): AIResult {
         const type = String(raw.type ?? '');
         if (!(LAYER_TYPES as readonly string[]).includes(type)) { skip(`unknown layer type "${type}"`); continue; }
         const id =
-          type === 'text' ? s.addTextLayer() : type === 'rectangle' ? s.addRectangle() : type === 'ellipse' ? s.addEllipse() : s.addNull();
+          type === 'text' ? s.addTextLayer() : type === 'rectangle' ? s.addRectangle() : type === 'ellipse' ? s.addEllipse()
+            : type === 'polygon' || type === 'star' ? s.addPolygon(type === 'star', num(raw.sides) ?? undefined) : s.addNull();
         if (type === 'text' && typeof raw.text === 'string' && raw.text.trim()) s.patchLayer(id, { text: raw.text } as Partial<Layer>);
         if (typeof raw.name === 'string' && raw.name.trim()) s.renameLayer(id, raw.name.trim());
         lastAdded = id;

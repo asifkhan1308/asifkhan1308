@@ -54,7 +54,7 @@ AI-generated movies, After Effects / Premiere / DaVinci replacements, fully auto
 
 User guide: [STUDIO.md](STUDIO.md). Every item below has unit and/or browser tests.
 
-**V1 — done:** layers (text, shapes, null, video, image, audio), keyframes with easing incl.
+**V1 — done:** layers (text, shapes incl. polygons and stars, null, video, image, audio), keyframes with easing incl.
 hold and custom bezier curves, wiggle, clip speed and freeze frames, auto-key, timeline (move / trim / split, zoom, snapping,
 markers, restack, rename), canvas handles + smart guides, multi-select with group move /
 align / distribute, parenting, track mattes, blend modes, text animators, gradient fills, effects incl.

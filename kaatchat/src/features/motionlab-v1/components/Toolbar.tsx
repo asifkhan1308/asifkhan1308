@@ -7,6 +7,7 @@ export default function V1Toolbar() {
   const addText = useV1((s) => s.addTextLayer);
   const addRect = useV1((s) => s.addRectangle);
   const addEll = useV1((s) => s.addEllipse);
+  const addPoly = useV1((s) => s.addPolygon);
   const addNull = useV1((s) => s.addNull);
   const addAsset = useV1((s) => s.addAsset);
   const addMediaLayer = useV1((s) => s.addMediaLayer);
@@ -54,6 +55,8 @@ export default function V1Toolbar() {
     { id: 'text', label: 'Text', icon: 'T', action: () => addText() },
     { id: 'rectangle', label: 'Rect', icon: '▭', action: () => addRect() },
     { id: 'ellipse', label: 'Ellipse', icon: '○', action: () => addEll() },
+    { id: 'polygon', label: 'Polygon', icon: '⬡', action: () => addPoly(false) },
+    { id: 'star', label: 'Star', icon: '☆', action: () => addPoly(true) },
     { id: 'media', label: 'Media', icon: '▶', action: () => fileRef.current?.click() },
     { id: 'null', label: 'Null', icon: '✦', action: () => addNull() },
   ];

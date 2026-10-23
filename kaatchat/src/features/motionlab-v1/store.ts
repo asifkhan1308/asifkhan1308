@@ -46,7 +46,7 @@ interface UIState {
   selectedIds: string[];
   currentTime: number;
   isPlaying: boolean;
-  activeTool: 'select' | 'text' | 'rectangle' | 'ellipse' | 'media' | 'null';
+  activeTool: 'select' | 'text' | 'rectangle' | 'ellipse' | 'polygon' | 'star' | 'media' | 'null';
 }
 
 interface MotionLabV1State extends UIState {
@@ -69,6 +69,8 @@ interface MotionLabV1State extends UIState {
   addTextLayer: () => string;
   addRectangle: () => string;
   addEllipse: () => string;
+  /** A polygon (default 6 sides) or star (default 5 points), as an ellipse-box shape. */
+  addPolygon: (star?: boolean, sides?: number) => string;
   addNull: () => string;
   addMediaLayer: (asset: Asset) => string;
   addImageLayer: (asset: Asset) => string;
@@ -407,6 +409,16 @@ export const useV1 = create<MotionLabV1State>((set, get) => ({
   },
   addEllipse: () => {
     const l = newEllipseLayer(get().project.composition);
+    set((s) => ({
+      project: touch({ ...s.project, layers: [...s.project.layers, l] }),
+      selectedLayerId: l.id,
+    }));
+    return l.id;
+  },
+  addPolygon: (star = false, sides) => {
+    const base = newEllipseLayer(get().project.composition);
+    const n = Math.max(3, Math.min(12, Math.round(sides ?? (star ? 5 : 6))));
+    const l = { ...base, name: star ? 'Star' : 'Polygon', sides: n, ...(star ? { starInner: 0.5 } : {}) } as Layer;
     set((s) => ({
       project: touch({ ...s.project, layers: [...s.project.layers, l] }),
       selectedLayerId: l.id,

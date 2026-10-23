@@ -653,7 +653,8 @@ const markerTimes = () => (useV1.getState().project.markers ?? []).map((m) => m.
 /** Layer type label; media layers holding an audio file read "audio". */
 function TypeTag({ layer }: { layer: Layer }) {
   const audio = useV1((s) => layer.type === 'media' && s.project.assets.find((a) => a.id === layer.assetId)?.kind === 'audio');
-  return <>{audio ? '♪ audio' : layer.type}</>;
+  const shape = layer.type === 'ellipse' && layer.sides ? (layer.starInner !== undefined ? 'star' : 'polygon') : null;
+  return <>{audio ? '♪ audio' : shape ?? layer.type}</>;
 }
 
 /** "↳ Parent name" next to a child's type label. Subscribes to the name only. */

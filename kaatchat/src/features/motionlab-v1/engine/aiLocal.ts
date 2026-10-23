@@ -53,6 +53,13 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
       out.push({ op: 'add_layer', type: 'text', ...(text ? { text } : {}) });
       continue;
     }
+    // polygons and stars: "add a hexagon", "add a star", "add a 6-point star", "add an 8 sided polygon"
+    if ((m = l.match(/^(?:add|create|insert)\s+(?:a|an)?\s*(?:(\d+)[\s-]*(?:point(?:ed)?|sided?)\s+)?(star|polygon|triangle|pentagon|hexagon|heptagon|octagon|diamond)\b/))) {
+      const named: Record<string, number> = { triangle: 3, diamond: 4, pentagon: 5, hexagon: 6, heptagon: 7, octagon: 8 };
+      const sides = m[1] ? Number(m[1]) : named[m[2]];
+      out.push({ op: 'add_layer', type: m[2] === 'star' ? 'star' : 'polygon', ...(sides ? { sides } : {}), ...(m[2] !== 'star' && m[2] !== 'polygon' ? { name: m[2][0].toUpperCase() + m[2].slice(1) } : {}) });
+      continue;
+    }
     if ((m = l.match(/^(?:add|create|insert)\s+(?:a|an)?\s*(rectangle|rect|box|square|ellipse|circle|dot|oval|null|anchor)\b/))) {
       const type = /ellipse|circle|dot|oval/.test(m[1]) ? 'ellipse' : /null|anchor/.test(m[1]) ? 'null' : 'rectangle';
       out.push({ op: 'add_layer', type });
