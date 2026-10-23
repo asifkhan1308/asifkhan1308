@@ -1261,3 +1261,22 @@ test('Studio: export an animated, looping GIF at the chosen size and frame rate'
   const bytes = readFileSync(path);
   expect(bytes.includes(Buffer.from('NETSCAPE2.0'))).toBe(true);        // loops
 });
+
+test('Studio regression: Escape closes a context menu even when pressed the instant it opens', async ({ page }) => {
+  await page.goto('/#/studio');
+  await page.locator('.v1-tool', { hasText: 'Rect' }).click();
+  // Right-click and Escape in the same task: before the fix, Escape was only
+  // listened for a tick after opening, so this left the menu open (CI flake).
+  const stillOpen = await page.evaluate(async () => {
+    const head = document.querySelector('.v1-tl-layer-row-head')!;
+    const r = head.getBoundingClientRect();
+    head.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.x + 10, clientY: r.y + 5, button: 2 }));
+    // React renders on a microtask; a 0 ms timer (the old listener delay) runs later.
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    const opened = !!document.querySelector('.v1-context-menu');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    return { opened };
+  });
+  expect(stillOpen.opened).toBe(true);
+  await expect(page.locator('.v1-context-menu')).toHaveCount(0);
+});

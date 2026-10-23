@@ -42,27 +42,40 @@ export default function ContextMenu({ anchor, items, onClose }: Props) {
     setPos({ x, y });
   }, [anchor]);
 
+  // Latest onClose without re-subscribing: callers often pass a new function
+  // each render, and re-subscribing reopened the delayed window below.
+  const closeRef = useRef(onClose);
+  useEffect(() => { closeRef.current = onClose; }, [onClose]);
+
+  // Escape works from the moment the menu is on screen: a layout effect is
+  // attached during the same commit that shows it (a passive effect can run
+  // a task later, and a fast Escape slipped through to the editor).
+  useLayoutEffect(() => {
+    if (!anchor) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [anchor]);
+
   useEffect(() => {
     if (!anchor) return;
     const onDocDown = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) onClose();
+      if (!ref.current?.contains(e.target as Node)) closeRef.current();
     };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    // Delay a tick so the opening right-click's up event doesn't close us.
+    // Mouse dismissal waits a tick so the opening right-click's own events
+    // don't close the menu.
     const id = setTimeout(() => {
       window.addEventListener('mousedown', onDocDown);
       window.addEventListener('contextmenu', onDocDown);
-      window.addEventListener('keydown', onKey);
     }, 0);
     return () => {
       clearTimeout(id);
       window.removeEventListener('mousedown', onDocDown);
       window.removeEventListener('contextmenu', onDocDown);
-      window.removeEventListener('keydown', onKey);
     };
-  }, [anchor, onClose]);
+  }, [anchor]);
 
   if (!anchor) return null;
 
