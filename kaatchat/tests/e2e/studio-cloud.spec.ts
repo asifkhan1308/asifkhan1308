@@ -44,6 +44,9 @@ test('Studio cloud: save, share, open as a collaborator, live updates and confli
   await shared.getByRole('button', { name: 'Open' }).click();
   await expect(dlg).toHaveCount(0);
   await expect(rows(bob)).toHaveCount(1);
+  // Presence: each sees the other has the project open.
+  await expect(ann.locator('.v1-presence')).toContainText('bob is here');
+  await expect(bob.locator('.v1-presence')).toContainText('ann is here');
 
   // Live: Ann adds a layer and saves (⌘S saves to the cloud) → Bob, with no edits, updates by itself.
   await ann.locator('.v1-tool', { hasText: 'Ellipse' }).click();
@@ -82,6 +85,9 @@ test('Studio cloud: save, share, open as a collaborator, live updates and confli
   await bob.getByRole('button', { name: /^Cloud/ }).click();
   await expect(bdlg).toContainText('Shared with you to view');
   await expect(bdlg.getByRole('button', { name: /Save to cloud/ })).toHaveCount(0);
+  // Bob leaves: Ann stops seeing him.
+  await bob.close();
+  await expect(ann.locator('.v1-presence')).toHaveCount(0, { timeout: 10_000 });
   expect(errors).toEqual([]);
 });
 

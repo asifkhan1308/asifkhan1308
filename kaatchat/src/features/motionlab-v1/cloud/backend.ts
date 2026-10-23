@@ -34,6 +34,8 @@ export interface CloudBackend {
   unshare(id: string, email: string): Promise<void>;
   /** Someone saved this project: called with the new version stamp and author. */
   watch(id: string, cb: (updatedAt: string, by: string) => void): () => void;
+  /** Who has this project open right now (emails, me included); call the returned fn to leave. */
+  presence(id: string, email: string, cb: (emails: string[]) => void): () => void;
 }
 
 /* ───── Config ───── */
@@ -183,6 +185,14 @@ async function supabaseBackend(c: CloudConfig): Promise<CloudBackend> {
         .subscribe();
       return () => { void sb.removeChannel(ch); };
     },
+    presence(id, email, cb) {
+      // Realtime Presence: each open editor tracks itself on the project's
+      // channel (named by the project's unguessable id).
+      const ch = sb.channel(`studio-presence-${id}`, { config: { presence: { key: email } } });
+      ch.on('presence', { event: 'sync' }, () => cb(Object.keys(ch.presenceState()).sort()))
+        .subscribe((status) => { if (status === 'SUBSCRIBED') void ch.track({ email, at: Date.now() }); });
+      return () => { void ch.untrack(); void sb.removeChannel(ch); };
+    },
   };
 }
 
@@ -281,6 +291,38 @@ export function memoryBackend(): CloudBackend {
       };
       window.addEventListener('storage', h);
       return () => window.removeEventListener('storage', h);
+    },
+    presence(id, email, cb) {
+      // Heartbeat in localStorage: every open tab stamps itself every 2 s;
+      // anyone seen in the last 6 s is here.
+      const key = `kaatchat.cloud.presence.${id}`;
+      const tabId = `${email}#${Math.random().toString(36).slice(2, 8)}`;
+      const read = (): Record<string, number> => { try { return JSON.parse(localStorage.getItem(key) ?? '{}') as Record<string, number>; } catch { return {}; } };
+      let last = '';
+      const emit = () => {
+        const now = Date.now();
+        const here = [...new Set(Object.entries(read()).filter(([, t]) => now - t < 6000).map(([k]) => k.split('#')[0]))].sort();
+        const sig = here.join(',');
+        if (sig !== last) { last = sig; cb(here); }
+      };
+      const beat = () => {
+        const all = read();
+        const now = Date.now();
+        for (const [k, t] of Object.entries(all)) if (now - t > 6000) delete all[k];
+        all[tabId] = now;
+        try { localStorage.setItem(key, JSON.stringify(all)); } catch { /* */ }
+        emit();
+      };
+      beat();
+      const timer = setInterval(beat, 2000);
+      const onStorage = (e: StorageEvent) => { if (e.key === key) emit(); };
+      window.addEventListener('storage', onStorage);
+      return () => {
+        clearInterval(timer);
+        window.removeEventListener('storage', onStorage);
+        const all = read(); delete all[tabId];
+        try { localStorage.setItem(key, JSON.stringify(all)); } catch { /* */ }
+      };
     },
   };
 }

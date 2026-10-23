@@ -50,6 +50,7 @@ Use your own address below if it differs.
   sign in with that email and find it under *Cloud projects*.
 - **Live**: when someone saves, everyone with the project open gets it — instantly if they
   have no unsaved changes, otherwise a banner offers *Load theirs*.
+- **Who's here**: the top bar shows who else has the same cloud project open right now.
 - **Conflicts**: if someone saved after you opened the project, your save is refused (nothing
   is lost) and you choose *Load theirs* or *Overwrite with mine*.
 
@@ -61,6 +62,8 @@ Use your own address below if it differs.
 - The project URL and publishable key are public by design; they can only do what the
   policies allow.
 - Projects are limited to 2 MB of JSON.
+- "Who's here" uses a Realtime presence channel named by the project's random id; it shares only
+  the email of people who have that project open.
 
 ## Free plan limits worth knowing
 

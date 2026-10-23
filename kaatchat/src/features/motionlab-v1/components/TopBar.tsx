@@ -1,4 +1,5 @@
 import { useV1 } from '../store';
+import { useShallow } from 'zustand/react/shallow';
 import { useCloud } from '../cloud/useCloud';
 import { Logo } from '../../../ui/bits';
 import ProjectMenu from './ProjectMenu';
@@ -12,6 +13,7 @@ interface Props {
 
 export default function V1TopBar({ onExport, onShare, onKeys, onCloud }: Props) {
   const cloudLinked = useCloud((s) => !!s.link && !!s.user);
+  const others = useCloud(useShallow((s) => s.others));
   const projectName = useV1((s) => s.project.name);
   const renameProject = useV1((s) => s.renameProject);
   const comp = useV1((s) => s.project.composition);
@@ -132,6 +134,12 @@ export default function V1TopBar({ onExport, onShare, onKeys, onCloud }: Props) 
           aria-label="Redo"
         >↷</button>
         {onKeys && <button className="btn-icon v1-keys-btn" onClick={onKeys} title="Shortcuts & gestures (?)" aria-label="Shortcuts and gestures">?</button>}
+        {others.length > 0 && (
+          <span className="v1-presence" title={`Also here: ${others.join(', ')}`} aria-label={`Also editing: ${others.join(', ')}`}>
+            {others.slice(0, 3).map((e) => <span key={e} className="v1-presence-dot">{e[0].toUpperCase()}</span>)}
+            <span className="v1-presence-text">{others.length === 1 ? `${others[0].split('@')[0]} is here` : `${others.length} others here`}</span>
+          </span>
+        )}
         {onCloud && (
           <button className={`btn-cloud${cloudLinked ? ' on' : ''}`} onClick={onCloud} title={cloudLinked ? 'In the cloud — sharing, saves' : 'Cloud: sign in, save, work together'}>
             Cloud{cloudLinked ? ' ●' : ''}

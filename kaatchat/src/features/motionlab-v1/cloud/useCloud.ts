@@ -33,6 +33,8 @@ export interface CloudState {
   conflict: { by: string } | null;
   /** Shown briefly after a live update was applied. */
   notice: string | null;
+  /** Other people with this cloud project open right now. */
+  others: string[];
   init: () => Promise<void>;
   signInWithEmail: (email: string) => Promise<'link-sent' | 'signed-in' | null>;
   signInWithGoogle: () => Promise<void>;
@@ -50,6 +52,7 @@ export interface CloudState {
 }
 
 let unwatch: (() => void) | null = null;
+let unpresence: (() => void) | null = null;
 let unauth: (() => void) | null = null;
 
 export const useCloud = create<CloudState>((set, get) => {
@@ -73,11 +76,15 @@ export const useCloud = create<CloudState>((set, get) => {
 
   const watchCurrent = () => {
     unwatch?.(); unwatch = null;
+    unpresence?.(); unpresence = null;
+    if (get().others.length) set({ others: [] });
     const link = get().link;
     const bp = getBackend();
-    if (!link || !bp) return;
+    const me = get().user?.email;
+    if (!link || !bp || !me) return;
     void bp.then((b) => {
       if (get().link?.cloudId !== link.cloudId) return;
+      unpresence = b.presence(link.cloudId, me, (emails) => set({ others: emails.filter((e) => e !== get().user?.email) }));
       unwatch = b.watch(link.cloudId, (updatedAt, by) => {
         const cur = get().link;
         if (!cur || cur.cloudId !== link.cloudId || updatedAt === cur.updatedAt) return;
@@ -106,6 +113,7 @@ export const useCloud = create<CloudState>((set, get) => {
     remote: null,
     conflict: null,
     notice: null,
+    others: [],
 
     init: async () => {
       const bp = getBackend();
@@ -114,7 +122,7 @@ export const useCloud = create<CloudState>((set, get) => {
       try {
         const b = await bp;
         unauth?.();
-        unauth = b.onAuth((user) => set({ user }));
+        unauth = b.onAuth((user) => { const changed = user?.email !== get().user?.email; set({ user }); if (changed) watchCurrent(); });
         set({ kind: b.kind, user: await b.user(), link: readLinks()[useV1.getState().project.id] ?? null });
         // A sign-in link / Google redirect leaves ?code=… in the address: tidy it.
         if (/[?&]code=/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
@@ -131,7 +139,8 @@ export const useCloud = create<CloudState>((set, get) => {
     signOut: async () => {
       await run((b) => b.signOut());
       unwatch?.(); unwatch = null;
-      set({ user: null, remote: null, conflict: null });
+      unpresence?.(); unpresence = null;
+      set({ user: null, remote: null, conflict: null, others: [] });
     },
     list: async () => (await run((b) => b.list())) ?? [],
     open: async (cloudId) => {
@@ -168,7 +177,8 @@ export const useCloud = create<CloudState>((set, get) => {
       if (ok && get().link?.cloudId === cloudId) {
         writeLink(useV1.getState().project.id, null);
         unwatch?.(); unwatch = null;
-        set({ link: null });
+        unpresence?.(); unpresence = null;
+        set({ link: null, others: [] });
       }
       return !!ok;
     },
