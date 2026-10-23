@@ -46,7 +46,7 @@ export function promptCopy(prompt: string): { title: string; sub: string | null 
  * Picked from the prompt's words; the title card is the default. All are
  * built only from validated actions, so they're fully editable layers. */
 
-export type TemplateKind = 'title' | 'lower-third' | 'quote' | 'countdown' | 'cta';
+export type TemplateKind = 'title' | 'lower-third' | 'quote' | 'countdown' | 'cta' | 'list' | 'stat' | 'sale';
 
 export const TEMPLATES: Array<{ kind: TemplateKind; label: string; example: string }> = [
   { kind: 'title', label: 'Title card', example: 'a 6 second intro for "Asif\'s Bakery" with "Fresh every morning", gold accents' },
@@ -54,6 +54,9 @@ export const TEMPLATES: Array<{ kind: TemplateKind; label: string; example: stri
   { kind: 'quote', label: 'Quote', example: 'quote "Make it simple, but significant." "Don Draper"' },
   { kind: 'countdown', label: 'Countdown', example: 'countdown from 3, blue' },
   { kind: 'cta', label: 'Call to action', example: 'subscribe button "Subscribe" "New videos every Friday", red' },
+  { kind: 'list', label: 'List', example: 'list "3 reasons to switch" "Faster exports" "Free forever" "Works offline", green' },
+  { kind: 'stat', label: 'Big number', example: 'stat "98%" "of customers come back", teal' },
+  { kind: 'sale', label: 'Sale badge', example: 'sale "50% OFF" "This weekend only", pink' },
 ];
 
 export function templateKindOf(prompt: string): TemplateKind {
@@ -61,6 +64,9 @@ export function templateKindOf(prompt: string): TemplateKind {
   if (/\blower[-\s]?third|\bname\s*(?:tag|plate)|\bchyron\b/.test(p)) return 'lower-third';
   if (/\bquote\b|\bquotation\b/.test(p)) return 'quote';
   if (/\bcount\s*down\b|\b3[\s,.]+2[\s,.]+1\b/.test(p)) return 'countdown';
+  if (/\bsale\b|\bdiscount\b|\d+\s*%\s*off\b|\bdeal\b|\boffer\b/.test(p)) return 'sale';
+  if (/\bstats?\b|\bstatistic|\bbig number\b|\bkpi\b|\bmetric\b/.test(p)) return 'stat';
+  if (/\blist\b|\btips\b|\bsteps\b|\breasons\b|\btop\s+\d+\b|\bbullets?\b/.test(p)) return 'list';
   if (/\bsubscribe\b|\bfollow\b|\bsign\s*up\b|\bcall to action\b|\bcta\b|\bbuy now\b|\bshop now\b/.test(p)) return 'cta';
   return 'title';
 }
@@ -75,6 +81,9 @@ export function templateActions(prompt: string, comp: { width: number; height: n
     case 'quote': return quoteCard(prompt, comp);
     case 'countdown': return countdown(prompt, comp);
     case 'cta': return callToAction(prompt, comp);
+    case 'list': return listCard(prompt, comp);
+    case 'stat': return statCard(prompt, comp);
+    case 'sale': return saleBadge(prompt, comp);
     default: return titleCard(prompt, comp);
   }
 }
@@ -211,6 +220,121 @@ function callToAction(prompt: string, comp: { width: number; height: number }): 
       { op: 'set_color', color: '#d1d1d6' },
       { op: 'preset', name: 'fade_in', at: 0.9, duration: 0.5 },
       { op: 'preset', name: 'fade_out', duration: 0.4 },
+    ] as AIAction[] : []),
+  ];
+}
+
+const quoted = (prompt: string) => [...prompt.matchAll(/"([^"]+)"|“([^”]+)”/g)].map((m) => (m[1] ?? m[2]).trim()).filter(Boolean);
+const bg = (W: number, H: number, from: string, to: string): AIAction[] => [
+  { op: 'add_layer', type: 'rectangle', name: 'Background' },
+  { op: 'set', path: 'size', value: [W, H] },
+  { op: 'set', path: 'position', value: [W / 2, H / 2] },
+  { op: 'set', path: 'cornerRadius', value: 0 },
+  { op: 'set_gradient', from, to, angle: 90 },
+];
+
+/** List: a heading, then up to 5 items sliding in one after another. */
+function listCard(prompt: string, comp: { width: number; height: number }): AIAction[] {
+  const W = comp.width, H = comp.height, s = Math.min(W, H) / 1080;
+  const q = quoted(prompt);
+  // "list: a, b, c" works too when nothing is quoted.
+  const items = q.length > 1 ? q.slice(1) : (prompt.split(':')[1] ?? '').split(/,|\band\b/).map((x) => x.trim()).filter(Boolean);
+  const list = (items.length ? items : ['First point', 'Second point', 'Third point']).slice(0, 5);
+  const heading = q[0] ?? (q.length === 0 && prompt.includes(':') ? prompt.split(':')[0].replace(/\blist\b/i, '').trim() : '') ?? '';
+  const accent = accentOf(prompt, '#ffffff');
+  const step = 0.45, first = 0.7, gap = Math.round(96 * s);
+  const top = Math.round(H / 2 - ((list.length - 1) * gap) / 2 + 50 * s);
+  const x = Math.round(W / 2 - 360 * s);
+  const out: AIAction[] = [
+    { op: 'comp', duration: Math.max(4, first + list.length * step + 2.5) },
+    ...bg(W, H, '#151517', '#000000'),
+    { op: 'add_layer', type: 'text', name: 'Heading', text: heading || 'Here’s how' },
+    { op: 'set', path: 'fontSize', value: Math.round(72 * s) },
+    { op: 'set', path: 'position', value: [W / 2, top - Math.round(130 * s)] },
+    { op: 'set_color', color: '#ffffff' },
+    { op: 'preset', name: 'slide_in_down', at: 0.1, duration: 0.5 },
+    { op: 'preset', name: 'fade_out', duration: 0.5 },
+  ];
+  list.forEach((item, i) => out.push(
+    { op: 'add_layer', type: 'ellipse', name: `Dot ${i + 1}` },
+    { op: 'set', path: 'size', value: [Math.round(22 * s), Math.round(22 * s)] },
+    { op: 'set', path: 'position', value: [x, top + i * gap - Math.round(16 * s)] },
+    { op: 'set_color', color: accent },
+    { op: 'preset', name: 'pop', at: first + i * step, duration: 0.35 },
+    { op: 'preset', name: 'fade_out', duration: 0.5 },
+    { op: 'add_layer', type: 'text', name: `Item ${i + 1}`, text: item },
+    { op: 'text_align', align: 'left' },
+    { op: 'set', path: 'fontSize', value: Math.round(50 * s) },
+    { op: 'set', path: 'position', value: [x + Math.round(44 * s), top + i * gap] },
+    { op: 'set_color', color: '#e5e5ea' },
+    { op: 'preset', name: 'slide_in_right', at: first + i * step, duration: 0.5 },
+    { op: 'preset', name: 'fade_out', duration: 0.5 },
+  ));
+  return out;
+}
+
+/** Big number: a huge figure that pops in, with a label under it. */
+function statCard(prompt: string, comp: { width: number; height: number }): AIAction[] {
+  const W = comp.width, H = comp.height, s = Math.min(W, H) / 1080;
+  const q = quoted(prompt);
+  const figure = q.find((x) => /\d/.test(x)) ?? prompt.match(/\d[\d,.]*\s*[%kKmM+x×]?/)?.[0]?.trim() ?? '100%';
+  const label = q.find((x) => x !== figure) ?? '';
+  const accent = accentOf(prompt, '#ffffff');
+  return [
+    { op: 'comp', duration: 5 },
+    ...bg(W, H, '#0b0b0c', '#000000'),
+    { op: 'add_layer', type: 'text', name: 'Figure', text: figure },
+    { op: 'set', path: 'fontSize', value: Math.round(260 * s) },
+    { op: 'set', path: 'position', value: [W / 2, Math.round(H / 2 + 40 * s)] },
+    { op: 'set_color', color: accent },
+    { op: 'preset', name: 'pop', at: 0.2, duration: 0.7 },
+    { op: 'preset', name: 'fade_out', duration: 0.5 },
+    { op: 'add_layer', type: 'rectangle', name: 'Rule' },
+    { op: 'set', path: 'size', value: [Math.round(180 * s), Math.max(3, Math.round(6 * s))] },
+    { op: 'set', path: 'position', value: [W / 2, Math.round(H / 2 + 110 * s)] },
+    { op: 'set_color', color: '#ffffff' },
+    { op: 'preset', name: 'slide_in_left', at: 0.8, duration: 0.5 },
+    { op: 'preset', name: 'fade_out', duration: 0.5 },
+    ...(label ? [
+      { op: 'add_layer', type: 'text', name: 'Label', text: label },
+      { op: 'set', path: 'fontSize', value: Math.round(48 * s) },
+      { op: 'set', path: 'position', value: [W / 2, Math.round(H / 2 + 200 * s)] },
+      { op: 'set_color', color: '#d1d1d6' },
+      { op: 'preset', name: 'fade_in', at: 1.1, duration: 0.6 },
+      { op: 'preset', name: 'fade_out', duration: 0.5 },
+    ] as AIAction[] : []),
+  ];
+}
+
+/** Sale badge: a spinning star with the offer, and a line under it. */
+function saleBadge(prompt: string, comp: { width: number; height: number }): AIAction[] {
+  const W = comp.width, H = comp.height, s = Math.min(W, H) / 1080;
+  const q = quoted(prompt);
+  const offer = q[0] ?? prompt.match(/\d+\s*%\s*off/i)?.[0]?.toUpperCase() ?? 'SALE';
+  const accent = accentOf(prompt, '#ff2d55');
+  const size = Math.round(520 * s);
+  return [
+    { op: 'comp', duration: 5 },
+    ...bg(W, H, '#111113', '#000000'),
+    { op: 'add_layer', type: 'star', name: 'Badge', sides: 12 },
+    { op: 'set', path: 'size', value: [size, size] },
+    { op: 'set', path: 'position', value: [W / 2, Math.round(H / 2 - 40 * s)] },
+    { op: 'set_color', color: accent },
+    { op: 'preset', name: 'spin', at: 0.1, duration: 0.8 },
+    { op: 'preset', name: 'fade_out', duration: 0.5 },
+    { op: 'add_layer', type: 'text', name: 'Offer', text: offer },
+    { op: 'set', path: 'fontSize', value: Math.round((offer.length > 8 ? 70 : 96) * s) },
+    { op: 'set', path: 'position', value: [W / 2, Math.round(H / 2 - 4 * s)] },
+    { op: 'set_color', color: '#ffffff' },
+    { op: 'preset', name: 'pop', at: 0.7, duration: 0.5 },
+    { op: 'preset', name: 'fade_out', duration: 0.5 },
+    ...(q[1] ? [
+      { op: 'add_layer', type: 'text', name: 'Details', text: q[1] },
+      { op: 'set', path: 'fontSize', value: Math.round(44 * s) },
+      { op: 'set', path: 'position', value: [W / 2, Math.round(H / 2 + 300 * s)] },
+      { op: 'set_color', color: '#ffffff' },
+      { op: 'preset', name: 'slide_in_up', at: 1.1, duration: 0.5 },
+      { op: 'preset', name: 'fade_out', duration: 0.5 },
     ] as AIAction[] : []),
   ];
 }

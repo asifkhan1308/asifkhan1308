@@ -104,7 +104,9 @@ Press **?** in the editor for every shortcut and gesture.
 - **Local model** (Ollama / LM Studio, on your own machine) or **cloud model** (your key):
   ✦ Ask takes free-form instructions, and **Generate ▸** designs a whole piece from a
   description — layers, copy, colours, timing and animation — as normal editable layers.
-  With no model, Generate builds an animated title card from your prompt.
+  With no model, Generate builds one of its offline templates from your prompt: title card, lower
+  third, quote, countdown, call to action, list (tips / steps), big number, or sale badge — pick a
+  chip or just describe it.
 - Every command is **one undo step** (even when several are sent back-to-back). Invalid AI output is skipped with a reason, never applied.
 - Honest limit: language models design motion graphics; they do not render photographic video.
 

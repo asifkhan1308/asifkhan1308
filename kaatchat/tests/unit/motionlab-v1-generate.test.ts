@@ -89,3 +89,37 @@ describe('MOTIONLAB V1 Generate — more offline templates', () => {
     expect(q.type === 'text' && [q.text, q.revealMode]).toEqual(['“Less, but better.”', 'words']);
   });
 });
+
+describe('MOTIONLAB V1 Generate — list, big number, sale badge', () => {
+  it('picks them from the words, without stealing the older templates', () => {
+    expect(templateKindOf('top 5 tips for editing')).toBe('list');
+    expect(templateKindOf('stat "98%" "retention"')).toBe('stat');
+    expect(templateKindOf('summer sale 30% off')).toBe('sale');
+    expect(templateKindOf('countdown from 5')).toBe('countdown');
+    expect(templateKindOf('subscribe button')).toBe('cta');
+  });
+
+  it('list: heading + one dot and one line per item, staggered; colon lists work too', () => {
+    applyAIActions(templateActions('list "Why us" "Fast" "Free" "Offline"', st().project.composition));
+    const items = st().project.layers.filter((l) => l.name.startsWith('Item '));
+    expect(items.map((l) => l.type === 'text' && l.text)).toEqual(['Fast', 'Free', 'Offline']);
+    const starts = items.map((l) => l.transform.position.keyframes?.[0]?.time ?? 0);
+    expect(starts[1]).toBeGreaterThan(starts[0]);
+    st().replaceProject(defaultProject());
+    applyAIActions(templateActions('tips: plan, shoot and edit', st().project.composition));
+    expect(st().project.layers.filter((l) => l.name.startsWith('Item ')).map((l) => l.type === 'text' && l.text)).toEqual(['plan', 'shoot', 'edit']);
+  });
+
+  it('big number uses the quoted figure and label; sale badge is a 12-point star', () => {
+    applyAIActions(templateActions('stat "2.4M" "views this month", teal', st().project.composition));
+    const fig = st().project.layers.find((l) => l.name === 'Figure')!;
+    expect(fig.type === 'text' && [fig.text, fig.fill]).toEqual(['2.4M', '#30b0c7']);
+    expect(st().project.layers.some((l) => l.name === 'Label')).toBe(true);
+    st().replaceProject(defaultProject());
+    applyAIActions(templateActions('flash sale 40% off', st().project.composition));
+    const badge = st().project.layers.find((l) => l.name === 'Badge')!;
+    expect(badge.type === 'ellipse' && [badge.sides, badge.starInner]).toEqual([12, 0.5]);
+    const offer = st().project.layers.find((l) => l.name === 'Offer')!;
+    expect(offer.type === 'text' && offer.text).toBe('40% OFF');
+  });
+});
