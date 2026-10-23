@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useV1 } from '../store';
 import { useMediaElements } from '../engine/useMedia';
 import { exportProjectToVideo } from '../engine/exportVideo';
+import { exportProjectToGif, GIF_FPS, GIF_WIDTHS } from '../engine/exportGif';
 import { composeFrameBlurred } from '../engine/compose';
 import { seekMediaForExport } from '../engine/mediaSync';
 
@@ -11,7 +12,9 @@ export default function V1ExportDialog({ onClose }: { onClose: () => void }) {
   // Render only once every linked asset has decoded; otherwise early frames
   // would bake placeholder tiles into the file.
   const mediaReady = project.assets.filter((a) => a.url).every((a) => mediaBy.has(a.id));
-  const [format, setFormat] = useState<'mp4' | 'webm'>('mp4');
+  const [format, setFormat] = useState<'mp4' | 'webm' | 'gif'>('mp4');
+  const [gifWidth, setGifWidth] = useState<number>(Math.min(480, project.composition.width));
+  const [gifFps, setGifFps] = useState<number>(15);
   const [quality, setQuality] = useState<'low' | 'medium' | 'high' | 'ultra'>('high');
   // Like After Effects: when a work area is set, render that by default.
   const workArea = project.composition.workArea;
@@ -53,17 +56,18 @@ export default function V1ExportDialog({ onClose }: { onClose: () => void }) {
     setState('running');
     setError(null);
     try {
-      const result = await exportProjectToVideo({
+      const common = {
         project,
-        format,
-        quality,
         mediaBy,
         ...(workArea && onlyWorkArea ? { range: workArea } : {}),
-        onProgress: (r, m) => {
+        onProgress: (r: number, m: string) => {
           setProgress(Math.round(r * 100));
           setMessage(m);
         },
-      });
+      };
+      const result = format === 'gif'
+        ? await exportProjectToGif({ ...common, width: gifWidth, fps: gifFps })
+        : await exportProjectToVideo({ ...common, format, quality });
       const url = URL.createObjectURL(result.blob);
       const a = document.createElement('a');
       a.href = url;
@@ -97,20 +101,40 @@ export default function V1ExportDialog({ onClose }: { onClose: () => void }) {
           <div className="export-options">
             <div className="option-group">
               <label>Format</label>
-              <select value={format} onChange={(e) => setFormat(e.target.value as 'mp4' | 'webm')}>
+              <select aria-label="Format" value={format} onChange={(e) => setFormat(e.target.value as 'mp4' | 'webm' | 'gif')}>
                 <option value="mp4">MP4</option>
                 <option value="webm">WebM</option>
+                <option value="gif">GIF (looping, no sound)</option>
               </select>
             </div>
-            <div className="option-group">
-              <label>Quality</label>
-              <select value={quality} onChange={(e) => setQuality(e.target.value as 'low' | 'medium' | 'high' | 'ultra')}>
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="ultra">Ultra</option>
-              </select>
-            </div>
+            {format === 'gif' ? (
+              <>
+                <div className="option-group">
+                  <label>Width</label>
+                  <select aria-label="GIF width" value={gifWidth} onChange={(e) => setGifWidth(Number(e.target.value))}>
+                    {[...GIF_WIDTHS.filter((w) => w < project.composition.width), project.composition.width].map((w) => (
+                      <option key={w} value={w}>{w}px{w === project.composition.width ? ' (full)' : ''}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="option-group">
+                  <label>Frame rate</label>
+                  <select aria-label="GIF frame rate" value={gifFps} onChange={(e) => setGifFps(Number(e.target.value))}>
+                    {GIF_FPS.map((f) => <option key={f} value={f}>{f} fps</option>)}
+                  </select>
+                </div>
+              </>
+            ) : (
+              <div className="option-group">
+                <label>Quality</label>
+                <select value={quality} onChange={(e) => setQuality(e.target.value as 'low' | 'medium' | 'high' | 'ultra')}>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="ultra">Ultra</option>
+                </select>
+              </div>
+            )}
           </div>
           <div className="export-info">
             <div className="info-row"><span>Resolution</span><strong>{project.composition.width}×{project.composition.height}</strong></div>

@@ -1,6 +1,7 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { ensureFixtures, ffmpeg, meanVolume, probe } from './fixtures';
 
 const fx = ensureFixtures();
@@ -1226,4 +1227,36 @@ test('Studio: polygon and star shapes — toolbar, shape kind, points', async ({
   expect(await lum(960, 560)).toBeGreaterThan(200);
   await page.locator('.v1-tool', { hasText: 'Polygon' }).click();
   await expect(page.locator('.v1-tl-layer-row-head')).toHaveCount(2);
+});
+
+test('Studio: export an animated, looping GIF at the chosen size and frame rate', async ({ page }) => {
+  await page.goto('/#/studio');
+  await setValue(page.locator('.duration-field input'), 2);
+  await page.locator('.v1-tool', { hasText: 'Rect' }).click();
+  const pos = transform(page).locator('.v1-field input');
+  await seek(page, 0);
+  await setValue(pos.nth(0), 400);
+  await transform(page).locator('.v1-diamond').first().click();
+  await seek(page, 0.5);                                                   // 1 s
+  await setValue(pos.nth(0), 1500);
+  await page.locator('.btn-export').click();
+  await page.getByLabel('Format').selectOption('gif');
+  await expect(page.getByLabel('GIF width')).toHaveValue('480');
+  await page.getByLabel('GIF frame rate').selectOption('10');
+  const dl = page.waitForEvent('download', { timeout: 120_000 });
+  await page.locator('.modal .btn-primary').click();
+  const d = await dl;
+  expect(d.suggestedFilename()).toMatch(/480x270\.gif$/);
+  const path = test.info().outputPath('anim.gif');
+  await d.saveAs(path);
+  const info = probe(path);
+  expect(info.video).toMatch(/^gif\b.*\b480x270\b/);
+  expect(info.duration).toBeCloseTo(2, 1);
+  const decoded = spawnSync(ffmpeg, ['-hide_banner', '-i', path, '-f', 'null', '-'], { encoding: 'utf8' }).stderr;
+  expect(Number(/frame=\s*(\d+)/.exec(decoded)?.[1])).toBe(20);                          // 2 s × 10 fps
+  const frame = (n: number) => spawnSync(ffmpeg, ['-v', 'error', '-i', path, '-vf', `select='eq(n\\,${n})'`, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'gray', '-']).stdout.toString('base64');
+  expect(frame(0)).not.toBe(frame(9));                                  // it moves
+  expect(frame(12)).toBe(frame(19));                                    // held after the last key
+  const bytes = readFileSync(path);
+  expect(bytes.includes(Buffer.from('NETSCAPE2.0'))).toBe(true);        // loops
 });

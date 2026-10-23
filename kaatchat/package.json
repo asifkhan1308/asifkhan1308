@@ -23,6 +23,7 @@
     "@jitsi/rnnoise-wasm": "^0.2.1",
     "@mediabunny/aac-encoder": "^1.60.0",
     "@supabase/supabase-js": "2.118.0",
+    "gifenc": "1.0.3",
     "mediabunny": "^1.60.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

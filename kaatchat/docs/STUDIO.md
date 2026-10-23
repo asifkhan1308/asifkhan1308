@@ -129,6 +129,8 @@ Press **?** in the editor for every shortcut and gesture.
   **Download .kaatchat** for a file you can move; **Import .kaatchat** to open one.
 - **Export** renders MP4 (or WebM) at the composition's size and frame rate, with audio.
   **Save frame as PNG** (in the Export dialog) saves the frame at the playhead at full resolution.
+- **GIF**: Export → Format *GIF* — a looping animation without sound, 320–800 px wide (or full
+  size) at 10–25 fps; honours the work area. Good for chat, docs and social posts.
 - **Background**: the *BG* swatch in the top bar sets the composition's background colour.
 
 ## Known limits

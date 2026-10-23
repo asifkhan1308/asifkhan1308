@@ -60,7 +60,7 @@ markers, restack, rename), canvas handles + smart guides, multi-select with grou
 align / distribute, parenting, track mattes, blend modes, text animators, gradient fills, effects incl.
 drop shadow and glow, motion blur, clip audio (volume, mute, fades) and music layers,
 copy / paste layers across projects, undo/redo, save / autosave / `.kaatchat`, MP4 / WebM
-export with audio, ✦ Ask (offline phrase parser + local / cloud models), Generate.
+export with audio, looping GIF export, ✦ Ask (offline phrase parser + local / cloud models), Generate.
 
 **V1.5 — done:** serverless review links with timestamped feedback.
 
