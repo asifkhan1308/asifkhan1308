@@ -33,7 +33,14 @@ export function changeKey(prev: Project, next: Project): string {
   if (a.length !== b.length || a.some((l, i) => l.id !== b[i].id)) return `struct#${++uniq}`;
   const parts: string[] = [];
   if (prev.composition !== next.composition) parts.push('comp');
-  b.forEach((l, i) => { if (l !== a[i]) parts.push(l.id); });
+  // Per layer, which fields changed: a slider drag repeats the same field
+  // (merges), a different property on the same layer is its own step.
+  b.forEach((l, i) => {
+    if (l === a[i]) return;
+    const p = a[i] as unknown as Record<string, unknown>, n = l as unknown as Record<string, unknown>;
+    const fields = [...new Set([...Object.keys(p), ...Object.keys(n)])].filter((k) => p[k] !== n[k]).sort();
+    parts.push(`${l.id}:${fields.join('+')}`);
+  });
   if (prev.assets !== next.assets) parts.push('assets');
   // Markers / review comments: adding or removing one is its own step;
   // edits (rename, resolve) only merge with the same kind of edit.

@@ -1172,3 +1172,31 @@ test('Studio: time remapping — 2× speed plays the footage twice as fast; free
   expect(frameDiff(held, 6, 18)).toBeGreaterThan(3);
   expect(meanVolume(held, 2.2, 1.5)).toBeLessThan(meanVolume(held, 1.1, 0.35) - 10);   // and silent
 });
+
+test('Studio: blend modes mix a layer with what is under it (multiply, screen, add)', async ({ page }) => {
+  await page.goto('/#/studio');
+  const setColor = (label: string, v: string) => page.getByLabel(label).evaluate((el, val) => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, val);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }, v);
+  await setColor('Background colour', '#204080');                        // 32, 64, 128
+  await page.locator('.v1-tool', { hasText: 'Rect' }).click();
+  await setColor('Fill colour', '#808080');                              // 128 grey
+  const centre = () => page.evaluate(() => {
+    const c = document.querySelector('.v1-canvas') as HTMLCanvasElement;
+    return [...c.getContext('2d')!.getImageData(Math.round(c.width / 2), Math.round(c.height / 2), 1, 1).data].slice(0, 3);
+  });
+  const near = (want: number[]) => async () => (await centre()).every((v, i) => Math.abs(v - want[i]) <= 3);
+  await expect.poll(near([128, 128, 128])).toBe(true);
+  const blend = page.getByLabel('Blend mode');
+  await blend.selectOption('multiply');
+  await expect.poll(near([16, 32, 64])).toBe(true);
+  await blend.selectOption('screen');
+  await expect.poll(near([144, 160, 192])).toBe(true);
+  await blend.selectOption('add');
+  await expect.poll(near([160, 192, 255])).toBe(true);
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+  await expect(blend).not.toHaveValue('add');                             // undone (quick edits merge into one step)
+  await blend.selectOption('normal');
+  await expect.poll(near([128, 128, 128])).toBe(true);
+});

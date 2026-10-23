@@ -103,9 +103,17 @@ interface LayerBase {
    *  ('alpha') or outside ('alpha-inverted') another layer's pixels. The
    *  matte layer itself is not drawn. Absent = no matte. */
   matte?: { layerId: string; mode: MatteMode };
+  /** How the layer mixes with what is under it (absent = normal). */
+  blend?: BlendMode;
 }
 
 export type MatteMode = 'alpha' | 'alpha-inverted';
+
+export const BLEND_MODES = [
+  'normal', 'multiply', 'screen', 'overlay', 'add', 'darken', 'lighten', 'difference', 'exclusion',
+  'soft-light', 'hard-light', 'color-dodge', 'color-burn', 'hue', 'saturation', 'color', 'luminosity',
+] as const;
+export type BlendMode = (typeof BLEND_MODES)[number];
 
 export interface MediaLayer extends LayerBase {
   type: 'media';

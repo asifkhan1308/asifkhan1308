@@ -32,9 +32,8 @@ describe('MOTIONLAB V1 time remapping', () => {
     expect(clip(id).sourceOut).toBeCloseTo(3.9);
     st().setClipSpeed(id, 1);
     expect(clip(id).speed).toBeUndefined();
-    st().undo();                                                            // quick edits coalesce, like slider drags
-    expect(clip(id).speed).toBeUndefined();
-    expect(clip(id).duration).not.toBe(19);                                 // the speed change is undone
+    st().undo();                                                            // back one speed change
+    expect(clip(id)).toMatchObject({ speed: 0.1, duration: 19 });
   });
 
   it('trims and splits respect the speed (seamless across the cut)', () => {

@@ -57,7 +57,7 @@ User guide: [STUDIO.md](STUDIO.md). Every item below has unit and/or browser tes
 **V1 — done:** layers (text, shapes, null, video, image, audio), keyframes with easing incl.
 hold and custom bezier curves, wiggle, clip speed and freeze frames, auto-key, timeline (move / trim / split, zoom, snapping,
 markers, restack, rename), canvas handles + smart guides, multi-select with group move /
-align / distribute, parenting, track mattes, text animators, gradient fills, effects incl.
+align / distribute, parenting, track mattes, blend modes, text animators, gradient fills, effects incl.
 drop shadow and glow, motion blur, clip audio (volume, mute, fades) and music layers,
 copy / paste layers across projects, undo/redo, save / autosave / `.kaatchat`, MP4 / WebM
 export with audio, ✦ Ask (offline phrase parser + local / cloud models), Generate.

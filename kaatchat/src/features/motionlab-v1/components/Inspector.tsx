@@ -1,7 +1,8 @@
 import { useRef } from 'react';
 import { selectionOf, useV1 } from '../store';
 import { cubicBezier, resolveBase } from '../engine/interp';
-import type { AnimatedProperty, Bezier, Easing, Gradient, Layer, MatteMode, RevealMode, V2 } from '../types';
+import type { AnimatedProperty, Bezier, BlendMode, Easing, Gradient, Layer, MatteMode, RevealMode, V2 } from '../types';
+import { BLEND_MODES } from '../types';
 import { wouldCycle } from '../engine/matrix';
 import { isAudioLayer } from '../engine/bbox';
 import type { AlignEdge } from '../engine/guides';
@@ -22,6 +23,7 @@ const ALIGN: Array<{ edge: AlignEdge; title: string; icon: React.ReactNode }> = 
 ];
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4];
+const blendLabel = (m: string) => m.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase());
 
 const EFFECT_PATHS: AnimPath[] = ['brightness', 'contrast', 'saturation', 'blur', 'vignette', 'grain', 'tintAmount', 'shadow', 'glow'];
 
@@ -154,6 +156,21 @@ export default function V1Inspector() {
             ))}
           </select>
         </label>
+
+        {/* Blend mode: how this layer mixes with the layers under it. */}
+        {layer.type !== 'null' && (
+          <label className="v1-parent-row">
+            <span>Blend</span>
+            <select
+              className="v1-parent-select"
+              aria-label="Blend mode"
+              value={layer.blend ?? 'normal'}
+              onChange={(e) => patchLayer(layer.id, { blend: e.target.value === 'normal' ? undefined : (e.target.value as BlendMode) })}
+            >
+              {BLEND_MODES.map((m) => <option key={m} value={m}>{blendLabel(m)}</option>)}
+            </select>
+          </label>
+        )}
 
         {alignBlock}
 

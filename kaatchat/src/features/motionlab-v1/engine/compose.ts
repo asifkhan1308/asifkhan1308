@@ -1,4 +1,5 @@
-import type { Asset, Effects, Layer, Project, Transform, V2 } from '../types';
+import type { Asset, BlendMode, Effects, Layer, Project, Transform, V2 } from '../types';
+import { BLEND_MODES } from '../types';
 import { worldMatrix } from './matrix';
 import { resolveAnimated } from './interp';
 
@@ -92,12 +93,13 @@ export function composeFrame(
   const matteSources = new Set(layers.map((l) => l.matte?.layerId).filter((id): id is string => !!id));
 
   /** One layer: opacity, effects filter, world transform, then its pixels. */
-  const paint = (c: CanvasRenderingContext2D, layer: Layer) => {
+  const paint = (c: CanvasRenderingContext2D, layer: Layer, blend = true) => {
     const t = resolveTransform(layer.transform, time);
     if (t.opacity <= 0) return;
     const fx = resolveEffectsFilter(layer.effects, time, opts.pixelScale ?? 1);
     c.save();
     c.globalAlpha = Math.max(0, Math.min(1, t.opacity));
+    if (blend) c.globalCompositeOperation = compositeOp(layer.blend);
     // Apply colour/brightness/contrast/blur as a canvas filter for the whole
     // layer draw (cheap compared to per-pixel work; honoured by Chromium/Safari).
     if (fx.filter !== 'none') c.filter = fx.filter;
@@ -175,7 +177,7 @@ export function composeFrame(
       const base = ctx.getTransform();
       const A = layerBuffer(0, cw, ch);
       A.setTransform(base);
-      paint(A, layer);
+      paint(A, layer, false);                            // cut out first, blend when laid down
       if (srcActive) {
         const B = layerBuffer(1, cw, ch);
         B.setTransform(base);
@@ -187,6 +189,7 @@ export function composeFrame(
       }
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalCompositeOperation = compositeOp(layer.blend);
       ctx.drawImage(A.canvas, 0, 0);
       ctx.restore();
     } else {
@@ -199,6 +202,12 @@ export function composeFrame(
     if (fx.grain > 0) drawGrain(ctx, fx.grain, w, h, time);
     if (fx.vignette > 0) drawVignette(ctx, fx.vignette, w, h);
   }
+}
+
+/** Layer blend mode → canvas composite operation ('add' is canvas 'lighter'). */
+export function compositeOp(mode: BlendMode | undefined): GlobalCompositeOperation {
+  if (!mode || mode === 'normal' || !(BLEND_MODES as readonly string[]).includes(mode)) return 'source-over';
+  return mode === 'add' ? 'lighter' : mode;
 }
 
 /** Motion blur: average `samples` renders spread across the shutter,

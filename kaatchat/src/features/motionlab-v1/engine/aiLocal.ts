@@ -1,4 +1,7 @@
 import type { AIAction, Preset } from './aiActions';
+import { BLEND_MODES } from '../types';
+
+const BLEND_NAMES = new Set<string>(BLEND_MODES);
 
 /* ──────────────────────────────────────────────────────────────────────────
  * Offline ✦ Ask: a small phrase parser for the commands people type most.
@@ -31,7 +34,7 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
   // placeholders, split, then restore.
   const saved: string[] = [];
   const masked = prompt.replace(/"[^"]*"|“[^”]*”/g, (q) => `\uE000${saved.push(q) - 1}\uE000`);
-  const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent|mask|matte|use|align|center|centre|typewriter|type|reveal|letter|word|gradient|drop|put|outline|stroke|reset|no|wiggle|shake|stop|slow|speed|freeze|unfreeze)))\s*/i);
+  const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent|mask|matte|use|align|center|centre|typewriter|type|reveal|letter|word|gradient|drop|put|outline|stroke|reset|no|wiggle|shake|stop|slow|speed|freeze|unfreeze|blend)))\s*/i);
 
   for (const part of clauses) {
     const c = part.replace(/\uE000(\d+)\uE000/g, (_, i) => saved[Number(i)]).trim();
@@ -67,6 +70,19 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
     }
     if (/\btype(?:writer|\s+(?:it\s+)?(?:on|in|out))\b|\btypewriter\b/.test(l)) { preset('typewriter'); continue; }
     if (/\b(?:letter\s+by\s+letter|per[-\s]letter|letters?\s+fade)\b/.test(l)) { preset('letters_in'); continue; }
+    // blend: "blend multiply", "set the blend mode to screen", "screen blend", "normal blend"
+    if (/\bblend(?:ing)?\b/.test(l)) {
+      const words = l.replace(/[^a-z\s-]/g, ' ').split(/\s+/).filter(Boolean);
+      const i = words.findIndex((w) => /^blend(?:ing)?$/.test(w));
+      const name = (j: number) => {
+        const two = `${words[j] ?? ''}-${words[j + 1] ?? ''}`;
+        return BLEND_NAMES.has(two) ? two : BLEND_NAMES.has(words[j] ?? '') ? words[j] : null;
+      };
+      let k = i + 1;
+      while (words[k] && /^(?:mode|to|as|it|set|the)$/.test(words[k])) k++;
+      const mode = name(k) ?? name(i - 2) ?? name(i - 1);
+      if (mode) { out.push({ op: 'blend', mode }); continue; }
+    }
     // time remap: "slow it down to half speed", "2x speed", "speed it up 4x", "freeze frame at 2s", "unfreeze"
     if (/^(?:unfreeze|(?:no|remove)\s+(?:the\s+)?freeze)\b/.test(l)) { out.push({ op: 'freeze', time: null }); continue; }
     if (/\bfreeze\b/.test(l)) {

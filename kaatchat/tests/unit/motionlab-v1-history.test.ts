@@ -34,4 +34,18 @@ describe('MOTIONLAB V1 undo history', () => {
     expect(h.canUndo()).toBe(false);
     expect(h.redo()).toBe(p);
   });
+
+  it('rapid edits to different properties of one layer are separate steps; one property still merges', () => {
+    const p0 = withLayers(defaultProject(), [newRectangleLayer(defaultProject().composition)]);
+    const id = p0.layers[0].id;
+    const h = createHistory(p0);
+    const p1 = patch(p0, id, { fill: '#808080' } as Partial<Layer>);
+    h.push(p1);
+    const p2 = patch(p1, id, { blend: 'multiply' });
+    h.push(p2);
+    const p3 = patch(p2, id, { blend: 'screen' });
+    h.push(p3);                                                  // same property again: merges
+    expect(h.undo()).toBe(p1);                                   // blend undone, fill kept
+    expect(h.undo()).toBe(p0);
+  });
 });

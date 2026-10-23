@@ -35,6 +35,8 @@ Press **?** in the editor for every shortcut and gesture.
   (usually a null). Parenting keeps the layer where it is on screen.
 - **Track matte**: Inspector → *Matte*. *Alpha* shows the layer only through another layer's
   shape; *Inverted* shows it everywhere except there. The matte layer itself is hidden.
+- **Blend mode**: Inspector → *Blend* — Multiply, Screen, Overlay, Add, Darken, Lighten, Difference,
+  Soft / Hard light, Colour dodge / burn, Hue, Saturation, Colour, Luminosity. ✦ Ask: *blend multiply*.
 - **Align**: one layer aligns to the frame; several align to each other.
   **Distribute** spaces 3+ layers evenly.
 

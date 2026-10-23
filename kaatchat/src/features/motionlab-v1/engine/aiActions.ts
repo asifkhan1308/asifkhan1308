@@ -1,6 +1,7 @@
 import { useV1 } from '../store';
 import { resolveBase } from './interp';
-import type { AnimatedProperty, Layer, V2 } from '../types';
+import type { AnimatedProperty, BlendMode, Layer, V2 } from '../types';
+import { BLEND_MODES } from '../types';
 
 /* ──────────────────────────────────────────────────────────────────────────
  * ✦ Ask action engine. The model replies with { "actions": [...] }; this
@@ -62,6 +63,7 @@ Actions:
   { "op": "set_color", "color": "#rrggbb" }                                 // text / shape fill (solid)
   { "op": "set_gradient", "from": "#rrggbb", "to": "#rrggbb", "angle"?: <deg> } // linear gradient fill; 0° = left→right
   { "op": "set_stroke", "color": "#rrggbb" | null, "width"?: <px> }          // outline (null = off)
+  { "op": "blend", "mode": ${BLEND_MODES.map((n) => `"${n}"`).join('|')} }   // how the layer mixes with layers below
   { "op": "speed", "speed": <0.1..8> }                                    // video / audio clips: 0.5 = slow motion, 2 = double speed
   { "op": "freeze", "time"?: <sec> | null }                               // video: hold the frame at time (default playhead) for the rest of the clip; null unfreezes
   { "op": "wiggle", "path"?: <prop>, "amount"?: number, "freq"?: <per sec> } // smooth random motion; default position; amount 0 removes
@@ -296,6 +298,14 @@ export function applyAIActions(actions: unknown): AIResult {
           const keys = ['brightness', 'contrast', 'saturation', 'blur', 'vignette', 'grain', 'tintAmount', 'glow', 'shadow'] as const;
           for (const k of keys) s.setPropertyBase(layer.id, k, look[k] ?? 0);
           if (look.tint) s.setEffectTintColor(layer.id, look.tint);
+          res.applied++;
+          break;
+        }
+        case 'blend': {
+          const mode = String(raw.mode ?? '').toLowerCase().trim().replace(/[\s_]+/g, '-');
+          if (!(BLEND_MODES as readonly string[]).includes(mode)) { skip(`unknown blend mode "${String(raw.mode)}"`); break; }
+          if (layer.type === 'null') { skip('null layers have no pixels to blend'); break; }
+          s.patchLayer(layer.id, { blend: mode === 'normal' ? undefined : (mode as BlendMode) } as Partial<Layer>);
           res.applied++;
           break;
         }
