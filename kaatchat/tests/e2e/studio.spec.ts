@@ -1252,8 +1252,9 @@ test('Studio: export an animated, looping GIF at the chosen size and frame rate'
   const info = probe(path);
   expect(info.video).toMatch(/^gif\b.*\b480x270\b/);
   expect(info.duration).toBeCloseTo(2, 1);
-  const decoded = spawnSync(ffmpeg, ['-hide_banner', '-i', path, '-f', 'null', '-'], { encoding: 'utf8' }).stderr;
-  expect(Number(/frame=\s*(\d+)/.exec(decoded)?.[1])).toBe(20);                          // 2 s × 10 fps
+  // One checksum line per decoded frame — stable across ffmpeg versions (progress output isn't).
+  const crc = spawnSync(ffmpeg, ['-v', 'error', '-i', path, '-f', 'framecrc', '-'], { encoding: 'utf8' }).stdout;
+  expect(crc.split('\n').filter((l) => /^\d+,/.test(l))).toHaveLength(20);                 // 2 s × 10 fps
   const frame = (n: number) => spawnSync(ffmpeg, ['-v', 'error', '-i', path, '-vf', `select='eq(n\\,${n})'`, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'gray', '-']).stdout.toString('base64');
   expect(frame(0)).not.toBe(frame(9));                                  // it moves
   expect(frame(12)).toBe(frame(19));                                    // held after the last key
