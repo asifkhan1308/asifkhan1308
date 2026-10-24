@@ -1,5 +1,11 @@
 import { useRef } from 'react';
-import { t, useLang } from '../../../i18n';
+import { t, useLang, type StringKey } from '../../../i18n';
+
+/** An Inspector label in the app language (falls back to the English text). */
+const L = (en: string): string => {
+  const key = `studio.label.${en.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}` as StringKey;
+  return (t(key) as string | undefined) || en;            // unknown labels stay English
+};
 import { selectionOf, useV1 } from '../store';
 import { cubicBezier, resolveBase } from '../engine/interp';
 import type { AnimatedProperty, Bezier, BlendMode, Easing, Gradient, Layer, MatteMode, RevealMode, V2 } from '../types';
@@ -119,7 +125,7 @@ export default function V1Inspector() {
 
         {/* Parenting: this layer moves, rotates and scales with its parent. */}
         <label className="v1-parent-row">
-          <span>Parent</span>
+          <span>{L('Parent')}</span>
           <select
             className="v1-parent-select"
             aria-label="Parent layer"
@@ -137,7 +143,7 @@ export default function V1Inspector() {
 
         {/* Track matte: show this layer only through (or outside) another layer. */}
         <label className="v1-parent-row">
-          <span>Matte</span>
+          <span>{L('Matte')}</span>
           <select
             className="v1-parent-select v1-matte-select"
             aria-label="Track matte"
@@ -162,7 +168,7 @@ export default function V1Inspector() {
         {/* Blend mode: how this layer mixes with the layers under it. */}
         {layer.type !== 'null' && (
           <label className="v1-parent-row">
-            <span>Blend</span>
+            <span>{L('Blend')}</span>
             <select
               className="v1-parent-select"
               aria-label="Blend mode"
@@ -252,13 +258,13 @@ export default function V1Inspector() {
               {!!layer.sides && (
                 <div className="v1-pair">
                   <div className="v1-prop">
-                    <div className="v1-prop-head"><span className="v1-prop-label">{layer.starInner !== undefined ? 'Points' : 'Sides'}</span></div>
+                    <div className="v1-prop-head"><span className="v1-prop-label">{L(layer.starInner !== undefined ? 'Points' : 'Sides')}</span></div>
                     <NumberField value={layer.sides} step={1}
                       onChange={(v) => patchLayer(layer.id, { sides: Math.max(3, Math.min(12, Math.round(v) || 3)) })} />
                   </div>
                   {layer.starInner !== undefined && (
                     <div className="v1-prop">
-                      <div className="v1-prop-head"><span className="v1-prop-label">Inner</span></div>
+                      <div className="v1-prop-head"><span className="v1-prop-label">{L('Inner')}</span></div>
                       <NumberField value={Math.round(layer.starInner * 100)} step={5} suffix="%"
                         onChange={(v) => patchLayer(layer.id, { starInner: Math.max(0.1, Math.min(0.95, v / 100)) })} />
                     </div>
@@ -318,7 +324,7 @@ export default function V1Inspector() {
                 </PropRow>
               ))}
               <div className="v1-prop">
-                <div className="v1-prop-head"><span className="v1-prop-label">Tint colour</span></div>
+                <div className="v1-prop-head"><span className="v1-prop-label">{L('Tint colour')}</span></div>
                 <input
                   type="color"
                   className="color-input"
@@ -327,7 +333,7 @@ export default function V1Inspector() {
                 />
               </div>
               <div className="v1-prop">
-                <div className="v1-prop-head"><span className="v1-prop-label">Shadow / glow colour</span></div>
+                <div className="v1-prop-head"><span className="v1-prop-label">{L('Shadow / glow colour')}</span></div>
                 <div className="v1-color-pair">
                   <input type="color" className="color-input" aria-label="Shadow colour" value={layer.effects.shadowColor ?? '#000000'}
                     onChange={(e) => patchLayer(layer.id, { effects: { ...layer.effects!, shadowColor: e.target.value } })} />
@@ -348,7 +354,7 @@ export default function V1Inspector() {
         <section className="v1-section" aria-label="Time">
           <div className="v1-section-head">{t('studio.sec.time')}</div>
           <div className="v1-prop">
-            <div className="v1-prop-head"><span className="v1-prop-label">Speed</span></div>
+            <div className="v1-prop-head"><span className="v1-prop-label">{L('Speed')}</span></div>
             <div className="v1-speed-row">
               {SPEEDS.map((v) => (
                 <button key={v} type="button" className={`v1-chip${(layer.speed ?? 1) === v ? ' on' : ''}`}
@@ -388,7 +394,7 @@ export default function V1Inspector() {
             </button>
           </div>
           <div className="v1-prop">
-            <div className="v1-prop-head"><span className="v1-prop-label">Volume</span></div>
+            <div className="v1-prop-head"><span className="v1-prop-label">{L('Volume')}</span></div>
             <SliderField
               value={layer.volume ?? 1}
               onChange={(v) => patchLayer(layer.id, { volume: v })}
@@ -401,7 +407,7 @@ export default function V1Inspector() {
           </div>
           <div className="v1-pair">
             <div className="v1-prop">
-              <div className="v1-prop-head"><span className="v1-prop-label">Fade in</span></div>
+              <div className="v1-prop-head"><span className="v1-prop-label">{L('Fade in')}</span></div>
               <NumberField
                 value={layer.fadeIn ?? 0}
                 onChange={(v) => patchLayer(layer.id, { fadeIn: Math.max(0, Math.min(layer.duration / 2, v)) })}
@@ -410,7 +416,7 @@ export default function V1Inspector() {
               />
             </div>
             <div className="v1-prop">
-              <div className="v1-prop-head"><span className="v1-prop-label">Fade out</span></div>
+              <div className="v1-prop-head"><span className="v1-prop-label">{L('Fade out')}</span></div>
               <NumberField
                 value={layer.fadeOut ?? 0}
                 onChange={(v) => patchLayer(layer.id, { fadeOut: Math.max(0, Math.min(layer.duration / 2, v)) })}
@@ -426,7 +432,7 @@ export default function V1Inspector() {
         <section className="v1-section">
           <div className="v1-section-head">{t('studio.sec.text')}</div>
           <div className="v1-prop">
-            <div className="v1-prop-head"><span className="v1-prop-label">Content</span></div>
+            <div className="v1-prop-head"><span className="v1-prop-label">{L('Content')}</span></div>
             <textarea
               className="text-input"
               rows={2}
@@ -436,7 +442,7 @@ export default function V1Inspector() {
           </div>
           {/* Text animator: reveal by character / letter fade / word, keyframable. */}
           <div className="v1-prop">
-            <div className="v1-prop-head"><span className="v1-prop-label">Animator</span></div>
+            <div className="v1-prop-head"><span className="v1-prop-label">{L('Animator')}</span></div>
             <select
               className="select-full v1-animator-select"
               aria-label="Text animator"
@@ -474,7 +480,7 @@ export default function V1Inspector() {
             />
           </PropRow>
           <div className="v1-prop">
-            <div className="v1-prop-head"><span className="v1-prop-label">Weight</span></div>
+            <div className="v1-prop-head"><span className="v1-prop-label">{L('Weight')}</span></div>
             <select
               className="select-full"
               value={layer.fontWeight}
@@ -488,7 +494,7 @@ export default function V1Inspector() {
             </select>
           </div>
           <div className="v1-prop">
-            <div className="v1-prop-head"><span className="v1-prop-label">Font</span></div>
+            <div className="v1-prop-head"><span className="v1-prop-label">{L('Font')}</span></div>
             <select
               className="select-full"
               aria-label="Font family"
@@ -500,16 +506,16 @@ export default function V1Inspector() {
           </div>
           <div className="v1-prop v1-prop-pair">
             <label>
-              <span className="v1-prop-label">Letter spacing</span>
+              <span className="v1-prop-label">{L('Letter spacing')}</span>
               <NumberField value={layer.letterSpacing} onChange={(v) => patchLayer(layer.id, { letterSpacing: Math.max(-20, Math.min(200, v)) })} step={1} suffix="px" />
             </label>
             <label>
-              <span className="v1-prop-label">Line height</span>
+              <span className="v1-prop-label">{L('Line height')}</span>
               <NumberField value={layer.lineHeight} onChange={(v) => patchLayer(layer.id, { lineHeight: Math.max(0.5, Math.min(4, v)) })} step={0.05} suffix="×" />
             </label>
           </div>
           <div className="v1-prop">
-            <div className="v1-prop-head"><span className="v1-prop-label">Align</span></div>
+            <div className="v1-prop-head"><span className="v1-prop-label">{L('Align')}</span></div>
             <select
               className="select-full"
               value={layer.align}
@@ -581,7 +587,7 @@ function StrokeField({ layer }: { layer: Layer & { stroke: string | null; stroke
   return (
     <div className="v1-prop">
       <div className="v1-prop-head">
-        <span className="v1-prop-label">Stroke</span>
+        <span className="v1-prop-label">{L('Stroke')}</span>
         <div className="v1-seg" role="group" aria-label="Stroke">
           <button type="button" className={!on ? 'on' : ''} aria-pressed={!on} onClick={() => patch({ stroke: null })}>Off</button>
           <button type="button" className={on ? 'on' : ''} aria-pressed={on}
@@ -605,7 +611,7 @@ function FillField({ layer }: { layer: Layer & { fill: string; gradient?: Gradie
   return (
     <div className="v1-prop">
       <div className="v1-prop-head">
-        <span className="v1-prop-label">Fill</span>
+        <span className="v1-prop-label">{L('Fill')}</span>
         <div className="v1-seg" role="group" aria-label="Fill type">
           <button type="button" className={!g ? 'on' : ''} aria-pressed={!g} onClick={() => patch({ gradient: undefined })}>Solid</button>
           <button type="button" className={g ? 'on' : ''} aria-pressed={!!g}
@@ -779,7 +785,7 @@ function PropRow({
   return (
     <div className="v1-prop">
       <div className="v1-prop-head">
-        <span className="v1-prop-label">{label}</span>
+        <span className="v1-prop-label">{L(label)}</span>
         {atNow && kfs[0] !== atNow && (
           <select
             className="v1-easing"

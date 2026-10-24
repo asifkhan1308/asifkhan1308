@@ -1289,6 +1289,12 @@ test('Studio speaks Hindi and Hinglish when chosen in Settings', async ({ page }
   await expect(page.locator('.btn-export')).toHaveText('एक्सपोर्ट');
   await page.locator('.v1-tool', { hasText: 'आयत' }).click();               // still works
   await expect(page.locator('.v1-section-head').first()).toHaveText('ट्रांसफ़ॉर्म');
+  await expect(page.locator('.v1-prop-label', { hasText: 'स्थिति' })).toBeVisible();          // Position
+  await expect(page.locator('.v1-prop-label', { hasText: 'भराव' })).toBeVisible();            // Fill
+  await expect(page.locator('.v1-parent-row span', { hasText: 'ब्लेंड' })).toBeVisible();     // Blend
+  await page.keyboard.press('?');
+  await expect(page.locator('.modal h2')).toHaveText('शॉर्टकट और जेस्चर');
+  await page.keyboard.press('Escape');
   await page.locator('.btn-export').click();
   await expect(page.locator('.modal h2')).toHaveText('कंपोज़िशन एक्सपोर्ट करें');
   await expect(page.locator('.modal .btn-primary')).toHaveText('रेंडर करें');
