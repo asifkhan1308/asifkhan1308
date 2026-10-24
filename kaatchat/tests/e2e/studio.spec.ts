@@ -1280,3 +1280,17 @@ test('Studio regression: Escape closes a context menu even when pressed the inst
   expect(stillOpen.opened).toBe(true);
   await expect(page.locator('.v1-context-menu')).toHaveCount(0);
 });
+
+test('Studio speaks Hindi and Hinglish when chosen in Settings', async ({ page }) => {
+  await page.addInitScript(() => { if (!localStorage.getItem('kaatchat.lang')) localStorage.setItem('kaatchat.lang', 'hi'); });
+  await page.goto('/#/studio');
+  await expect(page.locator('.v1-tool', { hasText: 'आयत' })).toBeVisible();
+  await expect(page.locator('.v1-inspector-empty')).toContainText('कुछ भी चुना नहीं गया।');
+  await expect(page.locator('.btn-export')).toHaveText('एक्सपोर्ट');
+  await page.locator('.v1-tool', { hasText: 'आयत' }).click();               // still works
+  await expect(page.locator('.v1-section-head').first()).toHaveText('ट्रांसफ़ॉर्म');
+  await page.evaluate(() => localStorage.setItem('kaatchat.lang', 'hinglish'));
+  await page.reload();
+  await expect(page.locator('.v1-ai-generate')).toHaveText('Banao ▸');
+  await expect(page.locator('.v1-ai-input')).toHaveAttribute('placeholder', /MOTIONLAB se kahiye/);
+});

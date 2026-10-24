@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { t, useLang } from '../../../i18n';
 import { selectionOf, useV1 } from '../store';
 import { cubicBezier, resolveBase } from '../engine/interp';
 import type { AnimatedProperty, Bezier, BlendMode, Easing, Gradient, Layer, MatteMode, RevealMode, V2 } from '../types';
@@ -28,6 +29,7 @@ const blendLabel = (m: string) => m.replace(/-/g, ' ').replace(/^./, (c) => c.to
 const EFFECT_PATHS: AnimPath[] = ['brightness', 'contrast', 'saturation', 'blur', 'vignette', 'grain', 'tintAmount', 'shadow', 'glow'];
 
 export default function V1Inspector() {
+  useLang();
   const project = useV1((s) => s.project);
   const selectedId = useV1((s) => s.selectedLayerId);
   const currentTime = useV1((s) => s.currentTime);
@@ -46,9 +48,9 @@ export default function V1Inspector() {
     return (
       <div className="v1-inspector">
         <div className="v1-inspector-empty">
-          Nothing selected.
+          {t('studio.empty.title')}
           <br />
-          Use the toolbar to add a layer, or click one on the canvas or timeline.
+          {t('studio.empty.body')}
         </div>
       </div>
     );
@@ -113,7 +115,7 @@ export default function V1Inspector() {
         </>
       ) : (
       <section className="v1-section">
-        <div className="v1-section-head">Transform</div>
+        <div className="v1-section-head">{t('studio.sec.transform')}</div>
 
         {/* Parenting: this layer moves, rotates and scales with its parent. */}
         <label className="v1-parent-row">
@@ -224,7 +226,7 @@ export default function V1Inspector() {
 
       {(layer.type === 'rectangle' || layer.type === 'ellipse') && (
         <section className="v1-section">
-          <div className="v1-section-head">Shape</div>
+          <div className="v1-section-head">{t('studio.sec.shape')}</div>
           <PropRow layer={layer} currentTime={currentTime} label="Size" path="size">
             <NumberPair
               value={resolve(layer.size) as V2}
@@ -344,7 +346,7 @@ export default function V1Inspector() {
 
       {layer.type === 'media' && (
         <section className="v1-section" aria-label="Time">
-          <div className="v1-section-head">Time</div>
+          <div className="v1-section-head">{t('studio.sec.time')}</div>
           <div className="v1-prop">
             <div className="v1-prop-head"><span className="v1-prop-label">Speed</span></div>
             <div className="v1-speed-row">
@@ -374,7 +376,7 @@ export default function V1Inspector() {
       {layer.type === 'media' && (
         <section className="v1-section">
           <div className="v1-section-head">
-            <span>Audio</span>
+            <span>{t('studio.sec.audio')}</span>
             <button
               type="button"
               className={`btn-icon xs v1-mute${layer.muted ? ' on' : ''}`}
@@ -422,7 +424,7 @@ export default function V1Inspector() {
 
       {layer.type === 'text' && (
         <section className="v1-section">
-          <div className="v1-section-head">Text</div>
+          <div className="v1-section-head">{t('studio.sec.text')}</div>
           <div className="v1-prop">
             <div className="v1-prop-head"><span className="v1-prop-label">Content</span></div>
             <textarea

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useV1 } from '../store';
+import { t as tr, useLang } from '../../../i18n';
 import { importFile } from '../../../engine/media';
 import type { Asset } from '../types';
 
 export default function V1Toolbar() {
+  useLang();
   const addText = useV1((s) => s.addTextLayer);
   const addRect = useV1((s) => s.addRectangle);
   const addEll = useV1((s) => s.addEllipse);
@@ -51,14 +53,14 @@ export default function V1Toolbar() {
   };
 
   const tools: Array<{ id: typeof activeTool; label: string; icon: string; action?: () => void }> = [
-    { id: 'select', label: 'Select', icon: '◇' },
-    { id: 'text', label: 'Text', icon: 'T', action: () => addText() },
-    { id: 'rectangle', label: 'Rect', icon: '▭', action: () => addRect() },
-    { id: 'ellipse', label: 'Ellipse', icon: '○', action: () => addEll() },
-    { id: 'polygon', label: 'Polygon', icon: '⬡', action: () => addPoly(false) },
-    { id: 'star', label: 'Star', icon: '☆', action: () => addPoly(true) },
-    { id: 'media', label: 'Media', icon: '▶', action: () => fileRef.current?.click() },
-    { id: 'null', label: 'Null', icon: '✦', action: () => addNull() },
+    { id: 'select', label: tr('studio.tool.select'), icon: '◇' },
+    { id: 'text', label: tr('studio.tool.text'), icon: 'T', action: () => addText() },
+    { id: 'rectangle', label: tr('studio.tool.rect'), icon: '▭', action: () => addRect() },
+    { id: 'ellipse', label: tr('studio.tool.ellipse'), icon: '○', action: () => addEll() },
+    { id: 'polygon', label: tr('studio.tool.polygon'), icon: '⬡', action: () => addPoly(false) },
+    { id: 'star', label: tr('studio.tool.star'), icon: '☆', action: () => addPoly(true) },
+    { id: 'media', label: tr('studio.tool.media'), icon: '▶', action: () => fileRef.current?.click() },
+    { id: 'null', label: tr('studio.tool.null'), icon: '✦', action: () => addNull() },
   ];
 
   return (

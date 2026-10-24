@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useV1 } from '../store';
+import { t, useLang } from '../../../i18n';
 import { createProvider } from '../../../ai/providers';
 import { loadAISettings } from '../../../ai/settings';
 import { AI_SYSTEM, aiContext, applyAIActions, extractJson } from '../engine/aiActions';
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export default function AIBar({ onOpenGenerate }: Props) {
+  useLang();
   const project = useV1((s) => s.project);
   const selectedId = useV1((s) => s.selectedLayerId);
 
@@ -75,7 +77,7 @@ export default function AIBar({ onOpenGenerate }: Props) {
       <span className="v1-ai-prefix" aria-hidden>✦</span>
       <input
         className="v1-ai-input"
-        placeholder={selected ? `Ask MOTIONLAB — e.g. “fade "${selected.name}" in”, “trim it to 3s”, “make it red”` : 'Ask MOTIONLAB — e.g. “add a title that says Hello and pop it in”'}
+        placeholder={selected ? `Ask MOTIONLAB — e.g. “fade "${selected.name}" in”, “trim it to 3s”, “make it red”` : t('studio.ai.placeholder')}
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter' && !busy) void run(); }}
@@ -83,7 +85,7 @@ export default function AIBar({ onOpenGenerate }: Props) {
       <button className="v1-ai-run" onClick={() => void run()} disabled={busy || !prompt.trim()}>
         {busy ? '…' : 'Ask'}
       </button>
-      <button className="v1-ai-generate" onClick={onOpenGenerate}>Generate ▸</button>
+      <button className="v1-ai-generate" onClick={onOpenGenerate}>{t('studio.generate')}</button>
       <span className={`v1-ai-status${err ? ' err' : ''}`}>{err || status}</span>
     </div>
   );

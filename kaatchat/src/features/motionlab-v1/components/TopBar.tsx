@@ -1,4 +1,5 @@
 import { useV1 } from '../store';
+import { t, useLang } from '../../../i18n';
 import { useShallow } from 'zustand/react/shallow';
 import { useCloud } from '../cloud/useCloud';
 import { Logo } from '../../../ui/bits';
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export default function V1TopBar({ onExport, onShare, onKeys, onCloud }: Props) {
+  useLang();
   const cloudLinked = useCloud((s) => !!s.link && !!s.user);
   const others = useCloud(useShallow((s) => s.others));
   const projectName = useV1((s) => s.project.name);
@@ -142,11 +144,11 @@ export default function V1TopBar({ onExport, onShare, onKeys, onCloud }: Props) 
         )}
         {onCloud && (
           <button className={`btn-cloud${cloudLinked ? ' on' : ''}`} onClick={onCloud} title={cloudLinked ? 'In the cloud — sharing, saves' : 'Cloud: sign in, save, work together'}>
-            Cloud{cloudLinked ? ' ●' : ''}
+            {t('studio.cloud')}{cloudLinked ? ' ●' : ''}
           </button>
         )}
-        {onShare && <button className="btn-share" onClick={onShare} title="Share a review link">Share</button>}
-        <button className="btn-export" onClick={onExport}>Export</button>
+        {onShare && <button className="btn-share" onClick={onShare} title="Share a review link">{t('studio.share')}</button>}
+        <button className="btn-export" onClick={onExport}>{t('studio.export')}</button>
       </div>
     </div>
   );
