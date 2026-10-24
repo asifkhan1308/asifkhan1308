@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { t, useLang } from '../../../i18n';
 import { useShallow } from 'zustand/react/shallow';
 import { useV1 } from '../store';
 import { useCloud } from '../cloud/useCloud';
@@ -8,6 +9,7 @@ import { cloudConfig, setCloudConfig, validConfig, type CloudMember, type CloudR
  * projects (yours and shared with you), share by email. Media files stay on
  * each device — the cloud holds layers, keyframes and settings. */
 export default function CloudDialog({ onClose }: { onClose: () => void }) {
+  useLang();
   const c = useCloud(useShallow((s) => ({ configured: s.configured, kind: s.kind, user: s.user, busy: s.busy, error: s.error, link: s.link })));
   const projectName = useV1((s) => s.project.name);
   const [rows, setRows] = useState<CloudRow[]>([]);
@@ -41,7 +43,7 @@ export default function CloudDialog({ onClose }: { onClose: () => void }) {
             <>
               <div className="v1-cloud-who">
                 <span>Signed in as <b>{c.user.email}</b>{c.kind === 'memory' && <span className="v1-cloud-badge">demo · this browser only</span>}</span>
-                <button type="button" className="btn-ghost" onClick={() => void useCloud.getState().signOut()}>Sign out</button>
+                <button type="button" className="btn-ghost" onClick={() => void useCloud.getState().signOut()}>{t('studio.cloud.signOut')}</button>
               </div>
 
               <section className="v1-cloud-section" aria-label="This project">
@@ -53,14 +55,14 @@ export default function CloudDialog({ onClose }: { onClose: () => void }) {
                 </p>
                 {c.link?.role !== 'viewer' && (
                   <button type="button" className="btn-primary" disabled={c.busy} onClick={() => void useCloud.getState().save()}>
-                    {c.link ? 'Save to cloud now' : 'Save to cloud'}
+                    {c.link ? t('studio.cloud.saveNow') : t('studio.cloud.save')}
                   </button>
                 )}
                 {c.link?.role === 'owner' && <Share members={members} onChange={refresh} />}
               </section>
 
               <section className="v1-cloud-section" aria-label="Cloud projects">
-                <h3>Cloud projects</h3>
+                <h3>{t('studio.cloud.projects')}</h3>
                 {rows.length === 0 ? <p className="v1-cloud-note">Nothing yet. Projects you save, or that people share with you, show up here.</p> : (
                   <ul className="v1-cloud-list">
                     {rows.map((r) => (
@@ -71,11 +73,11 @@ export default function CloudDialog({ onClose }: { onClose: () => void }) {
                             {r.owner ? 'Yours' : `Shared by ${r.ownerEmail} · ${r.role}`} · saved {new Date(r.updatedAt).toLocaleString()} by {r.updatedBy}
                           </span>
                         </div>
-                        <button type="button" className="btn-ghost" disabled={c.busy} onClick={async () => { if (await useCloud.getState().open(r.id)) onClose(); }}>Open</button>
+                        <button type="button" className="btn-ghost" disabled={c.busy} onClick={async () => { if (await useCloud.getState().open(r.id)) onClose(); }}>{t('studio.cloud.open')}</button>
                         {r.owner && (
                           <button type="button" className="btn-ghost" disabled={c.busy}
                             onClick={async () => { if (confirm(`Delete “${r.name}” from the cloud for everyone? Copies on devices stay.`) && await useCloud.getState().remove(r.id)) void refresh(); }}>
-                            Delete
+                            {t('studio.cloud.delete')}
                           </button>
                         )}
                       </li>
@@ -108,9 +110,9 @@ function SignIn({ kind }: { kind: string | null }) {
       ) : (
         <>
           <input className="text-input" type="email" required placeholder="you@example.com" aria-label="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <button type="submit" className="btn-primary" disabled={busy}>{kind === 'memory' ? 'Sign in' : 'Email me a sign-in link'}</button>
+          <button type="submit" className="btn-primary" disabled={busy}>{kind === 'memory' ? t('studio.cloud.signIn') : t('studio.cloud.emailLink')}</button>
           {kind !== 'memory' && (
-            <button type="button" className="btn-ghost" disabled={busy} onClick={() => void useCloud.getState().signInWithGoogle()}>Continue with Google</button>
+            <button type="button" className="btn-ghost" disabled={busy} onClick={() => void useCloud.getState().signInWithGoogle()}>{t('studio.cloud.google')}</button>
           )}
         </>
       )}
@@ -134,7 +136,7 @@ function Share({ members, onChange }: { members: CloudMember[]; onChange: () => 
           <option value="editor">Can edit</option>
           <option value="viewer">Can view</option>
         </select>
-        <button type="submit" className="btn-ghost" disabled={busy}>Share</button>
+        <button type="submit" className="btn-ghost" disabled={busy}>{t('studio.cloud.share')}</button>
       </form>
       {members.length > 0 && (
         <ul className="v1-cloud-members" aria-label="People with access">

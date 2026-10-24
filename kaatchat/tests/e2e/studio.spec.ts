@@ -1289,6 +1289,14 @@ test('Studio speaks Hindi and Hinglish when chosen in Settings', async ({ page }
   await expect(page.locator('.btn-export')).toHaveText('एक्सपोर्ट');
   await page.locator('.v1-tool', { hasText: 'आयत' }).click();               // still works
   await expect(page.locator('.v1-section-head').first()).toHaveText('ट्रांसफ़ॉर्म');
+  await page.locator('.btn-export').click();
+  await expect(page.locator('.modal h2')).toHaveText('कंपोज़िशन एक्सपोर्ट करें');
+  await expect(page.locator('.modal .btn-primary')).toHaveText('रेंडर करें');
+  await page.keyboard.press('Escape');
+  await page.locator('.btn-share').click();
+  await expect(page.locator('.modal h2')).toHaveText('समीक्षा के लिए शेयर करें');
+  await expect(page.locator('.v1-share-copy')).toHaveText('लिंक कॉपी करें');
+  await page.keyboard.press('Escape');
   await page.evaluate(() => localStorage.setItem('kaatchat.lang', 'hinglish'));
   await page.reload();
   await expect(page.locator('.v1-ai-generate')).toHaveText('Banao ▸');

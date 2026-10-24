@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { t, useLang } from '../../../i18n';
 import { useV1 } from '../store';
 import { appLink, encodeProject, LONG_LINK, usesMedia } from '../engine/share';
 
@@ -6,6 +7,7 @@ import { appLink, encodeProject, LONG_LINK, usesMedia } from '../engine/share';
  * reviewer leaves timestamped comments and sends them back as a link.
  * Everything travels inside the link — nothing is uploaded anywhere. */
 export default function ShareDialog({ onClose }: { onClose: () => void }) {
+  useLang();
   const project = useV1((s) => s.project);
   const [link, setLink] = useState('');
   const [err, setErr] = useState('');
@@ -41,7 +43,7 @@ export default function ShareDialog({ onClose }: { onClose: () => void }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>Share for review</h2>
+          <h2>{t('studio.share.title')}</h2>
           <button className="btn-close" onClick={onClose}>✕</button>
         </div>
         <div className="modal-content">
@@ -52,7 +54,7 @@ export default function ShareDialog({ onClose }: { onClose: () => void }) {
           {err ? (
             <div className="v1-gen-err" role="alert">{err}</div>
           ) : (
-            <textarea className="v1-share-link" readOnly rows={3} value={link || 'Preparing link…'} onFocus={(e) => e.currentTarget.select()} />
+            <textarea className="v1-share-link" readOnly rows={3} value={link || t('studio.share.preparing')} onFocus={(e) => e.currentTarget.select()} />
           )}
           {link && (
             <div className="v1-share-meta">
@@ -68,9 +70,9 @@ export default function ShareDialog({ onClose }: { onClose: () => void }) {
           )}
         </div>
         <div className="modal-footer">
-          <button className="btn-secondary" onClick={onClose}>Close</button>
+          <button className="btn-secondary" onClick={onClose}>{t('studio.close')}</button>
           <button className="btn-primary v1-share-copy" onClick={() => void copy()} disabled={!link}>
-            {copied ? 'Copied ✓' : 'Copy link'}
+            {copied ? t('studio.share.copied') : t('studio.share.copy')}
           </button>
         </div>
       </div>

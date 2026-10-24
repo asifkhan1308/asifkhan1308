@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { t, useLang } from '../../../i18n';
 import { useV1 } from '../store';
 import { useMediaElements } from '../engine/useMedia';
 import { exportProjectToVideo } from '../engine/exportVideo';
@@ -7,6 +8,7 @@ import { composeFrameBlurred } from '../engine/compose';
 import { seekMediaForExport } from '../engine/mediaSync';
 
 export default function V1ExportDialog({ onClose }: { onClose: () => void }) {
+  useLang();
   const project = useV1((s) => s.project);
   const mediaBy = useMediaElements(project.assets);
   // Render only once every linked asset has decoded; otherwise early frames
@@ -88,19 +90,19 @@ export default function V1ExportDialog({ onClose }: { onClose: () => void }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>Export composition</h2>
+          <h2>{t('studio.export.title')}</h2>
           <button className="btn-close" onClick={onClose}>✕</button>
         </div>
         <div className="modal-content">
           {workArea && (
             <label className="v1-export-range">
               <input type="checkbox" checked={onlyWorkArea} onChange={(e) => setOnlyWorkArea(e.target.checked)} />
-              <span>Work area only ({fmtT(workArea.start)} – {fmtT(workArea.end)})</span>
+              <span>{t('studio.export.workArea', { range: `${fmtT(workArea.start)} – ${fmtT(workArea.end)}` })}</span>
             </label>
           )}
           <div className="export-options">
             <div className="option-group">
-              <label>Format</label>
+              <label>{t('studio.export.format')}</label>
               <select aria-label="Format" value={format} onChange={(e) => setFormat(e.target.value as 'mp4' | 'webm' | 'gif')}>
                 <option value="mp4">MP4</option>
                 <option value="webm">WebM</option>
@@ -110,7 +112,7 @@ export default function V1ExportDialog({ onClose }: { onClose: () => void }) {
             {format === 'gif' ? (
               <>
                 <div className="option-group">
-                  <label>Width</label>
+                  <label>{t('studio.export.width')}</label>
                   <select aria-label="GIF width" value={gifWidth} onChange={(e) => setGifWidth(Number(e.target.value))}>
                     {[...GIF_WIDTHS.filter((w) => w < project.composition.width), project.composition.width].map((w) => (
                       <option key={w} value={w}>{w}px{w === project.composition.width ? ' (full)' : ''}</option>
@@ -118,7 +120,7 @@ export default function V1ExportDialog({ onClose }: { onClose: () => void }) {
                   </select>
                 </div>
                 <div className="option-group">
-                  <label>Frame rate</label>
+                  <label>{t('studio.export.fps')}</label>
                   <select aria-label="GIF frame rate" value={gifFps} onChange={(e) => setGifFps(Number(e.target.value))}>
                     {GIF_FPS.map((f) => <option key={f} value={f}>{f} fps</option>)}
                   </select>
@@ -126,7 +128,7 @@ export default function V1ExportDialog({ onClose }: { onClose: () => void }) {
               </>
             ) : (
               <div className="option-group">
-                <label>Quality</label>
+                <label>{t('studio.export.quality')}</label>
                 <select value={quality} onChange={(e) => setQuality(e.target.value as 'low' | 'medium' | 'high' | 'ultra')}>
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
@@ -151,13 +153,13 @@ export default function V1ExportDialog({ onClose }: { onClose: () => void }) {
           {error && <div className="export-error">{error}</div>}
         </div>
         <div className="modal-footer">
-          <button className="btn-secondary" onClick={onClose} disabled={state === 'running'}>Close</button>
+          <button className="btn-secondary" onClick={onClose} disabled={state === 'running'}>{t('studio.close')}</button>
           <button className="btn-secondary v1-save-png" onClick={() => void savePng()} disabled={state === 'running' || !mediaReady}
             title="The frame at the playhead, full resolution (thumbnails, posters)">
-            Save frame as PNG
+            {t('studio.export.png')}
           </button>
           <button className="btn-primary" onClick={run} disabled={state === 'running' || project.layers.length === 0 || !mediaReady}>
-            {!mediaReady ? 'Loading media…' : state === 'running' ? 'Rendering…' : state === 'done' ? 'Done ✓' : 'Render'}
+            {!mediaReady ? t('studio.export.loading') : state === 'running' ? t('studio.export.rendering') : state === 'done' ? t('studio.export.done') : t('studio.export.render')}
           </button>
         </div>
       </div>
