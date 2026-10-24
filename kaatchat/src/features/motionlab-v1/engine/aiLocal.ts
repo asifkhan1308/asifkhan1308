@@ -1,4 +1,5 @@
 import type { AIAction, Preset } from './aiActions';
+import { hinglishToEnglish } from './aiHinglish';
 import { BLEND_MODES } from '../types';
 
 const BLEND_NAMES = new Set<string>(BLEND_MODES);
@@ -33,7 +34,8 @@ export function parseLocalCommand(prompt: string, playhead: number): AIAction[] 
   // Keep quoted text intact while splitting into clauses: swap quotes for
   // placeholders, split, then restore.
   const saved: string[] = [];
-  const masked = prompt.replace(/"[^"]*"|“[^”]*”/g, (q) => `\uE000${saved.push(q) - 1}\uE000`);
+  // Hinglish / Hindi phrasings become the English ones below (quotes untouched).
+  const masked = hinglishToEnglish(prompt.replace(/"[^"]*"|“[^”]*”/g, (q) => `\uE000${saved.push(q) - 1}\uE000`));
   const clauses = masked.split(/\s*(?:,|;|\band then\b|\bthen\b|\band\b(?=\s+(?:add|fade|slide|pop|spin|make|color|colou?r|trim|move|start|split|delete|remove|rename|set|change|scale|rotate|opacity|duration|parent|attach|unparent|mask|matte|use|align|center|centre|typewriter|type|reveal|letter|word|gradient|drop|put|outline|stroke|reset|no|wiggle|shake|stop|slow|speed|freeze|unfreeze|blend)))\s*/i);
 
   for (const part of clauses) {

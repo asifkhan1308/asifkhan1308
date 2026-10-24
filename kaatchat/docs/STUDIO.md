@@ -101,6 +101,9 @@ Press **?** in the editor for every shortcut and gesture.
   *add a marker called … at 2s*, *wiggle it*, *outline it white 4px*, *make it cinematic* (also *vintage*,
   *black and white*, *dreamy*, *punchy*, *neon*; *reset the look*), *delete it*.
   Unknown phrases explain themselves.
+- **Hinglish and Hindi** work offline too: *isko laal karo*, *"Sale" title jodo*, *ek tara jodo aur
+  isko beech mein rakho*, *hilao*, *dheema karo*, *3 second ka karo*, *इसे लाल करो*. Chain with
+  *aur* / *phir*.
 - **Local model** (Ollama / LM Studio, on your own machine) or **cloud model** (your key):
   ✦ Ask takes free-form instructions, and **Generate ▸** designs a whole piece from a
   description — layers, copy, colours, timing and animation — as normal editable layers.
