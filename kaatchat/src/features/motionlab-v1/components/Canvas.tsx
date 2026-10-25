@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useV1 } from '../store';
-import { composeFrame, composeFrameBlurred } from '../engine/compose';
+import { composeFrame, composeFrameBlurred, ensureTextFonts, textsOf } from '../engine/compose';
 import { useMediaElements } from '../engine/useMedia';
 import { usePlaybackClock } from '../engine/playback';
 import V1CanvasHandles from './CanvasHandles';
@@ -56,6 +56,15 @@ export default function V1Canvas() {
     return () => ro.disconnect();
   }, [comp.width, comp.height]);
 
+  // Redraw once a web font the text needs (Devanagari) has loaded.
+  const [fontsTick, setFontsTick] = useState(0);
+  const textKey = textsOf(project).join('\n');
+  useEffect(() => {
+    let live = true;
+    void ensureTextFonts([textKey]).then(() => { if (live) setFontsTick((n) => n + 1); });
+    return () => { live = false; };
+  }, [textKey]);
+
   const scale = displayW > 0 ? Math.min(1, (displayW * (window.devicePixelRatio || 1)) / comp.width) : 1;
 
   useEffect(() => {
@@ -72,7 +81,7 @@ export default function V1Canvas() {
     // Motion blur costs N renders per frame: show it on paused frames only.
     const render = isPlaying ? composeFrame : composeFrameBlurred;
     render(ctx, project, currentTime, { mediaBy, pixelScale: w / comp.width });
-  }, [project, comp, scale, currentTime, mediaBy, isPlaying]);
+  }, [project, comp, scale, currentTime, mediaBy, isPlaying, fontsTick]);
 
   // A paused seek decodes asynchronously; redraw once the frame is ready so
   // scrubbing a video shows the right frame, not the previous one. Also

@@ -1308,3 +1308,29 @@ test('Studio speaks Hindi and Hinglish when chosen in Settings', async ({ page }
   await expect(page.locator('.v1-ai-generate')).toHaveText('Banao ▸');
   await expect(page.locator('.v1-ai-input')).toHaveAttribute('placeholder', /MOTIONLAB se kahiye/);
 });
+
+test('Studio: Hindi titles render with the bundled Devanagari font, also through text animators', async ({ page }) => {
+  await page.goto('/#/studio');
+  await page.locator('.v1-tool', { hasText: 'Text' }).click();
+  await setValue(page.locator('.text-input'), 'नमस्ते दुनिया');
+  await page.locator('.v1-canvas-wrap').click({ position: { x: 3, y: 3 } });
+  await page.locator('.v1-tl-layer-row-head').first().click();
+  await expect.poll(() => page.evaluate(() => document.fonts.check('32px "Kaatchat Devanagari"', 'नमस्ते'))).toBe(true);
+  await page.keyboard.press('End');
+  await page.keyboard.press('Shift+ArrowLeft');                            // fully revealed, layer still on
+  const frame = () => page.evaluate(() => {
+    const c = document.querySelector('.v1-canvas') as HTMLCanvasElement;
+    const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
+    let h = 0, ink = 0;
+    for (let i = 0; i < d.length; i += 4) { h = (h * 31 + d[i] + d[i + 1] * 7 + d[i + 2] * 13) >>> 0; if (d[i] > 128) ink++; }
+    return { h, ink };
+  });
+  await page.waitForTimeout(200);
+  const plain = await frame();
+  expect(plain.ink).toBeGreaterThan(500);                                    // real glyphs were drawn
+  for (const mode of ['typewriter', 'letters', 'words']) {
+    await page.getByLabel('Text animator').selectOption(mode);
+    // Fully revealed, it must look exactly like the plain title (shaped as one line, not letter by letter).
+    await expect.poll(async () => (await frame()).h, { message: mode }).toBe(plain.h);
+  }
+});

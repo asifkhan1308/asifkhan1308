@@ -4,6 +4,10 @@
 
 @font-face { font-family: 'Inter Variable'; src: url('/fonts/Inter-Variable.woff2') format('woff2-variations'), url('/fonts/Inter-Variable.woff2') format('woff2'); font-weight: 100 900; font-style: normal; font-display: swap; }
 @font-face { font-family: 'JetBrains Mono'; src: url('/fonts/JetBrainsMono-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+/* Hindi / Devanagari for Studio text (Noto Sans Devanagari, OFL): used only for
+   Devanagari characters, so titles look the same on every device and in exports. */
+@font-face { font-family: 'Kaatchat Devanagari'; src: url('/fonts/NotoSansDevanagari-400.woff2') format('woff2'); font-weight: 100 549; font-display: swap; unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20B9, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
+@font-face { font-family: 'Kaatchat Devanagari'; src: url('/fonts/NotoSansDevanagari-700.woff2') format('woff2'); font-weight: 550 900; font-display: swap; unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20B9, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09; }
 @font-face { font-family: 'JetBrains Mono'; src: url('/fonts/JetBrainsMono-500.woff2') format('woff2'); font-weight: 500; font-display: swap; }
 
 :root {

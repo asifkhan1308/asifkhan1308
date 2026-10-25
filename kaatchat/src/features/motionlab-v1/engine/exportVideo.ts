@@ -16,7 +16,7 @@ import {
 import { ensureAacEncoder } from '../../../engine/export';
 import { AUDIO_RATE, mixProjectAudio, sliceAudio } from './audioMix';
 import type { Project } from '../types';
-import { composeFrameBlurred } from './compose';
+import { composeFrameBlurred, ensureTextFonts, textsOf } from './compose';
 import { seekMediaForExport } from './mediaSync';
 
 export interface V1ExportOptions {
@@ -106,6 +106,7 @@ export async function exportProjectToVideo(opts: V1ExportOptions): Promise<V1Exp
     }
   };
 
+  await ensureTextFonts(textsOf(opts.project));
   await output.start();
 
   const throwIfAborted = () => {

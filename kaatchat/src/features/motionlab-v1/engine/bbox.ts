@@ -1,6 +1,6 @@
 import type { Asset, Layer, Project, V2 } from '../types';
 import { resolveAnimated } from './interp';
-import { isLayerActive, resolveTransform } from './compose';
+import { isLayerActive, resolveTransform, withDevanagari } from './compose';
 import { applyLinear, apply, invert, parentMatrix, worldMatrix } from './matrix';
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ export function intrinsicSize(layer: Layer, time: number, assets: Asset[]): V2 {
     case 'text': {
       if (!measure) return [200, Math.max(10, resolveAnimated(layer.fontSize, time))];
       const size = resolveAnimated(layer.fontSize, time);
-      measure.font = `${layer.fontWeight} ${size}px ${layer.fontFamily}`;
+      measure.font = `${layer.fontWeight} ${size}px ${withDevanagari(layer.fontFamily)}`;
       (measure as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = `${layer.letterSpacing || 0}px`;
       const lines = layer.text.split('\n');
       const w = Math.max(1, ...lines.map((l) => measure.measureText(l).width));

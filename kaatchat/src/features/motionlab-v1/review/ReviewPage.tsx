@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { composeFrame } from '../engine/compose';
+import { composeFrame, ensureTextFonts, textsOf } from '../engine/compose';
 import { appLink, decodeProject, encodeFeedback, usesMedia } from '../engine/share';
 import type { Project, ReviewComment } from '../types';
 import '../MotionLabV1.css';
@@ -48,6 +48,7 @@ export default function ReviewPage({ code }: { code: string }) {
 
   const duration = project?.composition.duration ?? 0;
 
+  const [fontsTick, setFontsTick] = useState(0);
   // Draw the current frame (backing store capped for speed; CSS scales it).
   useEffect(() => {
     const c = canvasRef.current;
@@ -61,7 +62,12 @@ export default function ReviewPage({ code }: { code: string }) {
     if (!ctx) return;
     ctx.setTransform(k, 0, 0, k, 0, 0);
     composeFrame(ctx, project, time, { pixelScale: k });
-  }, [project, time]);
+  }, [project, time, fontsTick]);
+  useEffect(() => {
+    let live = true;
+    if (project) void ensureTextFonts(textsOf(project)).then(() => { if (live) setFontsTick((n) => n + 1); });
+    return () => { live = false; };
+  }, [project]);
 
   // Playback clock.
   useEffect(() => {

@@ -325,7 +325,7 @@ function drawGrain(ctx: CanvasRenderingContext2D, amount: number, w: number, h: 
 
 function drawText(ctx: CanvasRenderingContext2D, layer: import('../types').TextLayer, time: number) {
   const size = resolveAnimated(layer.fontSize, time);
-  ctx.font = `${layer.fontWeight} ${size}px ${layer.fontFamily}`;
+  ctx.font = `${layer.fontWeight} ${size}px ${withDevanagari(layer.fontFamily)}`;
   // Letter spacing (Chromium / Safari canvas support it; others ignore it).
   (ctx as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = `${layer.letterSpacing || 0}px`;
   ctx.textAlign = layer.align;
@@ -368,35 +368,90 @@ function drawTextReveal(
   p: number,
 ) {
   const mode = layer.revealMode!;
-  const pieces = lines.map((line) => (mode === 'words' ? line.match(/\S+\s*/g) ?? [] : [...line]));
+  const pieces = lines.map((line) => (mode === 'words' ? line.match(/\S+\s*/g) ?? [] : graphemes(line)));
   const total = pieces.reduce((n, ps) => n + ps.length, 0);
   if (!total) return;
   const soft = mode === 'typewriter' ? 0 : mode === 'words' ? 1.5 : 4;
   const front = p * (total + soft);
   const baseAlpha = ctx.globalAlpha;
   ctx.textAlign = 'left';
+  const BIG = 1e5;
+  // The whole line is always drawn as one string, so scripts that shape
+  // across letters (Devanagari conjuncts and vowel signs, Arabic joining)
+  // render correctly; each piece is revealed by clipping to its span.
+  const drawClipped = (line: string, x0: number, y: number, from: number, to: number, alpha: number) => {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x0 + from, y - lineH * 2, to - from, lineH * 4);
+    ctx.clip();
+    ctx.globalAlpha = baseAlpha * alpha;
+    if (layer.stroke && layer.strokeWidth > 0) {
+      ctx.lineWidth = layer.strokeWidth;
+      ctx.strokeStyle = layer.stroke;
+      ctx.strokeText(line, x0, y);
+    }
+    ctx.fillText(line, x0, y);
+    ctx.restore();
+  };
   let k = 0;
   lines.forEach((line, li) => {
+    const ps = pieces[li];
+    if (!ps.length) return;
     const lw = ctx.measureText(line).width;
     const x0 = layer.align === 'center' ? -lw / 2 : layer.align === 'right' ? -lw : 0;
-    let prefix = '';
-    for (const piece of pieces[li]) {
-      const a = soft === 0 ? (k < Math.floor(front + 1e-9) ? 1 : 0) : Math.max(0, Math.min(1, (front - k) / soft));
-      if (a > 0) {
-        const x = x0 + ctx.measureText(prefix).width;
-        ctx.globalAlpha = baseAlpha * a;
-        if (layer.stroke && layer.strokeWidth > 0) {
-          ctx.lineWidth = layer.strokeWidth;
-          ctx.strokeStyle = layer.stroke;
-          ctx.strokeText(piece, x, li * lineH);
-        }
-        ctx.fillText(piece, x, li * lineH);
-      }
-      prefix += piece;
-      k++;
+    const y = li * lineH;
+    const alphaOf = (i: number) => soft === 0 ? (i < Math.floor(front + 1e-9) ? 1 : 0) : Math.max(0, Math.min(1, (front - i) / soft));
+    // Fully shown pieces at the start: one draw (keeps typewriter O(n)).
+    let full = 0;
+    while (full < ps.length && alphaOf(k + full) >= 1) full++;
+    let prefix = ps.slice(0, full).join('');
+    if (full === ps.length) drawClipped(line, x0, y, -BIG, BIG, 1);
+    else if (full > 0) drawClipped(line, x0, y, -BIG, ctx.measureText(prefix).width, 1);
+    for (let i = full; i < ps.length; i++) {
+      const a = alphaOf(k + i);
+      const from = ctx.measureText(prefix).width;
+      prefix += ps[i];
+      if (a <= 0) break;                                   // later pieces are hidden too
+      const to = i === ps.length - 1 ? BIG : ctx.measureText(prefix).width;
+      drawClipped(line, x0, y, i === 0 ? -BIG : from, to, a);
     }
+    k += ps.length;
   });
   ctx.globalAlpha = baseAlpha;
+}
+
+/** Font stack with the bundled Devanagari face before the generic family, so
+ *  Hindi text uses it on every device (Latin text keeps the chosen font). */
+const DEVANAGARI_FAMILY = '"Kaatchat Devanagari"';
+const GENERIC = /(?:^|,)\s*(?:sans-serif|serif|monospace|system-ui|cursive|fantasy|ui-[a-z-]+)\s*$/i;
+export function withDevanagari(stack: string): string {
+  if (stack.includes('Kaatchat Devanagari')) return stack;
+  const m = stack.match(GENERIC);
+  return m ? `${stack.slice(0, m.index)}${m.index ? ', ' : ''}${DEVANAGARI_FAMILY}, ${m[0].replace(/^,\s*/, '').trim()}` : `${stack}, ${DEVANAGARI_FAMILY}`;
+}
+
+/** All text in a project (to decide which fonts to load). */
+export const textsOf = (project: Project): string[] => project.layers.flatMap((l) => (l.type === 'text' ? [l.text] : []));
+
+/** Load the bundled Devanagari font before drawing text that needs it
+ *  (canvas text doesn't wait for web fonts). Resolves quickly when absent. */
+export function ensureTextFonts(texts: string[]): Promise<void> {
+  if (typeof document === 'undefined' || !document.fonts || !texts.some((t) => /\p{Script=Devanagari}/u.test(t))) return Promise.resolve();
+  return Promise.all([
+    document.fonts.load(`400 32px ${DEVANAGARI_FAMILY}`, 'नमस्ते'),
+    document.fonts.load(`700 32px ${DEVANAGARI_FAMILY}`, 'नमस्ते'),
+  ]).then(() => undefined, () => undefined);
+}
+
+/** User-perceived characters (grapheme clusters), so a reveal never splits a
+ *  syllable like "स्ते" or an emoji; falls back to code points. */
+const segmenter = typeof Intl !== 'undefined' && 'Segmenter' in Intl
+  ? new (Intl as unknown as { Segmenter: new (l?: string, o?: { granularity: 'grapheme' }) => { segment(s: string): Iterable<{ segment: string }> } }).Segmenter(undefined, { granularity: 'grapheme' })
+  : null;
+export function graphemes(s: string): string[] {
+  if (segmenter) return Array.from(segmenter.segment(s), (x) => x.segment);
+  // Fallback: keep combining marks (incl. Devanagari matras / virama) with their base.
+  return s.match(/\P{M}\p{M}*/gu) ?? [];
 }
 
 function drawRectangle(

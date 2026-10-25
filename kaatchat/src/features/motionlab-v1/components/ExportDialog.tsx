@@ -4,7 +4,7 @@ import { useV1 } from '../store';
 import { useMediaElements } from '../engine/useMedia';
 import { exportProjectToVideo } from '../engine/exportVideo';
 import { exportProjectToGif, GIF_FPS, GIF_WIDTHS } from '../engine/exportGif';
-import { composeFrameBlurred } from '../engine/compose';
+import { composeFrameBlurred, ensureTextFonts, textsOf } from '../engine/compose';
 import { seekMediaForExport } from '../engine/mediaSync';
 
 export default function V1ExportDialog({ onClose }: { onClose: () => void }) {
@@ -42,6 +42,7 @@ export default function V1ExportDialog({ onClose }: { onClose: () => void }) {
     const ctx = c.getContext('2d');
     if (!ctx) return;
     const t = useV1.getState().currentTime;
+    await ensureTextFonts(textsOf(project));
     await seekMediaForExport(project, t, mediaBy);
     composeFrameBlurred(ctx, project, t, { mediaBy });
     const blob = await new Promise<Blob | null>((res) => c.toBlob(res, 'image/png'));

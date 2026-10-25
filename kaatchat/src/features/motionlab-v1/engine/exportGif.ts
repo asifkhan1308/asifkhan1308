@@ -1,5 +1,5 @@
 import type { Project } from '../types';
-import { composeFrameBlurred } from './compose';
+import { composeFrameBlurred, ensureTextFonts, textsOf } from './compose';
 import { seekMediaForExport } from './mediaSync';
 
 /* Animated GIF export (looping, no sound). Frames are rendered like the video
@@ -52,6 +52,7 @@ export async function exportProjectToGif(opts: GifExportOptions): Promise<{ blob
   if (!ctx) throw new Error('Could not get a 2D context for rendering.');
   const scale = width / comp.width;
 
+  await ensureTextFonts(textsOf(opts.project));
   const gif = GIFEncoder();
   for (let k = 0; k < frames; k++) {
     if (opts.signal?.aborted) throw new DOMException('Export aborted', 'AbortError');

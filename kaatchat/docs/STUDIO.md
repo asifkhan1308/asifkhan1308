@@ -50,6 +50,7 @@ Press **?** in the editor for every shortcut and gesture.
   **Overshoot**, **Snappy**, **Gentle**, **Anticipate**, or **Custom curve…** with a small graph
   editor (drag the two handles).
 - **Text animators** (Text → *Animator*): Typewriter, Letters fade in, Words fade in.
+  They reveal whole syllables, so Hindi (Devanagari) titles stay correctly shaped while animating.
   *Reveal* (0–100 %) is keyframable.
 - **Presets** via ✦ Ask: fade in/out, slide in from any side, pop, spin, typewriter,
   letter by letter, word by word.
@@ -65,6 +66,8 @@ Press **?** in the editor for every shortcut and gesture.
 - **Stroke** (outline): colour and width for shapes and text.
 - **Text**: font (Sans, Rounded, Serif, Mono, Condensed, Display), weight, size, letter spacing,
   line height, alignment.
+  Hindi text uses the bundled Noto Sans Devanagari, so it looks the same on every device and in
+  exports.
 - **Effects** (Inspector → + Enable), all keyframable: brightness, contrast, saturation,
   blur, vignette, grain, tint, **drop shadow**, **glow**.
 - **Motion blur** (top bar): averages sub-frames across a 90–360° shutter. Shown on paused
