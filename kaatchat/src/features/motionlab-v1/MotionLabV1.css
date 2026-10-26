@@ -1122,3 +1122,7 @@
 .v1-presence-dot { width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--v1-text); color: var(--v1-bg); font-size: 10px; font-weight: 600; margin-left: -6px; border: 2px solid var(--v1-bg); }
 .v1-presence-dot:first-child { margin-left: 0; }
 @media (max-width: 700px) { .v1-presence-text { display: none; } }
+
+/* Touch: drags on the canvas, clips, keyframes and ruler are edits, not page scrolls. */
+.v1-canvas-handles, .v1-sel-body, .v1-sel-handle, .v1-tl-clip, .v1-tl-ruler, .v1-tl-workarea, .v1-tl-marker { touch-action: none; }
+@media (pointer: coarse) { .v1-tool { min-height: 44px; } }

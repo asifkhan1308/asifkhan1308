@@ -7,6 +7,8 @@ you choose a cloud AI engine.
 
 Press **?** in the editor for every shortcut and gesture.
 
+Works with touch too (phones, tablets): drag layers and clips, scrub the ruler; handles grow for fingers.
+
 ---
 
 ## The workspace

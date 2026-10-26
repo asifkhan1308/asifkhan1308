@@ -66,6 +66,7 @@ export default function V1Timeline() {
 
   /* Zoom: the track column is `zoom ×` the visible width; the grid scrolls
    * horizontally and the layer-name column stays sticky. */
+  const lastBandDown = useRef(0);
   const gridRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
   const [snapOn, setSnapOn] = useState(true);
@@ -216,15 +217,18 @@ export default function V1Timeline() {
         <div className="v1-tl-layers-header">Layers</div>
         <div
           className="v1-tl-ruler"
-          onMouseDown={(e) => {
+          onPointerDown={(e) => {
+            // Pointer events: mouse, touch and pen all scrub.
             scrubTo(e.clientX);
-            const onMove = (ev: MouseEvent) => scrubTo(ev.clientX);
+            const onMove = (ev: PointerEvent) => scrubTo(ev.clientX);
             const onUp = () => {
-              window.removeEventListener('mousemove', onMove);
-              window.removeEventListener('mouseup', onUp);
+              window.removeEventListener('pointermove', onMove);
+              window.removeEventListener('pointerup', onUp);
+              window.removeEventListener('pointercancel', onUp);
             };
-            window.addEventListener('mousemove', onMove);
-            window.addEventListener('mouseup', onUp);
+            window.addEventListener('pointermove', onMove);
+            window.addEventListener('pointerup', onUp);
+            window.addEventListener('pointercancel', onUp);
           }}
           ref={trackRef}
         >
@@ -238,7 +242,11 @@ export default function V1Timeline() {
               className="v1-tl-workarea"
               style={{ left: `${(comp.workArea.start / comp.duration) * 100}%`, width: `${((comp.workArea.end - comp.workArea.start) / comp.duration) * 100}%` }}
               title="Work area — playback loops here; export can use it. Double-click to clear."
-              onMouseDown={(e) => { if (e.detail > 1) e.stopPropagation(); }}
+              onPointerDown={(e) => {
+                // The second press of a double-click (or double-tap) clears the band; don't scrub on it.
+                if (e.timeStamp - lastBandDown.current < 400) e.stopPropagation();
+                lastBandDown.current = e.timeStamp;
+              }}
               onDoubleClick={(e) => { e.stopPropagation(); useV1.getState().setWorkArea(null); }}
             />
           )}
@@ -252,7 +260,7 @@ export default function V1Timeline() {
                 autoFocus
                 aria-label="Marker name"
                 onFocus={(e) => e.currentTarget.select()}
-                onMouseDown={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
                 onKeyDown={(e) => {
                   e.stopPropagation();
                   if (e.key === 'Enter') { useV1.getState().renameMarker(m.id, e.currentTarget.value); setEditingMarker(null); }
@@ -266,7 +274,7 @@ export default function V1Timeline() {
                 className="v1-tl-marker"
                 style={{ left: `${(m.time / comp.duration) * 100}%` }}
                 title={`${m.label} — click to jump, double-click to rename`}
-                onMouseDown={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => setCurrentTime(m.time)}
                 onDoubleClick={() => setEditingMarker(m.id)}
                 onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setMarkerMenu({ x: e.clientX, y: e.clientY, id: m.id }); }}
@@ -281,7 +289,7 @@ export default function V1Timeline() {
               className="v1-tl-comment"
               style={{ left: `${(c.time / comp.duration) * 100}%` }}
               title={`${c.author}: ${c.text}`}
-              onMouseDown={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={() => { setCurrentTime(c.time); setShowFeedback(true); }}
             />
           ))}

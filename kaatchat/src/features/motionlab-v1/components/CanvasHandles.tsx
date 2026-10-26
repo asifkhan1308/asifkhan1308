@@ -286,7 +286,9 @@ export default function V1CanvasHandles() {
   const lM = edgeMid(bl, tl);
   const rotPivot: V2 = [tM[0] - (box.center[0] - tM[0]) * 0.12, tM[1] - (box.center[1] - tM[1]) * 0.12];
 
-  const hs = Math.max(8, Math.min(comp.width, comp.height) * 0.012);
+  // Bigger handles for fingers (phones / tablets).
+  const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  const hs = Math.max(8, Math.min(comp.width, comp.height) * 0.012) * (coarse ? 2.5 : 1);
 
   return (
     <>
