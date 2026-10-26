@@ -40,3 +40,25 @@ test('Studio on touch: scrub the ruler, drag a layer, drag a clip', async ({ pag
   await touchDrag(page, { x: cb.x + cb.width / 2, y: cb.y + cb.height / 2 }, { x: cb.x + cb.width / 2 + 120, y: cb.y + cb.height / 2 });
   await expect.poll(async () => (await clip.boundingBox())!.x).toBeGreaterThan(left0 + 60);
 });
+
+test('Studio on a phone (390 × 844): one column, no sideways scrolling, still editable', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/#/studio');
+  await page.locator('.v1-tool', { hasText: 'Rect' }).click();
+  const dims = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
+  expect(dims.sw).toBeLessThanOrEqual(dims.cw);                              // no horizontal page scroll
+  const canvas = (await page.locator('.v1-canvas-wrap').boundingBox())!;
+  const insp = (await page.locator('.v1-inspector').boundingBox())!;
+  const tools = (await page.locator('.v1-toolbar').boundingBox())!;
+  expect(canvas.width).toBeGreaterThan(360);                                 // canvas gets the width
+  expect(insp.y).toBeGreaterThanOrEqual(canvas.y + canvas.height - 1);       // Inspector below it
+  expect(tools.height).toBeLessThan(90);                                     // tools are a strip, not a column
+  // Still editable: change a value in the Inspector and see the canvas react.
+  const x = page.locator('.v1-prop', { hasText: 'Position' }).locator('input').first();
+  await x.fill('300');
+  await x.press('Enter');
+  await expect(x).toHaveValue('300');
+  await page.locator('.v1-tool', { hasText: 'Star' }).scrollIntoViewIfNeeded();
+  await page.locator('.v1-tool', { hasText: 'Star' }).click();
+  await expect(page.locator('.v1-tl-layer-row-head')).toHaveCount(2);
+});

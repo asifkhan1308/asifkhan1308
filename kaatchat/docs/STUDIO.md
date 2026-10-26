@@ -8,6 +8,8 @@ you choose a cloud AI engine.
 Press **?** in the editor for every shortcut and gesture.
 
 Works with touch too (phones, tablets): drag layers and clips, scrub the ruler; handles grow for fingers.
+On a phone the editor becomes one scrolling column: tools as a swipeable strip, a full-width canvas,
+then the Inspector and the timeline.
 
 ---
 

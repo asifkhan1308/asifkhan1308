@@ -1126,3 +1126,26 @@
 /* Touch: drags on the canvas, clips, keyframes and ruler are edits, not page scrolls. */
 .v1-canvas-handles, .v1-sel-body, .v1-sel-handle, .v1-tl-clip, .v1-tl-ruler, .v1-tl-workarea, .v1-tl-marker { touch-action: none; }
 @media (pointer: coarse) { .v1-tool { min-height: 44px; } }
+
+/* ─── Phones (≤ 700 px): one scrolling column instead of side-by-side panels.
+   Top bar and ✦ Ask wrap; tools become a swipeable strip; the canvas gets the
+   full width; Inspector and timeline stack underneath. Wider screens unchanged. */
+@media (max-width: 700px) {
+  .motionlab-v1 { height: auto; min-height: 100dvh; overflow-x: hidden; }
+  .v1-topbar { padding-left: 10px; padding-right: 10px; }
+  .v1-topbar-left, .v1-topbar-right { flex-wrap: wrap; row-gap: 6px; min-width: 0; }
+  .v1-topbar-right { width: 100%; }
+  .project-name-input { width: 110px; min-width: 0; }
+  .v1-ai-bar { flex-wrap: wrap; padding: 8px 10px; }
+  .v1-ai-input { flex: 1 1 160px; min-width: 0; }
+  .v1-body { display: flex; flex-direction: column; overflow: visible; flex: none; }
+  .v1-toolbar {
+    flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--v1-line);
+    padding: 6px 8px; gap: 2px; scrollbar-width: none;
+  }
+  .v1-tool { flex: 0 0 auto; min-width: 54px; }
+  .v1-canvas-wrap { height: 62vw; min-height: 220px; padding: 8px; }
+  .v1-inspector { border-left: 0; border-top: 1px solid var(--v1-line); max-height: 50vh; }
+  .v1-timeline { height: 300px; }
+  .v1-tl-controls { flex-wrap: wrap; row-gap: 6px; }
+}
